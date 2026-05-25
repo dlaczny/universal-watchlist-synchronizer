@@ -73,3 +73,7 @@ The first Android TV API can stay small:
 - `GET /api/sync/status`
 
 The exact DTOs should be documented before implementation.
+
+## API Contract
+
+The implemented backend API contract is documented in [api.md](api.md).
