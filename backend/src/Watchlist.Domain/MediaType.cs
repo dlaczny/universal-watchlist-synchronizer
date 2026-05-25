@@ -2,6 +2,7 @@ namespace Watchlist.Domain;
 
 public enum MediaType
 {
-    Movie,
-    TvShow
+    Unspecified = 0,
+    Movie = 1,
+    TvShow = 2
 }

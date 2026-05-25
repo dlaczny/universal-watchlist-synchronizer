@@ -2,7 +2,7 @@ namespace Watchlist.Domain;
 
 public enum ReleaseStatus
 {
-    Released,
-    Unreleased,
-    Unknown
+    Unknown = 0,
+    Released = 1,
+    Unreleased = 2
 }
