@@ -6,7 +6,7 @@
 
 **Architecture:** Create a .NET solution under `backend/` with API, Application, Domain, Infrastructure, and test projects. The first slice uses an in-memory seeded repository so the API contract is usable before Letterboxd, TMDB, Plex, and MongoDB integrations are implemented. Interfaces and DTOs are shaped so MongoDB and sync jobs can replace the seed repository without changing Android-facing endpoints.
 
-**Tech Stack:** .NET 8, ASP.NET Core minimal APIs, xUnit, FluentAssertions, Microsoft.AspNetCore.Mvc.Testing, MongoDB driver added only when persistence implementation begins.
+**Tech Stack:** .NET 10, ASP.NET Core minimal APIs, xUnit, FluentAssertions, Microsoft.AspNetCore.Mvc.Testing, MongoDB driver added only when persistence implementation begins.
 
 ---
 
@@ -634,7 +634,7 @@ Modify `backend/src/Watchlist.Api/Watchlist.Api.csproj` to include:
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
