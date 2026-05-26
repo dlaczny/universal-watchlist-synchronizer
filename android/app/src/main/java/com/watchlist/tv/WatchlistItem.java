@@ -1,0 +1,91 @@
+package com.watchlist.tv;
+
+public final class WatchlistItem {
+    private final String id;
+    private final String mediaType;
+    private final String source;
+    private final String sourceId;
+    private final String title;
+    private final Integer year;
+    private final String overview;
+    private final String posterUrl;
+    private final String backdropUrl;
+    private final String releaseStatus;
+    private final String availabilityStatus;
+    private final String updatedAt;
+
+    public WatchlistItem(
+            String id,
+            String mediaType,
+            String source,
+            String sourceId,
+            String title,
+            Integer year,
+            String overview,
+            String posterUrl,
+            String backdropUrl,
+            String releaseStatus,
+            String availabilityStatus,
+            String updatedAt) {
+        this.id = id;
+        this.mediaType = mediaType;
+        this.source = source;
+        this.sourceId = sourceId;
+        this.title = title;
+        this.year = year;
+        this.overview = overview;
+        this.posterUrl = posterUrl;
+        this.backdropUrl = backdropUrl;
+        this.releaseStatus = releaseStatus;
+        this.availabilityStatus = availabilityStatus;
+        this.updatedAt = updatedAt;
+    }
+
+    public String id() {
+        return id;
+    }
+
+    public String mediaType() {
+        return mediaType;
+    }
+
+    public String source() {
+        return source;
+    }
+
+    public String sourceId() {
+        return sourceId;
+    }
+
+    public String title() {
+        return title;
+    }
+
+    public Integer year() {
+        return year;
+    }
+
+    public String overview() {
+        return overview;
+    }
+
+    public String posterUrl() {
+        return posterUrl;
+    }
+
+    public String backdropUrl() {
+        return backdropUrl;
+    }
+
+    public String releaseStatus() {
+        return releaseStatus;
+    }
+
+    public String availabilityStatus() {
+        return availabilityStatus;
+    }
+
+    public String updatedAt() {
+        return updatedAt;
+    }
+}
