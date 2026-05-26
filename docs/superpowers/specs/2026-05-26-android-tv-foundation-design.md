@@ -18,7 +18,7 @@ Build the first Android TV client slice for the watchlist app. The app is read-o
 
 ## Technology Choice
 
-Use a native Android app in Java with Android Gradle Plugin 9.2.0 and Gradle 9.4.1. This keeps the first TV slice small and buildable without introducing Compose/Kotlin complexity. Android Studio can still open and evolve the project later.
+Use a native Android app in Java with Android Gradle Plugin 8.13.0 and Gradle 8.13. This keeps the first TV slice small and buildable without introducing Compose/Kotlin complexity while staying compatible with Android Studio Narwhal 3 Feature Drop 2025.1.3. Android Studio can still open and evolve the project later.
 
 ## Client Architecture
 

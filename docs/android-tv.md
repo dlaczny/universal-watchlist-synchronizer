@@ -5,6 +5,13 @@ The Android TV client lives in `android/` and currently targets the seeded backe
 ## Requirements
 
 - Android Studio or Android SDK installed.
+- Java 17 or 21 for command-line Gradle builds. On this machine, Android Studio's bundled JDK works:
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+$env:Path="$env:JAVA_HOME\bin;$env:Path"
+```
+
 - Android SDK path in `android/local.properties`:
 
 ```properties

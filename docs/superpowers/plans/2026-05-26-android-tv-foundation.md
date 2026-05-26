@@ -6,7 +6,7 @@
 
 **Architecture:** Add an `android/` Gradle project with one `app` module. Keep business parsing/filtering in testable Java classes and keep Android-specific rendering inside `MainActivity`.
 
-**Tech Stack:** Android Gradle Plugin 9.2.0, Gradle 9.4.1, Java 17, Android SDK 36, JUnit 4.
+**Tech Stack:** Android Gradle Plugin 8.13.0, Gradle 8.13, Java 17, Android SDK 36, JUnit 4.
 
 ---
 
