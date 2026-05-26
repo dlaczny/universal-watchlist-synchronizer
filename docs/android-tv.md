@@ -8,7 +8,7 @@ The Android TV client lives in `android/` and currently targets the seeded backe
 - Android SDK path in `android/local.properties`:
 
 ```properties
-sdk.dir=C:\\Users\\laczn\\AppData\\Local\\Android\\Sdk
+sdk.dir=C\:/Users/laczn/AppData/Local/Android/Sdk
 ```
 
 `local.properties` is ignored by git.
