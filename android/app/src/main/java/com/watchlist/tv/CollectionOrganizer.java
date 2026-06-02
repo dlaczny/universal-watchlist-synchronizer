@@ -1,0 +1,29 @@
+package com.watchlist.tv;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+public final class CollectionOrganizer {
+    public static final String SORT_DATE_ADDED = "date_added";
+    public static final String SORT_ALPHABETICAL = "alphabetical";
+
+    private CollectionOrganizer() {
+    }
+
+    public static List<WatchlistItem> organize(
+            List<WatchlistItem> items, boolean includeUnavailable, String sortMode) {
+        List<WatchlistItem> organizedItems = new ArrayList<>();
+        for (WatchlistItem item : items) {
+            if (includeUnavailable || "available_on_plex".equals(item.availabilityStatus())) {
+                organizedItems.add(item);
+            }
+        }
+
+        if (SORT_ALPHABETICAL.equals(sortMode)) {
+            organizedItems.sort(Comparator.comparing(WatchlistItem::title, String.CASE_INSENSITIVE_ORDER));
+        }
+
+        return organizedItems;
+    }
+}
