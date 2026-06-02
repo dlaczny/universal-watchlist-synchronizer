@@ -55,6 +55,8 @@ For local development, start MongoDB from the repository root:
 docker compose up -d mongo
 ```
 
+`compose.yaml` publishes MongoDB on `localhost:27017` and stores data in a named Docker volume. The backend bootstraps `watchlist_items` and `sync_runs` only when each collection is empty.
+
 Initial collections:
 
 - `watchlist_items`: normalized movie and TV records with metadata and availability.
@@ -62,6 +64,8 @@ Initial collections:
 - `sync_runs`: sync status, errors, timestamps, and counts.
 
 MongoDB is not a client-facing dependency. Android clients read through the backend API only.
+
+If MongoDB is unavailable, the backend returns `503 Service Unavailable` rather than falling back to seeded in-memory data.
 
 ## Later Extension: Streaming Services
 

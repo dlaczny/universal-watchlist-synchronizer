@@ -45,6 +45,12 @@ Letterboxd      TMDB Account/API      Plex Server
 
 Letterboxd and TMDB own the wanted list. Plex owns current availability. MongoDB stores the backend's normalized view of both so Android browsing is fast and stable.
 
+## Current Persistence Slice
+
+The implemented backend now reads `watchlist_items` and `sync_runs` from MongoDB. During startup, a background bootstrap service inserts deterministic sample records only when those collections are empty. This keeps local development usable until live Letterboxd, TMDB, and Plex sync jobs are implemented.
+
+MongoDB outages are exposed as `503 Service Unavailable` API responses. The backend does not silently switch to process-local data.
+
 ## Availability States
 
 The backend should represent availability explicitly:

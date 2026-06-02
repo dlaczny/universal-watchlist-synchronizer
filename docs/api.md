@@ -83,11 +83,25 @@ Response:
 
 Returns the current backend sync status.
 
-Current seeded response:
+The latest sync status is read from MongoDB. The initial bootstrap response is:
 
 ```json
 {
   "status": "seeded",
   "lastSuccessfulSyncAt": "2026-05-25T10:00:00+02:00"
+}
+```
+
+## Dependency Errors
+
+When MongoDB is unavailable, MongoDB-backed endpoints return:
+
+```http
+503 Service Unavailable
+```
+
+```json
+{
+  "error": "MongoDB is unavailable."
 }
 ```
