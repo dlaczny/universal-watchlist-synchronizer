@@ -55,8 +55,23 @@ public class BrowsingStateTest {
         assertNull(original.focusedItemId());
 
         assertEquals(BrowsingState.MEDIA_ALL, mediaUpdated.mediaType());
+        assertEquals(CollectionOrganizer.SORT_DATE_ADDED, mediaUpdated.sortMode());
+        assertFalse(mediaUpdated.includeUnavailable());
+        assertNull(mediaUpdated.focusedItemId());
+
+        assertEquals(BrowsingState.MEDIA_MOVIES, sortUpdated.mediaType());
         assertEquals(CollectionOrganizer.SORT_ALPHABETICAL, sortUpdated.sortMode());
+        assertFalse(sortUpdated.includeUnavailable());
+        assertNull(sortUpdated.focusedItemId());
+
+        assertEquals(BrowsingState.MEDIA_MOVIES, availabilityUpdated.mediaType());
+        assertEquals(CollectionOrganizer.SORT_DATE_ADDED, availabilityUpdated.sortMode());
         assertTrue(availabilityUpdated.includeUnavailable());
+        assertNull(availabilityUpdated.focusedItemId());
+
+        assertEquals(BrowsingState.MEDIA_MOVIES, focusUpdated.mediaType());
+        assertEquals(CollectionOrganizer.SORT_DATE_ADDED, focusUpdated.sortMode());
+        assertFalse(focusUpdated.includeUnavailable());
         assertEquals("movie-7", focusUpdated.focusedItemId());
     }
 }
