@@ -2,7 +2,7 @@
 
 ## Android TV
 
-- [ ] Redesign the Android TV controls for a remote-first experience.
+- [x] Redesign the Android TV controls for a remote-first experience.
   - Replace the featured-detail-row prototype with an Apple TV-inspired poster grid.
   - Add top navigation for All, Movies, TV Shows, and a disabled search icon.
   - Add a collection toolbar with Date added / A-Z sorting and a filter icon.
@@ -10,6 +10,8 @@
   - Restore the last selection, sort mode, filter state, and focused item where possible.
   - Keep D-pad navigation predictable and focused elements visually obvious.
   - Verify the complete browse flow with only a TV remote.
+- [ ] Extract `MainActivity` responsibilities into focused Android TV components.
+- [ ] Add focused automated coverage for loader generation and activity lifecycle state restoration.
 
 ## Backend API Follow-ups
 
