@@ -17,6 +17,10 @@ public final class RemoteImageLoader {
         boolean isActive();
     }
 
+    public interface CompletionCallback {
+        void onComplete(boolean loaded);
+    }
+
     private final ExecutorService executor;
     private final ActiveCheck activeCheck;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -27,7 +31,11 @@ public final class RemoteImageLoader {
         this.activeCheck = activeCheck;
     }
 
-    public void load(ImageView imageView, String imageUrl, int placeholderColor) {
+    public void load(
+            ImageView imageView,
+            String imageUrl,
+            int placeholderColor,
+            CompletionCallback completionCallback) {
         int generation = loadGeneration;
         imageView.setBackgroundColor(placeholderColor);
         imageView.setImageBitmap(null);
@@ -52,19 +60,34 @@ public final class RemoteImageLoader {
                     connection.setReadTimeout(5000);
                     try (InputStream stream = connection.getInputStream()) {
                         Bitmap bitmap = BitmapFactory.decodeStream(stream);
-                        postIfCurrentGeneration(generation, () -> imageView.setImageBitmap(bitmap));
+                        if (bitmap == null) {
+                            postFailure(generation, imageView, completionCallback);
+                        } else {
+                            postIfCurrentGeneration(generation, () -> {
+                                imageView.setImageBitmap(bitmap);
+                                completionCallback.onComplete(true);
+                            });
+                        }
                     } finally {
                         connection.disconnect();
                     }
                 } catch (Exception ignored) {
-                    postIfCurrentGeneration(
-                            generation,
-                            () -> imageView.setBackgroundColor(Color.rgb(42, 48, 56)));
+                    postFailure(generation, imageView, completionCallback);
                 }
             });
         } catch (RejectedExecutionException ignored) {
             // The owning Activity is tearing down.
         }
+    }
+
+    private void postFailure(
+            int generation,
+            ImageView imageView,
+            CompletionCallback completionCallback) {
+        postIfCurrentGeneration(generation, () -> {
+            imageView.setBackgroundColor(Color.rgb(42, 48, 56));
+            completionCallback.onComplete(false);
+        });
     }
 
     public void discardObsoleteRequests() {

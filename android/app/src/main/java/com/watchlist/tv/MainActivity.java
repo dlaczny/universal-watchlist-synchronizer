@@ -91,6 +91,9 @@ public final class MainActivity extends Activity {
         loadGeneration++;
         imageLoader.discardObsoleteRequests();
         mainHandler.removeCallbacksAndMessages(null);
+        if (filterPopup != null && filterPopup.isShowing()) {
+            filterPopup.dismiss();
+        }
         apiExecutor.shutdownNow();
         imageExecutor.shutdownNow();
         super.onDestroy();
@@ -365,14 +368,16 @@ public final class MainActivity extends Activity {
 
         if (item.posterUrl() != null && !item.posterUrl().isEmpty()) {
             missingArtwork.setVisibility(View.GONE);
-            artwork.postDelayed(() -> {
-                if (imageLoader.isCurrentGeneration(posterGeneration)
-                        && artwork.getDrawable() == null) {
-                    missingArtwork.setVisibility(View.VISIBLE);
-                }
-            }, 10500);
         }
-        imageLoader.load(artwork, item.posterUrl(), Color.rgb(42, 48, 56));
+        imageLoader.load(
+                artwork,
+                item.posterUrl(),
+                Color.rgb(42, 48, 56),
+                loaded -> {
+                    if (imageLoader.isCurrentGeneration(posterGeneration)) {
+                        missingArtwork.setVisibility(loaded ? View.GONE : View.VISIBLE);
+                    }
+                });
 
         TextView title = new TextView(this);
         title.setText(item.title());
