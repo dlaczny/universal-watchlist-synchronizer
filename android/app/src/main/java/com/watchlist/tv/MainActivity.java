@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class MainActivity extends Activity {
     private static final String PREFS_NAME = "browsing_state";
@@ -36,7 +38,8 @@ public final class MainActivity extends Activity {
     private static final String PREF_FOCUSED_ITEM_ID = "focused_item_id";
     private static final int GRID_COLUMNS = 5;
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService apiExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService imageExecutor = Executors.newFixedThreadPool(3);
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final List<View> posterTiles = new ArrayList<>();
 
@@ -55,13 +58,14 @@ public final class MainActivity extends Activity {
     private PopupWindow filterPopup;
     private List<WatchlistItem> loadedItems = new ArrayList<>();
     private int loadGeneration;
+    private volatile boolean destroyed;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         apiClient = new WatchlistApiClient(WatchlistConfig.apiBaseUrl());
-        imageLoader = new RemoteImageLoader(executor);
+        imageLoader = new RemoteImageLoader(imageExecutor, () -> !destroyed);
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         browsingState = restoreBrowsingState();
         setContentView(createContentView());
@@ -83,7 +87,11 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        executor.shutdownNow();
+        destroyed = true;
+        loadGeneration++;
+        mainHandler.removeCallbacksAndMessages(null);
+        apiExecutor.shutdownNow();
+        imageExecutor.shutdownNow();
         super.onDestroy();
     }
 
@@ -240,38 +248,55 @@ public final class MainActivity extends Activity {
                 true);
         filterPopup.setBackgroundDrawable(panelBackground());
         filterPopup.setOutsideTouchable(true);
-        filterPopup.setOnDismissListener(() -> filterButton.requestFocus());
+        filterPopup.setOnDismissListener(() -> {
+            if (!destroyed) {
+                filterButton.requestFocus();
+            }
+        });
         filterPopup.showAsDropDown(filterButton, -dp(154), dp(4));
         unavailable.requestFocus();
     }
 
     private void loadItems() {
+        if (destroyed) {
+            return;
+        }
         int generation = ++loadGeneration;
         String mediaType = browsingState.mediaType();
         showLoading();
-        executor.execute(() -> {
-            try {
-                List<WatchlistItem> items = apiClient.getWatchlist(mediaType, WatchlistFilters.FILTER_ALL);
-                mainHandler.post(() -> {
-                    if (generation == loadGeneration) {
-                        loadedItems = items;
-                        renderItems(items, true);
+        try {
+            apiExecutor.execute(() -> {
+                try {
+                    List<WatchlistItem> items = apiClient.getWatchlist(mediaType, WatchlistFilters.FILTER_ALL);
+                    if (!destroyed) {
+                        mainHandler.post(() -> {
+                            if (!destroyed && generation == loadGeneration) {
+                                loadedItems = items;
+                                renderItems(items, true);
+                            }
+                        });
                     }
-                });
-            } catch (Exception exception) {
-                mainHandler.post(() -> {
-                    if (generation == loadGeneration) {
-                        showError(exception);
+                } catch (Exception exception) {
+                    if (!destroyed) {
+                        mainHandler.post(() -> {
+                            if (!destroyed && generation == loadGeneration) {
+                                showError(exception);
+                            }
+                        });
                     }
-                });
-            }
-        });
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            // The Activity is tearing down.
+        }
     }
 
     private void renderItems(List<WatchlistItem> items, boolean restoreFocus) {
+        if (destroyed) {
+            return;
+        }
         progressBar.setVisibility(View.GONE);
-        posterGrid.removeAllViews();
-        posterTiles.clear();
+        clearPosterGrid();
 
         List<WatchlistItem> visibleItems = CollectionOrganizer.organize(
                 items,
@@ -339,7 +364,7 @@ public final class MainActivity extends Activity {
         if (item.posterUrl() != null && !item.posterUrl().isEmpty()) {
             missingArtwork.setVisibility(View.GONE);
             artwork.postDelayed(() -> {
-                if (artwork.getDrawable() == null) {
+                if (!destroyed && artwork.getDrawable() == null) {
                     missingArtwork.setVisibility(View.VISIBLE);
                 }
             }, 10500);
@@ -352,6 +377,7 @@ public final class MainActivity extends Activity {
         title.setTextSize(15);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setMaxLines(2);
+        title.setEllipsize(TextUtils.TruncateAt.END);
         title.setGravity(Gravity.CENTER_VERTICAL);
         tile.addView(title, new LinearLayout.LayoutParams(dp(132), dp(40)));
 
@@ -448,18 +474,24 @@ public final class MainActivity extends Activity {
         progressBar.setVisibility(View.VISIBLE);
         messageView.setText(R.string.message_loading);
         loadedItems = new ArrayList<>();
-        posterGrid.removeAllViews();
-        posterTiles.clear();
+        clearPosterGrid();
     }
 
     private void showError(Exception exception) {
         progressBar.setVisibility(View.GONE);
-        posterGrid.removeAllViews();
-        posterTiles.clear();
+        clearPosterGrid();
         messageView.setText(getString(
                 R.string.message_backend_error,
                 WatchlistConfig.apiBaseUrl(),
                 exception.getMessage()));
+    }
+
+    private void clearPosterGrid() {
+        posterGrid.removeAllViews();
+        posterTiles.clear();
+        dateAddedButton.setNextFocusDownId(View.NO_ID);
+        alphabeticalButton.setNextFocusDownId(View.NO_ID);
+        filterButton.setNextFocusDownId(View.NO_ID);
     }
 
     private BrowsingState restoreBrowsingState() {

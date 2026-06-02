@@ -10,13 +10,20 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class RemoteImageLoader {
+    public interface ActiveCheck {
+        boolean isActive();
+    }
+
     private final ExecutorService executor;
+    private final ActiveCheck activeCheck;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
 
-    public RemoteImageLoader(ExecutorService executor) {
+    public RemoteImageLoader(ExecutorService executor, ActiveCheck activeCheck) {
         this.executor = executor;
+        this.activeCheck = activeCheck;
     }
 
     public void load(ImageView imageView, String imageUrl, int placeholderColor) {
@@ -27,21 +34,39 @@ public final class RemoteImageLoader {
             return;
         }
 
-        executor.execute(() -> {
-            try {
-                URL url = new URL(imageUrl);
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setConnectTimeout(5000);
-                connection.setReadTimeout(5000);
-                try (InputStream stream = connection.getInputStream()) {
-                    Bitmap bitmap = BitmapFactory.decodeStream(stream);
-                    mainHandler.post(() -> imageView.setImageBitmap(bitmap));
-                } finally {
-                    connection.disconnect();
+        if (!activeCheck.isActive()) {
+            return;
+        }
+
+        try {
+            executor.execute(() -> {
+                try {
+                    URL url = new URL(imageUrl);
+                    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                    connection.setConnectTimeout(5000);
+                    connection.setReadTimeout(5000);
+                    try (InputStream stream = connection.getInputStream()) {
+                        Bitmap bitmap = BitmapFactory.decodeStream(stream);
+                        postIfActive(() -> imageView.setImageBitmap(bitmap));
+                    } finally {
+                        connection.disconnect();
+                    }
+                } catch (Exception ignored) {
+                    postIfActive(() -> imageView.setBackgroundColor(Color.rgb(42, 48, 56)));
                 }
-            } catch (Exception ignored) {
-                mainHandler.post(() -> imageView.setBackgroundColor(Color.rgb(42, 48, 56)));
-            }
-        });
+            });
+        } catch (RejectedExecutionException ignored) {
+            // The owning Activity is tearing down.
+        }
+    }
+
+    private void postIfActive(Runnable callback) {
+        if (activeCheck.isActive()) {
+            mainHandler.post(() -> {
+                if (activeCheck.isActive()) {
+                    callback.run();
+                }
+            });
+        }
     }
 }
