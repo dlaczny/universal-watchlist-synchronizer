@@ -3,7 +3,8 @@
         <item name="android:fontFamily">sans</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
-        <item name="android:windowBackground">#101418</item>
-        <item name="android:colorAccent">#38BDF8</item>
+        <item name="android:windowBackground">#0F1419</item>
+        <item name="android:colorAccent">#67E8F9</item>
+        <item name="android:navigationBarColor">#0F1419</item>
     </style>
 </resources>

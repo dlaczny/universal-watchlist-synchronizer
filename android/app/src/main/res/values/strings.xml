@@ -1,0 +1,16 @@
+<resources>
+    <string name="app_name">Watchlist</string>
+    <string name="nav_all">All</string>
+    <string name="nav_movies">Movies</string>
+    <string name="nav_tv_shows">TV Shows</string>
+    <string name="action_search">Search</string>
+    <string name="action_filter">Filter</string>
+    <string name="sort_date_added">Date added</string>
+    <string name="sort_alphabetical">A-Z</string>
+    <string name="filter_on_plex">On Plex</string>
+    <string name="filter_unavailable">Unavailable</string>
+    <string name="message_empty">No items match this filter.</string>
+    <string name="message_loading">Loading watchlist...</string>
+    <string name="message_artwork_unavailable">Artwork\nunavailable</string>
+    <string name="message_backend_error">Could not load watchlist from %1$s. %2$s</string>
+</resources>

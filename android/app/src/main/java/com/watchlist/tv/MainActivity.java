@@ -1,6 +1,7 @@
 package com.watchlist.tv;
 
 import android.app.Activity;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -8,11 +9,17 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
-import android.widget.HorizontalScrollView;
+import android.widget.CheckBox;
+import android.widget.FrameLayout;
+import android.widget.GridLayout;
+import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupWindow;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -22,23 +29,32 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
+    private static final String PREFS_NAME = "browsing_state";
+    private static final String PREF_MEDIA_TYPE = "media_type";
+    private static final String PREF_SORT_MODE = "sort_mode";
+    private static final String PREF_INCLUDE_UNAVAILABLE = "include_unavailable";
+    private static final String PREF_FOCUSED_ITEM_ID = "focused_item_id";
+    private static final int GRID_COLUMNS = 5;
+
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-    private final List<Button> filterButtons = new ArrayList<>();
+    private final List<View> posterTiles = new ArrayList<>();
 
     private WatchlistApiClient apiClient;
     private RemoteImageLoader imageLoader;
-    private LinearLayout root;
-    private LinearLayout cardsRow;
-    private ImageView heroImage;
-    private TextView titleView;
-    private TextView metaView;
-    private TextView statusView;
-    private TextView overviewView;
+    private SharedPreferences preferences;
+    private BrowsingState browsingState;
+    private GridLayout posterGrid;
     private TextView messageView;
     private ProgressBar progressBar;
-    private String selectedMediaType = WatchlistFilters.MEDIA_MOVIE;
-    private String selectedFilter = WatchlistFilters.FILTER_ALL;
+    private Button moviesButton;
+    private Button tvButton;
+    private Button dateAddedButton;
+    private Button alphabeticalButton;
+    private ImageButton filterButton;
+    private PopupWindow filterPopup;
+    private List<WatchlistItem> loadedItems = new ArrayList<>();
+    private int loadGeneration;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,8 +62,23 @@ public final class MainActivity extends Activity {
 
         apiClient = new WatchlistApiClient(WatchlistConfig.apiBaseUrl());
         imageLoader = new RemoteImageLoader(executor);
+        preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        browsingState = restoreBrowsingState();
         setContentView(createContentView());
+        updateControlStyles();
         loadItems();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK
+                && event.getAction() == KeyEvent.ACTION_UP
+                && filterPopup != null
+                && filterPopup.isShowing()) {
+            filterPopup.dismiss();
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     @Override
@@ -57,251 +88,529 @@ public final class MainActivity extends Activity {
     }
 
     private View createContentView() {
-        ScrollView scrollView = new ScrollView(this);
-        scrollView.setFillViewport(true);
-
-        root = new LinearLayout(this);
+        LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(48), dp(36), dp(48), dp(36));
-        root.setBackgroundColor(Color.rgb(16, 20, 24));
-        scrollView.addView(root, new ScrollView.LayoutParams(
-                ScrollView.LayoutParams.MATCH_PARENT,
-                ScrollView.LayoutParams.MATCH_PARENT));
+        root.setPadding(dp(44), dp(30), dp(44), dp(24));
+        root.setBackgroundColor(Color.rgb(15, 20, 25));
 
         TextView heading = new TextView(this);
-        heading.setText("Watchlist");
+        heading.setText(R.string.app_name);
         heading.setTextColor(Color.WHITE);
-        heading.setTextSize(30);
+        heading.setTextSize(28);
         heading.setTypeface(Typeface.DEFAULT_BOLD);
         root.addView(heading);
 
-        root.addView(createControls());
-        root.addView(createDetailPanel());
+        root.addView(createTopNavigation());
+        root.addView(createToolbar());
 
         messageView = new TextView(this);
-        messageView.setTextColor(Color.rgb(202, 210, 220));
-        messageView.setTextSize(18);
-        messageView.setPadding(0, dp(18), 0, dp(12));
+        messageView.setTextColor(Color.rgb(203, 213, 225));
+        messageView.setTextSize(17);
+        messageView.setPadding(0, dp(12), 0, dp(8));
         root.addView(messageView);
 
         progressBar = new ProgressBar(this);
         progressBar.setVisibility(View.GONE);
         root.addView(progressBar);
 
-        HorizontalScrollView horizontalScrollView = new HorizontalScrollView(this);
-        horizontalScrollView.setHorizontalScrollBarEnabled(false);
-        cardsRow = new LinearLayout(this);
-        cardsRow.setOrientation(LinearLayout.HORIZONTAL);
-        horizontalScrollView.addView(cardsRow);
-        root.addView(horizontalScrollView, new LinearLayout.LayoutParams(
+        ScrollView gridScrollView = new ScrollView(this);
+        gridScrollView.setFillViewport(true);
+        gridScrollView.setClipToPadding(false);
+        gridScrollView.setFocusable(false);
+
+        posterGrid = new GridLayout(this);
+        posterGrid.setColumnCount(GRID_COLUMNS);
+        posterGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
+        posterGrid.setPadding(0, dp(10), 0, dp(18));
+        gridScrollView.addView(posterGrid, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT));
+        root.addView(gridScrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
-                dp(210)));
+                0,
+                1));
 
-        return scrollView;
+        return root;
     }
 
-    private LinearLayout createControls() {
-        LinearLayout controls = new LinearLayout(this);
-        controls.setOrientation(LinearLayout.HORIZONTAL);
-        controls.setGravity(Gravity.CENTER_VERTICAL);
-        controls.setPadding(0, dp(24), 0, dp(24));
+    private LinearLayout createTopNavigation() {
+        LinearLayout navigation = horizontalZone();
+        navigation.setPadding(0, dp(18), 0, dp(10));
 
-        controls.addView(filterButton("Movies", WatchlistFilters.MEDIA_MOVIE, null));
-        controls.addView(filterButton("TV Shows", WatchlistFilters.MEDIA_TV, null));
-        controls.addView(spacer(dp(24), 1));
-        controls.addView(filterButton("All", null, WatchlistFilters.FILTER_ALL));
-        controls.addView(filterButton("Available", null, WatchlistFilters.FILTER_AVAILABLE));
+        Button allButton = textButton(getString(R.string.nav_all));
+        allButton.setEnabled(false);
+        navigation.addView(allButton);
 
-        updateFilterButtonStyles();
-        return controls;
+        moviesButton = textButton(getString(R.string.nav_movies));
+        moviesButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_MOVIES));
+        navigation.addView(moviesButton);
+
+        tvButton = textButton(getString(R.string.nav_tv_shows));
+        tvButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_TV));
+        navigation.addView(tvButton);
+
+        navigation.addView(spacer(dp(12), 1));
+
+        ImageButton searchButton = iconButton(R.drawable.ic_search, getString(R.string.action_search));
+        searchButton.setEnabled(false);
+        navigation.addView(searchButton);
+
+        moviesButton.setNextFocusRightId(tvButton.getId());
+        tvButton.setNextFocusLeftId(moviesButton.getId());
+        return navigation;
     }
 
-    private Button filterButton(String text, String mediaType, String filter) {
-        Button button = new Button(this);
-        button.setText(text);
-        button.setAllCaps(false);
-        button.setTextSize(16);
-        button.setMinWidth(dp(132));
-        button.setFocusable(true);
-        button.setOnClickListener(view -> {
-            if (mediaType != null) {
-                selectedMediaType = mediaType;
-            }
-            if (filter != null) {
-                selectedFilter = filter;
-            }
-            updateFilterButtonStyles();
-            loadItems();
-        });
+    private LinearLayout createToolbar() {
+        LinearLayout toolbar = horizontalZone();
+        toolbar.setPadding(0, 0, 0, dp(8));
 
-        filterButtons.add(button);
-        return button;
+        dateAddedButton = textButton(getString(R.string.sort_date_added));
+        dateAddedButton.setOnClickListener(view -> selectSortMode(CollectionOrganizer.SORT_DATE_ADDED));
+        toolbar.addView(dateAddedButton);
+
+        alphabeticalButton = textButton(getString(R.string.sort_alphabetical));
+        alphabeticalButton.setOnClickListener(view -> selectSortMode(CollectionOrganizer.SORT_ALPHABETICAL));
+        toolbar.addView(alphabeticalButton);
+
+        filterButton = iconButton(R.drawable.ic_filter, getString(R.string.action_filter));
+        filterButton.setOnClickListener(view -> showFilterPopup());
+        toolbar.addView(filterButton);
+
+        dateAddedButton.setNextFocusRightId(alphabeticalButton.getId());
+        alphabeticalButton.setNextFocusLeftId(dateAddedButton.getId());
+        alphabeticalButton.setNextFocusRightId(filterButton.getId());
+        filterButton.setNextFocusLeftId(alphabeticalButton.getId());
+        updateZoneFocusLinks();
+        return toolbar;
     }
 
-    private LinearLayout createDetailPanel() {
-        LinearLayout detail = new LinearLayout(this);
-        detail.setOrientation(LinearLayout.HORIZONTAL);
-        detail.setGravity(Gravity.CENTER_VERTICAL);
-        detail.setPadding(0, 0, 0, dp(24));
-
-        heroImage = new ImageView(this);
-        heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        detail.addView(heroImage, new LinearLayout.LayoutParams(dp(220), dp(330)));
-
-        LinearLayout textColumn = new LinearLayout(this);
-        textColumn.setOrientation(LinearLayout.VERTICAL);
-        textColumn.setPadding(dp(32), 0, 0, 0);
-
-        titleView = detailText(34, true);
-        metaView = detailText(18, false);
-        statusView = detailText(18, true);
-        overviewView = detailText(20, false);
-        overviewView.setMaxLines(5);
-
-        textColumn.addView(titleView);
-        textColumn.addView(metaView);
-        textColumn.addView(statusView);
-        textColumn.addView(overviewView);
-        detail.addView(textColumn, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-
-        return detail;
-    }
-
-    private TextView detailText(int sizeSp, boolean bold) {
-        TextView textView = new TextView(this);
-        textView.setTextColor(Color.WHITE);
-        textView.setTextSize(sizeSp);
-        textView.setPadding(0, 0, 0, dp(10));
-        if (bold) {
-            textView.setTypeface(Typeface.DEFAULT_BOLD);
+    private void selectMediaType(String mediaType) {
+        if (mediaType.equals(browsingState.mediaType())) {
+            return;
         }
-        return textView;
+        browsingState = browsingState.withMediaType(mediaType).withFocusedItemId(null);
+        persistBrowsingState();
+        updateControlStyles();
+        loadItems();
+    }
+
+    private void selectSortMode(String sortMode) {
+        if (sortMode.equals(browsingState.sortMode())) {
+            return;
+        }
+        browsingState = browsingState.withSortMode(sortMode);
+        persistBrowsingState();
+        updateControlStyles();
+        renderItems(loadedItems, false);
+    }
+
+    private void showFilterPopup() {
+        if (filterPopup != null && filterPopup.isShowing()) {
+            filterPopup.dismiss();
+            return;
+        }
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(14), dp(10), dp(18), dp(12));
+        content.setBackground(panelBackground());
+
+        CheckBox onPlex = new CheckBox(this);
+        onPlex.setText(R.string.filter_on_plex);
+        onPlex.setTextColor(Color.WHITE);
+        onPlex.setChecked(true);
+        onPlex.setEnabled(false);
+        content.addView(onPlex);
+
+        CheckBox unavailable = new CheckBox(this);
+        unavailable.setText(R.string.filter_unavailable);
+        unavailable.setTextColor(Color.WHITE);
+        unavailable.setChecked(browsingState.includeUnavailable());
+        unavailable.setOnCheckedChangeListener((buttonView, checked) -> {
+            browsingState = browsingState.withIncludeUnavailable(checked);
+            persistBrowsingState();
+            renderItems(loadedItems, false);
+        });
+        content.addView(unavailable);
+
+        filterPopup = new PopupWindow(
+                content,
+                dp(210),
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                true);
+        filterPopup.setBackgroundDrawable(panelBackground());
+        filterPopup.setOutsideTouchable(true);
+        filterPopup.setOnDismissListener(() -> filterButton.requestFocus());
+        filterPopup.showAsDropDown(filterButton, -dp(154), dp(4));
+        unavailable.requestFocus();
     }
 
     private void loadItems() {
+        int generation = ++loadGeneration;
+        String mediaType = browsingState.mediaType();
         showLoading();
         executor.execute(() -> {
             try {
-                List<WatchlistItem> items = apiClient.getWatchlist(selectedMediaType, selectedFilter);
-                mainHandler.post(() -> renderItems(items));
+                List<WatchlistItem> items = apiClient.getWatchlist(mediaType, WatchlistFilters.FILTER_ALL);
+                mainHandler.post(() -> {
+                    if (generation == loadGeneration) {
+                        loadedItems = items;
+                        renderItems(items, true);
+                    }
+                });
             } catch (Exception exception) {
-                mainHandler.post(() -> showError(exception));
+                mainHandler.post(() -> {
+                    if (generation == loadGeneration) {
+                        showError(exception);
+                    }
+                });
             }
         });
     }
 
-    private void renderItems(List<WatchlistItem> items) {
+    private void renderItems(List<WatchlistItem> items, boolean restoreFocus) {
         progressBar.setVisibility(View.GONE);
-        cardsRow.removeAllViews();
+        posterGrid.removeAllViews();
+        posterTiles.clear();
 
-        if (items.isEmpty()) {
-            messageView.setText("No items match this filter.");
-            renderDetail(null);
+        List<WatchlistItem> visibleItems = CollectionOrganizer.organize(
+                items,
+                browsingState.includeUnavailable(),
+                browsingState.sortMode());
+        if (visibleItems.isEmpty()) {
+            messageView.setText(R.string.message_empty);
             return;
         }
 
         messageView.setText("");
-        for (WatchlistItem item : items) {
-            TextView card = createCard(item);
-            cardsRow.addView(card);
+        for (WatchlistItem item : visibleItems) {
+            View tile = createPosterTile(item);
+            posterTiles.add(tile);
+            posterGrid.addView(tile);
         }
 
-        cardsRow.getChildAt(0).requestFocus();
-        renderDetail(items.get(0));
+        wirePosterFocusLinks();
+        if (restoreFocus) {
+            restorePosterFocus(visibleItems);
+        }
     }
 
-    private TextView createCard(WatchlistItem item) {
-        TextView card = new TextView(this);
-        card.setText(item.title());
-        card.setTextColor(Color.WHITE);
-        card.setTextSize(16);
-        card.setGravity(Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        card.setPadding(dp(10), dp(10), dp(10), dp(14));
-        card.setFocusable(true);
-        card.setBackground(cardBackground(false));
-        card.setOnFocusChangeListener((view, hasFocus) -> {
-            view.setBackground(cardBackground(hasFocus));
+    private View createPosterTile(WatchlistItem item) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setId(View.generateViewId());
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setFocusable(true);
+        tile.setClickable(true);
+        tile.setPadding(dp(5), dp(5), dp(5), dp(6));
+        tile.setBackground(tileBackground(false));
+        tile.setOnClickListener(view -> view.requestFocus());
+        tile.setOnFocusChangeListener((view, hasFocus) -> {
+            view.setBackground(tileBackground(hasFocus));
+            view.animate()
+                    .scaleX(hasFocus ? 1.035f : 1f)
+                    .scaleY(hasFocus ? 1.035f : 1f)
+                    .setDuration(120)
+                    .start();
             if (hasFocus) {
-                renderDetail(item);
+                browsingState = browsingState.withFocusedItemId(item.id());
+                persistBrowsingState();
             }
         });
-        card.setOnClickListener(view -> renderDetail(item));
 
-        LinearLayout.LayoutParams layoutParams = new LinearLayout.LayoutParams(dp(150), dp(190));
-        layoutParams.setMargins(0, 0, dp(16), 0);
-        card.setLayoutParams(layoutParams);
+        FrameLayout artworkFrame = new FrameLayout(this);
+        artworkFrame.setBackgroundColor(Color.rgb(42, 48, 56));
+        tile.addView(artworkFrame, new LinearLayout.LayoutParams(dp(132), dp(188)));
 
-        return card;
+        ImageView artwork = new ImageView(this);
+        artwork.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        artworkFrame.addView(artwork, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        TextView missingArtwork = new TextView(this);
+        missingArtwork.setText(R.string.message_artwork_unavailable);
+        missingArtwork.setTextColor(Color.rgb(203, 213, 225));
+        missingArtwork.setTextSize(15);
+        missingArtwork.setGravity(Gravity.CENTER);
+        artworkFrame.addView(missingArtwork, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+
+        if (item.posterUrl() != null && !item.posterUrl().isEmpty()) {
+            missingArtwork.setVisibility(View.GONE);
+            artwork.postDelayed(() -> {
+                if (artwork.getDrawable() == null) {
+                    missingArtwork.setVisibility(View.VISIBLE);
+                }
+            }, 10500);
+        }
+        imageLoader.load(artwork, item.posterUrl(), Color.rgb(42, 48, 56));
+
+        TextView title = new TextView(this);
+        title.setText(item.title());
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(15);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setMaxLines(2);
+        title.setGravity(Gravity.CENTER_VERTICAL);
+        tile.addView(title, new LinearLayout.LayoutParams(dp(132), dp(40)));
+
+        TextView badge = new TextView(this);
+        badge.setText(formatAvailability(item));
+        badge.setTextColor(Color.WHITE);
+        badge.setTextSize(12);
+        badge.setMaxLines(1);
+        badge.setGravity(Gravity.CENTER);
+        badge.setBackground(badgeBackground(item));
+        tile.addView(badge, new LinearLayout.LayoutParams(dp(132), dp(24)));
+
+        GridLayout.LayoutParams layoutParams = new GridLayout.LayoutParams();
+        layoutParams.width = dp(142);
+        layoutParams.height = dp(264);
+        layoutParams.setMargins(0, 0, dp(12), dp(12));
+        tile.setLayoutParams(layoutParams);
+        return tile;
     }
 
-    private void renderDetail(WatchlistItem item) {
-        if (item == null) {
-            titleView.setText("Nothing here yet");
-            metaView.setText("");
-            statusView.setText("");
-            overviewView.setText("");
-            heroImage.setImageBitmap(null);
-            heroImage.setBackgroundColor(Color.rgb(42, 48, 56));
-            return;
+    private void wirePosterFocusLinks() {
+        for (int index = 0; index < posterTiles.size(); index++) {
+            View tile = posterTiles.get(index);
+            int column = index % GRID_COLUMNS;
+            int previous = index - 1;
+            int next = index + 1;
+            int above = index - GRID_COLUMNS;
+            int below = index + GRID_COLUMNS;
+
+            if (column > 0 && previous >= 0) {
+                tile.setNextFocusLeftId(posterTiles.get(previous).getId());
+            }
+            if (column < GRID_COLUMNS - 1 && next < posterTiles.size()) {
+                tile.setNextFocusRightId(posterTiles.get(next).getId());
+            }
+            tile.setNextFocusUpId(above >= 0
+                    ? posterTiles.get(above).getId()
+                    : toolbarFocusTarget(column).getId());
+            if (below < posterTiles.size()) {
+                tile.setNextFocusDownId(posterTiles.get(below).getId());
+            }
+            tile.setOnKeyListener((view, keyCode, event) -> {
+                if (event.getAction() != KeyEvent.ACTION_DOWN) {
+                    return false;
+                }
+                View target = null;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && column > 0) {
+                    target = posterTiles.get(previous);
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                        && column < GRID_COLUMNS - 1
+                        && next < posterTiles.size()) {
+                    target = posterTiles.get(next);
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    target = above >= 0 ? posterTiles.get(above) : toolbarFocusTarget(column);
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && below < posterTiles.size()) {
+                    target = posterTiles.get(below);
+                }
+                return target != null && target.requestFocus();
+            });
         }
 
-        titleView.setText(item.title());
-        metaView.setText(formatMeta(item));
-        statusView.setText(formatAvailability(item));
-        overviewView.setText(item.overview() == null ? "" : item.overview());
-        imageLoader.load(heroImage, item.posterUrl(), Color.rgb(42, 48, 56));
+        if (!posterTiles.isEmpty()) {
+            dateAddedButton.setNextFocusDownId(posterTiles.get(0).getId());
+            alphabeticalButton.setNextFocusDownId(posterTiles.get(Math.min(2, posterTiles.size() - 1)).getId());
+            filterButton.setNextFocusDownId(posterTiles.get(Math.min(4, posterTiles.size() - 1)).getId());
+        }
+    }
+
+    private View toolbarFocusTarget(int column) {
+        if (column >= 4) {
+            return filterButton;
+        }
+        if (column >= 2) {
+            return alphabeticalButton;
+        }
+        return dateAddedButton;
+    }
+
+    private void restorePosterFocus(List<WatchlistItem> visibleItems) {
+        int focusIndex = 0;
+        String focusedItemId = browsingState.focusedItemId();
+        if (focusedItemId != null) {
+            for (int index = 0; index < visibleItems.size(); index++) {
+                if (focusedItemId.equals(visibleItems.get(index).id())) {
+                    focusIndex = index;
+                    break;
+                }
+            }
+        }
+        posterTiles.get(focusIndex).requestFocus();
     }
 
     private void showLoading() {
         progressBar.setVisibility(View.VISIBLE);
-        messageView.setText("Loading watchlist...");
-        cardsRow.removeAllViews();
+        messageView.setText(R.string.message_loading);
+        loadedItems = new ArrayList<>();
+        posterGrid.removeAllViews();
+        posterTiles.clear();
     }
 
     private void showError(Exception exception) {
         progressBar.setVisibility(View.GONE);
-        cardsRow.removeAllViews();
-        renderDetail(null);
-        messageView.setText("Could not load watchlist from " + WatchlistConfig.apiBaseUrl()
-                + ". " + exception.getMessage());
+        posterGrid.removeAllViews();
+        posterTiles.clear();
+        messageView.setText(getString(
+                R.string.message_backend_error,
+                WatchlistConfig.apiBaseUrl(),
+                exception.getMessage()));
     }
 
-    private void updateFilterButtonStyles() {
-        for (Button button : filterButtons) {
-            String text = button.getText().toString();
-            boolean selected = ("Movies".equals(text) && WatchlistFilters.MEDIA_MOVIE.equals(selectedMediaType))
-                    || ("TV Shows".equals(text) && WatchlistFilters.MEDIA_TV.equals(selectedMediaType))
-                    || ("All".equals(text) && WatchlistFilters.FILTER_ALL.equals(selectedFilter))
-                    || ("Available".equals(text) && WatchlistFilters.FILTER_AVAILABLE.equals(selectedFilter));
-            button.setTextColor(selected ? Color.rgb(16, 20, 24) : Color.WHITE);
-            button.setBackgroundColor(selected ? Color.rgb(56, 189, 248) : Color.rgb(42, 48, 56));
+    private BrowsingState restoreBrowsingState() {
+        BrowsingState defaults = BrowsingState.defaults();
+        String mediaType = preferences.getString(PREF_MEDIA_TYPE, defaults.mediaType());
+        if (!BrowsingState.MEDIA_MOVIES.equals(mediaType) && !BrowsingState.MEDIA_TV.equals(mediaType)) {
+            mediaType = defaults.mediaType();
         }
+
+        String sortMode = preferences.getString(PREF_SORT_MODE, defaults.sortMode());
+        if (!CollectionOrganizer.SORT_DATE_ADDED.equals(sortMode)
+                && !CollectionOrganizer.SORT_ALPHABETICAL.equals(sortMode)) {
+            sortMode = defaults.sortMode();
+        }
+
+        String focusedItemId = preferences.getString(PREF_FOCUSED_ITEM_ID, defaults.focusedItemId());
+        if (focusedItemId != null && focusedItemId.isEmpty()) {
+            focusedItemId = defaults.focusedItemId();
+        }
+
+        return defaults
+                .withMediaType(mediaType)
+                .withSortMode(sortMode)
+                .withIncludeUnavailable(preferences.getBoolean(
+                        PREF_INCLUDE_UNAVAILABLE,
+                        defaults.includeUnavailable()))
+                .withFocusedItemId(focusedItemId);
     }
 
-    private static String formatMeta(WatchlistItem item) {
-        String type = "movie".equals(item.mediaType()) ? "Movie" : "TV Show";
-        return item.year() == null ? type : type + " - " + item.year();
+    private void persistBrowsingState() {
+        SharedPreferences.Editor editor = preferences.edit()
+                .putString(PREF_MEDIA_TYPE, browsingState.mediaType())
+                .putString(PREF_SORT_MODE, browsingState.sortMode())
+                .putBoolean(PREF_INCLUDE_UNAVAILABLE, browsingState.includeUnavailable());
+        if (browsingState.focusedItemId() == null) {
+            editor.remove(PREF_FOCUSED_ITEM_ID);
+        } else {
+            editor.putString(PREF_FOCUSED_ITEM_ID, browsingState.focusedItemId());
+        }
+        editor.apply();
+    }
+
+    private void updateControlStyles() {
+        styleTextButton(moviesButton, BrowsingState.MEDIA_MOVIES.equals(browsingState.mediaType()));
+        styleTextButton(tvButton, BrowsingState.MEDIA_TV.equals(browsingState.mediaType()));
+        styleTextButton(dateAddedButton, CollectionOrganizer.SORT_DATE_ADDED.equals(browsingState.sortMode()));
+        styleTextButton(alphabeticalButton, CollectionOrganizer.SORT_ALPHABETICAL.equals(browsingState.sortMode()));
+    }
+
+    private void updateZoneFocusLinks() {
+        dateAddedButton.setNextFocusUpId(moviesButton.getId());
+        alphabeticalButton.setNextFocusUpId(moviesButton.getId());
+        filterButton.setNextFocusUpId(tvButton.getId());
+        moviesButton.setNextFocusDownId(dateAddedButton.getId());
+        tvButton.setNextFocusDownId(filterButton.getId());
+    }
+
+    private LinearLayout horizontalZone() {
+        LinearLayout zone = new LinearLayout(this);
+        zone.setOrientation(LinearLayout.HORIZONTAL);
+        zone.setGravity(Gravity.CENTER_VERTICAL);
+        return zone;
+    }
+
+    private Button textButton(String text) {
+        Button button = new Button(this);
+        button.setId(View.generateViewId());
+        button.setText(text);
+        button.setAllCaps(false);
+        button.setTextSize(16);
+        button.setTextColor(Color.WHITE);
+        button.setFocusable(true);
+        button.setMinWidth(dp(118));
+        button.setMinHeight(dp(48));
+        button.setBackground(controlBackground(false, false));
+        button.setOnFocusChangeListener((view, hasFocus) -> updateControlStyles());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                dp(48));
+        params.setMargins(0, 0, dp(10), 0);
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private ImageButton iconButton(int drawableId, String description) {
+        ImageButton button = new ImageButton(this);
+        button.setId(View.generateViewId());
+        button.setImageResource(drawableId);
+        button.setContentDescription(description);
+        button.setColorFilter(Color.WHITE);
+        button.setFocusable(true);
+        button.setBackground(controlBackground(false, false));
+        button.setOnFocusChangeListener((view, hasFocus) ->
+                view.setBackground(controlBackground(false, hasFocus)));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(48), dp(48));
+        params.setMargins(0, 0, dp(10), 0);
+        button.setLayoutParams(params);
+        return button;
+    }
+
+    private void styleTextButton(Button button, boolean selected) {
+        button.setTextColor(selected ? Color.rgb(15, 20, 25) : Color.WHITE);
+        button.setBackground(controlBackground(selected, button.hasFocus()));
+    }
+
+    private GradientDrawable controlBackground(boolean selected, boolean focused) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(selected ? Color.rgb(103, 232, 249) : Color.rgb(43, 53, 64));
+        drawable.setCornerRadius(dp(5));
+        drawable.setStroke(
+                dp(focused ? 3 : 1),
+                focused ? Color.WHITE : selected ? Color.rgb(165, 243, 252) : Color.rgb(75, 85, 99));
+        return drawable;
+    }
+
+    private GradientDrawable tileBackground(boolean focused) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.rgb(28, 36, 44));
+        drawable.setCornerRadius(dp(5));
+        drawable.setStroke(dp(focused ? 4 : 1), focused ? Color.WHITE : Color.rgb(75, 85, 99));
+        return drawable;
+    }
+
+    private GradientDrawable badgeBackground(WatchlistItem item) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setCornerRadius(dp(3));
+        drawable.setColor(WatchlistFilters.AVAILABLE_ON_PLEX.equals(item.availabilityStatus())
+                ? Color.rgb(20, 120, 80)
+                : Color.rgb(86, 99, 112));
+        return drawable;
+    }
+
+    private GradientDrawable panelBackground() {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(Color.rgb(31, 41, 55));
+        drawable.setCornerRadius(dp(5));
+        drawable.setStroke(dp(1), Color.rgb(100, 116, 139));
+        return drawable;
     }
 
     private static String formatAvailability(WatchlistItem item) {
         if (WatchlistFilters.AVAILABLE_ON_PLEX.equals(item.availabilityStatus())) {
-            return "Available on Plex";
+            return "On Plex";
         }
         if ("unreleased".equals(item.availabilityStatus())) {
             return "Unreleased";
         }
         if ("unknown_match".equals(item.availabilityStatus())) {
-            return "Plex match uncertain";
+            return "Match uncertain";
         }
-        return "Not on Plex";
-    }
-
-    private GradientDrawable cardBackground(boolean focused) {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(focused ? Color.rgb(56, 189, 248) : Color.rgb(31, 41, 55));
-        drawable.setCornerRadius(dp(6));
-        drawable.setStroke(dp(focused ? 4 : 1), focused ? Color.WHITE : Color.rgb(75, 85, 99));
-        return drawable;
+        return "Unavailable";
     }
 
     private View spacer(int width, int height) {
