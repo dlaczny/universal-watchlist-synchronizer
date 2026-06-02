@@ -20,6 +20,7 @@ public final class RemoteImageLoader {
     private final ExecutorService executor;
     private final ActiveCheck activeCheck;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private volatile int loadGeneration;
 
     public RemoteImageLoader(ExecutorService executor, ActiveCheck activeCheck) {
         this.executor = executor;
@@ -27,6 +28,7 @@ public final class RemoteImageLoader {
     }
 
     public void load(ImageView imageView, String imageUrl, int placeholderColor) {
+        int generation = loadGeneration;
         imageView.setBackgroundColor(placeholderColor);
         imageView.setImageBitmap(null);
 
@@ -34,12 +36,15 @@ public final class RemoteImageLoader {
             return;
         }
 
-        if (!activeCheck.isActive()) {
+        if (!isCurrentGeneration(generation)) {
             return;
         }
 
         try {
             executor.execute(() -> {
+                if (!isCurrentGeneration(generation)) {
+                    return;
+                }
                 try {
                     URL url = new URL(imageUrl);
                     HttpURLConnection connection = (HttpURLConnection) url.openConnection();
@@ -47,12 +52,14 @@ public final class RemoteImageLoader {
                     connection.setReadTimeout(5000);
                     try (InputStream stream = connection.getInputStream()) {
                         Bitmap bitmap = BitmapFactory.decodeStream(stream);
-                        postIfActive(() -> imageView.setImageBitmap(bitmap));
+                        postIfCurrentGeneration(generation, () -> imageView.setImageBitmap(bitmap));
                     } finally {
                         connection.disconnect();
                     }
                 } catch (Exception ignored) {
-                    postIfActive(() -> imageView.setBackgroundColor(Color.rgb(42, 48, 56)));
+                    postIfCurrentGeneration(
+                            generation,
+                            () -> imageView.setBackgroundColor(Color.rgb(42, 48, 56)));
                 }
             });
         } catch (RejectedExecutionException ignored) {
@@ -60,10 +67,22 @@ public final class RemoteImageLoader {
         }
     }
 
-    private void postIfActive(Runnable callback) {
-        if (activeCheck.isActive()) {
+    public void discardObsoleteRequests() {
+        loadGeneration++;
+    }
+
+    public int currentGeneration() {
+        return loadGeneration;
+    }
+
+    public boolean isCurrentGeneration(int generation) {
+        return activeCheck.isActive() && generation == loadGeneration;
+    }
+
+    private void postIfCurrentGeneration(int generation, Runnable callback) {
+        if (isCurrentGeneration(generation)) {
             mainHandler.post(() -> {
-                if (activeCheck.isActive()) {
+                if (isCurrentGeneration(generation)) {
                     callback.run();
                 }
             });

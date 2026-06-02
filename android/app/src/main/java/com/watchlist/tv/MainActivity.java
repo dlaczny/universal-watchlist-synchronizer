@@ -89,6 +89,7 @@ public final class MainActivity extends Activity {
     protected void onDestroy() {
         destroyed = true;
         loadGeneration++;
+        imageLoader.discardObsoleteRequests();
         mainHandler.removeCallbacksAndMessages(null);
         apiExecutor.shutdownNow();
         imageExecutor.shutdownNow();
@@ -321,6 +322,7 @@ public final class MainActivity extends Activity {
     }
 
     private View createPosterTile(WatchlistItem item) {
+        int posterGeneration = imageLoader.currentGeneration();
         LinearLayout tile = new LinearLayout(this);
         tile.setId(View.generateViewId());
         tile.setOrientation(LinearLayout.VERTICAL);
@@ -364,7 +366,8 @@ public final class MainActivity extends Activity {
         if (item.posterUrl() != null && !item.posterUrl().isEmpty()) {
             missingArtwork.setVisibility(View.GONE);
             artwork.postDelayed(() -> {
-                if (!destroyed && artwork.getDrawable() == null) {
+                if (imageLoader.isCurrentGeneration(posterGeneration)
+                        && artwork.getDrawable() == null) {
                     missingArtwork.setVisibility(View.VISIBLE);
                 }
             }, 10500);
@@ -487,6 +490,7 @@ public final class MainActivity extends Activity {
     }
 
     private void clearPosterGrid() {
+        imageLoader.discardObsoleteRequests();
         posterGrid.removeAllViews();
         posterTiles.clear();
         dateAddedButton.setNextFocusDownId(View.NO_ID);
