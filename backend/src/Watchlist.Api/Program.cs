@@ -4,7 +4,7 @@ using Watchlist.Infrastructure;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddWatchlistInfrastructure();
+builder.Services.AddWatchlistInfrastructure(builder.Configuration);
 builder.Services.AddScoped<WatchlistQueryService>();
 
 WebApplication app = builder.Build();

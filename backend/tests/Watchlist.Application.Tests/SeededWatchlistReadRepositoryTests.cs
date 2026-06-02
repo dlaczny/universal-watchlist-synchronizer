@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Watchlist.Application;
 using Watchlist.Domain;
@@ -63,17 +64,29 @@ public sealed class SeededWatchlistReadRepositoryTests
     }
 
     [Fact]
-    public void AddWatchlistInfrastructure_RegistersSeededRepositoryAsSingleton()
+    public void AddWatchlistInfrastructure_RegistersMongoRepositoriesAsSingletons()
     {
         ServiceCollection services = new();
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["MongoDb:ConnectionString"] = "mongodb://localhost:27017",
+                ["MongoDb:DatabaseName"] = "watchlist-tests",
+                ["MongoDb:WatchlistItemsCollectionName"] = "watchlist_items",
+                ["MongoDb:SyncRunsCollectionName"] = "sync_runs"
+            })
+            .Build();
 
-        services.AddWatchlistInfrastructure();
+        services.AddWatchlistInfrastructure(configuration);
         using ServiceProvider serviceProvider = services.BuildServiceProvider();
 
         IWatchlistReadRepository firstRepository = serviceProvider.GetRequiredService<IWatchlistReadRepository>();
         IWatchlistReadRepository secondRepository = serviceProvider.GetRequiredService<IWatchlistReadRepository>();
+        ISyncStatusReadRepository syncStatusRepository =
+            serviceProvider.GetRequiredService<ISyncStatusReadRepository>();
 
-        firstRepository.Should().BeOfType<SeededWatchlistReadRepository>();
+        firstRepository.Should().BeOfType<MongoWatchlistReadRepository>();
         secondRepository.Should().BeSameAs(firstRepository);
+        syncStatusRepository.Should().BeOfType<MongoSyncStatusReadRepository>();
     }
 }

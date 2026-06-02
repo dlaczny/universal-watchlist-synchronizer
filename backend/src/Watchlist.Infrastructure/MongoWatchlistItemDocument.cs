@@ -53,4 +53,23 @@ public sealed class MongoWatchlistItemDocument
             AvailabilityStatus,
             UpdatedAt);
     }
+
+    public static MongoWatchlistItemDocument FromDomain(WatchlistItem item)
+    {
+        return new MongoWatchlistItemDocument
+        {
+            Id = item.Id,
+            MediaType = item.MediaType,
+            Source = item.Source,
+            SourceId = item.SourceId,
+            Title = item.Title,
+            Year = item.Year,
+            Overview = item.Overview,
+            PosterUrl = item.PosterUrl,
+            BackdropUrl = item.BackdropUrl,
+            ReleaseStatus = item.ReleaseStatus,
+            AvailabilityStatus = item.AvailabilityStatus,
+            UpdatedAt = item.UpdatedAt
+        };
+    }
 }
