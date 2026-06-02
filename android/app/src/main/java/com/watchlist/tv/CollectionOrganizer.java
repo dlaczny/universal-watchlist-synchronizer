@@ -1,6 +1,7 @@
 package com.watchlist.tv;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -21,7 +22,12 @@ public final class CollectionOrganizer {
         }
 
         if (SORT_ALPHABETICAL.equals(sortMode)) {
-            organizedItems.sort(Comparator.comparing(WatchlistItem::title, String.CASE_INSENSITIVE_ORDER));
+            Collections.sort(organizedItems, new Comparator<WatchlistItem>() {
+                @Override
+                public int compare(WatchlistItem first, WatchlistItem second) {
+                    return String.CASE_INSENSITIVE_ORDER.compare(first.title(), second.title());
+                }
+            });
         }
 
         return organizedItems;
