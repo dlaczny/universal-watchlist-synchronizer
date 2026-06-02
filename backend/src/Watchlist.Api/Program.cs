@@ -43,11 +43,14 @@ app.MapGet("/api/watchlist/{id}", async (
     return item is null ? Results.NotFound() : Results.Ok(item);
 });
 
-app.MapGet("/api/sync/status", () => Results.Ok(new
+app.MapGet("/api/sync/status", async (
+    ISyncStatusReadRepository repository,
+    CancellationToken cancellationToken) =>
 {
-    status = "seeded",
-    lastSuccessfulSyncAt = DateTimeOffset.Parse("2026-05-25T10:00:00+02:00")
-}));
+    SyncStatusDto? status = await repository.GetLatestAsync(cancellationToken);
+
+    return status is null ? Results.NotFound() : Results.Ok(status);
+});
 
 app.Run();
 
