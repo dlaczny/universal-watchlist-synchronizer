@@ -15,7 +15,7 @@ public final class CollectionOrganizer {
             List<WatchlistItem> items, boolean includeUnavailable, String sortMode) {
         List<WatchlistItem> organizedItems = new ArrayList<>();
         for (WatchlistItem item : items) {
-            if (includeUnavailable || "available_on_plex".equals(item.availabilityStatus())) {
+            if (includeUnavailable || WatchlistFilters.AVAILABLE_ON_PLEX.equals(item.availabilityStatus())) {
                 organizedItems.add(item);
             }
         }

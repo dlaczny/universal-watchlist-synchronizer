@@ -13,7 +13,7 @@ public class CollectionOrganizerTest {
         List<WatchlistItem> items = Arrays.asList(
                 item("movie-1", "First", "available_on_plex"),
                 item("movie-2", "Second", "not_on_plex"),
-                item("movie-3", "Third", "uncertain_plex_match"));
+                item("movie-3", "Third", "unknown_match"));
 
         List<WatchlistItem> result = CollectionOrganizer.organize(
                 items, false, CollectionOrganizer.SORT_DATE_ADDED);
@@ -26,7 +26,7 @@ public class CollectionOrganizerTest {
         List<WatchlistItem> items = Arrays.asList(
                 item("movie-2", "Second", "not_on_plex"),
                 item("movie-1", "First", "available_on_plex"),
-                item("movie-3", "Third", "uncertain_plex_match"));
+                item("movie-3", "Third", "unknown_match"));
 
         List<WatchlistItem> result = CollectionOrganizer.organize(
                 items, true, CollectionOrganizer.SORT_DATE_ADDED);
