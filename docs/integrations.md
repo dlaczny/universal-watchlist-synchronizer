@@ -49,6 +49,12 @@ Matching should prefer stable IDs. Title/year fallback should produce an explici
 
 Purpose: persistent normalized read model and sync history.
 
+For local development, start MongoDB from the repository root:
+
+```powershell
+docker compose up -d mongo
+```
+
 Initial collections:
 
 - `watchlist_items`: normalized movie and TV records with metadata and availability.
