@@ -1,4 +1,5 @@
 using Watchlist.Application;
+using Watchlist.Api;
 using Watchlist.Domain;
 using Watchlist.Infrastructure;
 
@@ -6,8 +7,12 @@ WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddWatchlistInfrastructure(builder.Configuration);
 builder.Services.AddScoped<WatchlistQueryService>();
+builder.Services.AddExceptionHandler<MongoUnavailableExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 WebApplication app = builder.Build();
+
+app.UseExceptionHandler();
 
 app.MapGet("/api/watchlist", async (
     string? mediaType,
