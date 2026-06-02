@@ -3,8 +3,18 @@
 ## Android TV
 
 - [ ] Redesign the Android TV controls for a remote-first experience.
-  - Make D-pad navigation predictable between media type, availability filter, and poster row.
-  - Keep the focused control and focused poster visually obvious at all times.
-  - Increase TV-safe spacing and prevent labels or details from wrapping awkwardly.
-  - Verify the complete browse flow with only a TV remote: switch Movies/TV Shows, switch All/Available, and move through posters.
+  - Replace the featured-detail-row prototype with an Apple TV-inspired poster grid.
+  - Add top navigation for All, Movies, TV Shows, and a disabled search icon.
+  - Add a collection toolbar with Date added / A-Z sorting and a filter icon.
+  - Add a compact availability overlay with On Plex and Unavailable checkboxes.
+  - Restore the last selection, sort mode, filter state, and focused item where possible.
+  - Keep D-pad navigation predictable and focused elements visually obvious.
+  - Verify the complete browse flow with only a TV remote.
+
+## Backend API Follow-ups
+
+- [ ] Support a combined movie and TV query for the Android TV `All` collection.
+- [ ] Add stable watchlist `addedAt` data to MongoDB documents and API DTOs.
+- [ ] Replace the single availability mode with source-aware multi-select filtering.
+- [ ] Add subscribed streaming-service availability later.
 
