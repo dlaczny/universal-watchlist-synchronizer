@@ -74,11 +74,11 @@ The backend should represent availability explicitly:
 
 The first Android TV API can stay small:
 
-- `GET /api/watchlist?mediaType=movie|tv&filter=all|available`
+- `GET /api/watchlist?collection=all|movie|tv&availability=plex,not_on_plex,unreleased,unknown_match&sort=added_desc|title_asc`
 - `GET /api/watchlist/{id}`
 - `GET /api/sync/status`
 
-The exact DTOs should be documented before implementation.
+The list endpoint is backend-owned: clients send collection, availability, and sort controls instead of duplicating integration-aware filtering.
 
 ## API Contract
 
