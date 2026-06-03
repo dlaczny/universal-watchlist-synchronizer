@@ -1,5 +1,7 @@
 using System.Net;
 using FluentAssertions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Watchlist.Application;
 using Watchlist.Infrastructure;
@@ -80,6 +82,45 @@ public sealed class LetterboxdWatchlistClientTests
         Func<Task> action = () => client.GetMoviesAsync(CancellationToken.None);
 
         await action.Should().ThrowAsync<LetterboxdParseException>();
+    }
+
+    [Theory]
+    [InlineData("""[{ "id": 0, "title": "Karma", "release_year": "2026" }]""")]
+    [InlineData("""[{ "id": 1418998, "title": "", "release_year": "2026" }]""")]
+    [InlineData("""[{ "id": 1418998, "release_year": "2026" }]""")]
+    public async Task GetMoviesAsync_WhenRequiredSourceFieldInvalid_ThrowsLetterboxdParseException(string json)
+    {
+        LetterboxdWatchlistClient client = CreateClient(HttpStatusCode.OK, json);
+
+        Func<Task> action = () => client.GetMoviesAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<LetterboxdParseException>();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("watchlist")]
+    [InlineData("ftp://example.test/watchlist")]
+    public void AddWatchlistInfrastructure_WhenLetterboxdUrlInvalid_RejectsOptions(string watchlistUrl)
+    {
+        Dictionary<string, string?> values = new()
+        {
+            ["MongoDb:ConnectionString"] = "mongodb://localhost:27017",
+            ["MongoDb:DatabaseName"] = "watchlist",
+            ["MongoDb:WatchlistItemsCollectionName"] = "watchlist_items",
+            ["MongoDb:SyncRunsCollectionName"] = "sync_runs",
+            ["Letterboxd:WatchlistUrl"] = watchlistUrl
+        };
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(values)
+            .Build();
+        ServiceCollection services = new();
+        services.AddWatchlistInfrastructure(configuration);
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Action action = () => _ = provider.GetRequiredService<IOptions<LetterboxdOptions>>().Value;
+
+        action.Should().Throw<OptionsValidationException>();
     }
 
     private static LetterboxdWatchlistClient CreateClient(HttpStatusCode statusCode, string content)

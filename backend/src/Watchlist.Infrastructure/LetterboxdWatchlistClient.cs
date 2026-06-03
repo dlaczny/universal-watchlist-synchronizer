@@ -8,8 +8,18 @@ namespace Watchlist.Infrastructure;
 
 public sealed class LetterboxdUnavailableException(string message) : Exception(message);
 
-public sealed class LetterboxdParseException(string message, Exception innerException)
-    : Exception(message, innerException);
+public sealed class LetterboxdParseException : Exception
+{
+    public LetterboxdParseException(string message)
+        : base(message)
+    {
+    }
+
+    public LetterboxdParseException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
 
 public sealed class LetterboxdWatchlistClient(
     HttpClient httpClient,
@@ -41,6 +51,11 @@ public sealed class LetterboxdWatchlistClient(
                 return [];
             }
 
+            foreach (SourceMovie movie in movies)
+            {
+                Validate(movie);
+            }
+
             return movies.Select(ToDto).ToList();
         }
         catch (JsonException exception)
@@ -57,6 +72,14 @@ public sealed class LetterboxdWatchlistClient(
             movie.Title,
             int.TryParse(movie.ReleaseYear, out int releaseYear) ? releaseYear : null,
             string.IsNullOrWhiteSpace(movie.CleanTitle) ? null : movie.CleanTitle);
+    }
+
+    private static void Validate(SourceMovie movie)
+    {
+        if (movie.Id <= 0 || string.IsNullOrWhiteSpace(movie.Title))
+        {
+            throw new LetterboxdParseException("Letterboxd watchlist proxy returned an invalid movie item.");
+        }
     }
 
     private sealed record SourceMovie(

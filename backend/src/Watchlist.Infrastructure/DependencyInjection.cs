@@ -13,7 +13,10 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.Configure<MongoDbOptions>(configuration.GetSection(MongoDbOptions.SectionName));
-        services.Configure<LetterboxdOptions>(configuration.GetSection(LetterboxdOptions.SectionName));
+        services.AddOptions<LetterboxdOptions>()
+            .Bind(configuration.GetSection(LetterboxdOptions.SectionName))
+            .Validate(IsValidWatchlistUrl, "Letterboxd:WatchlistUrl must be an absolute HTTP or HTTPS URL.")
+            .ValidateOnStart();
         services.AddSingleton<IMongoClient>(serviceProvider =>
         {
             MongoDbOptions options = serviceProvider.GetRequiredService<IOptions<MongoDbOptions>>().Value;
@@ -31,5 +34,15 @@ public static class DependencyInjection
         services.AddHostedService<MongoBootstrapHostedService>();
 
         return services;
+    }
+
+    private static bool IsValidWatchlistUrl(LetterboxdOptions options)
+    {
+        if (!Uri.TryCreate(options.WatchlistUrl, UriKind.Absolute, out Uri? uri))
+        {
+            return false;
+        }
+
+        return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps;
     }
 }
