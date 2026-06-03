@@ -7,49 +7,68 @@ namespace Watchlist.Api.Tests;
 public sealed class WatchlistApiTests
 {
     [Fact]
-    public async Task GetWatchlist_WhenMoviesAll_ReturnsMovies()
+    public async Task GetWatchlist_WhenDefaultQuery_ReturnsAllItemsWithAddedAt()
     {
         using SeededApiFactory factory = new();
         HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage response = await client.GetAsync("/api/watchlist?mediaType=movie&filter=all");
+        HttpResponseMessage response = await client.GetAsync("/api/watchlist");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         JsonElement items = document.RootElement;
         items.GetArrayLength().Should().BeGreaterThan(0);
-        items.EnumerateArray().Should().OnlyContain(item => item.GetProperty("mediaType").GetString() == "movie");
-        items.EnumerateArray().Should().NotContain(item => item.GetProperty("mediaType").GetString() == "tv");
+        items.EnumerateArray().Should().Contain(item => item.GetProperty("mediaType").GetString() == "movie");
+        items.EnumerateArray().Should().Contain(item => item.GetProperty("mediaType").GetString() == "tv");
+        items[0].TryGetProperty("addedAt", out _).Should().BeTrue();
     }
 
     [Fact]
-    public async Task GetWatchlist_WhenMoviesAvailable_ReturnsOnlyPlexAvailableMovies()
+    public async Task GetWatchlist_WhenCollectionTv_ReturnsTvShows()
     {
         using SeededApiFactory factory = new();
         HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage response = await client.GetAsync("/api/watchlist?mediaType=movie&filter=available");
+        HttpResponseMessage response = await client.GetAsync("/api/watchlist?collection=tv");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        JsonElement items = document.RootElement;
+        items.GetArrayLength().Should().BeGreaterThan(0);
+        items.EnumerateArray().Should().OnlyContain(item => item.GetProperty("mediaType").GetString() == "tv");
+    }
+
+    [Fact]
+    public async Task GetWatchlist_WhenAvailabilityPlex_ReturnsOnlyPlexAvailableItems()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/watchlist?availability=plex");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         JsonElement items = document.RootElement;
         items.GetArrayLength().Should().BeGreaterThan(0);
         items.EnumerateArray().Should().OnlyContain(item =>
-            item.GetProperty("mediaType").GetString() == "movie"
-            && item.GetProperty("availabilityStatus").GetString() == "available_on_plex");
+            item.GetProperty("availabilityStatus").GetString() == "available_on_plex");
     }
 
-    [Fact]
-    public async Task GetWatchlist_WhenMediaTypeInvalid_ReturnsBadRequest()
+    [Theory]
+    [InlineData("/api/watchlist?collection=music", "Invalid collection.")]
+    [InlineData("/api/watchlist?availability=plex,bad", "Invalid availability.")]
+    [InlineData("/api/watchlist?availability=", "Invalid availability.")]
+    [InlineData("/api/watchlist?sort=random", "Invalid sort.")]
+    public async Task GetWatchlist_WhenQueryInvalid_ReturnsBadRequest(string url, string error)
     {
         using SeededApiFactory factory = new();
         HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage response = await client.GetAsync("/api/watchlist?mediaType=music&filter=all");
+        HttpResponseMessage response = await client.GetAsync(url);
 
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
-        document.RootElement.GetProperty("error").GetString().Should().Be("Invalid mediaType.");
+        document.RootElement.GetProperty("error").GetString().Should().Be(error);
     }
 
     [Fact]
@@ -96,7 +115,7 @@ public sealed class WatchlistApiTests
         using MongoUnavailableApiFactory factory = new();
         HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage response = await client.GetAsync("/api/watchlist?mediaType=movie&filter=all");
+        HttpResponseMessage response = await client.GetAsync("/api/watchlist?collection=movie");
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
