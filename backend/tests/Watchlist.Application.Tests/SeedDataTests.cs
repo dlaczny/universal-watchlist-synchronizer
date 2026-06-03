@@ -15,15 +15,18 @@ public sealed class SeedDataTests
         items.Should().ContainSingle(item =>
             item.Id == "movie-dune-part-two"
             && item.MediaType == MediaType.Movie
-            && item.AvailabilityStatus == AvailabilityStatus.AvailableOnPlex);
+            && item.AvailabilityStatus == AvailabilityStatus.AvailableOnPlex
+            && item.AddedAt == DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"));
         items.Should().ContainSingle(item =>
             item.Id == "movie-unreleased-example"
             && item.MediaType == MediaType.Movie
-            && item.AvailabilityStatus == AvailabilityStatus.Unreleased);
+            && item.AvailabilityStatus == AvailabilityStatus.Unreleased
+            && item.AddedAt == DateTimeOffset.Parse("2026-05-21T10:00:00+02:00"));
         items.Should().ContainSingle(item =>
             item.Id == "tv-andor"
             && item.MediaType == MediaType.TvShow
-            && item.AvailabilityStatus == AvailabilityStatus.NotOnPlex);
+            && item.AvailabilityStatus == AvailabilityStatus.NotOnPlex
+            && item.AddedAt == DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"));
     }
 
     [Fact]

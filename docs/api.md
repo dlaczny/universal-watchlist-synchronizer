@@ -4,26 +4,46 @@ This document describes the implemented backend API contract for the read-only w
 
 ## GET /api/watchlist
 
-Returns watchlist items for a selected media type.
+Returns watchlist items for the selected collection, availability states, and sort order.
 
 ### Query Parameters
 
 | Name | Values | Description |
 | --- | --- | --- |
-| `mediaType` | `movie`, `tv` | Selects movies or TV shows. |
-| `filter` | `all`, `available` | Selects all wanted items or only items available on Plex. |
+| `collection` | `all`, `movie`, `tv` | Selects all items, only movies, or only TV shows. Defaults to `all`. |
+| `availability` | `plex`, `not_on_plex`, `unreleased`, `unknown_match` | Comma-separated availability states. Defaults to all four states. |
+| `sort` | `added_desc`, `title_asc` | Sorts by watchlist-added date descending or title ascending. Defaults to `added_desc`. |
 
-### Filter Behavior
+### Availability Behavior
 
-- `filter=all` returns every wanted item for the selected `mediaType`.
-- `filter=available` returns only items whose `availabilityStatus` is `available_on_plex`.
+- `availability=plex` returns items whose API `availabilityStatus` is `available_on_plex`.
+- `availability=not_on_plex` returns released items that are missing from Plex.
+- `availability=unreleased` returns wanted items that are not released yet.
+- `availability=unknown_match` returns items whose Plex match is uncertain.
+- Multiple values are combined with commas, for example `availability=plex,unknown_match`.
+
+### Validation Errors
+
+Invalid query values return `400 Bad Request`:
+
+```json
+{ "error": "Invalid collection." }
+```
+
+```json
+{ "error": "Invalid availability." }
+```
+
+```json
+{ "error": "Invalid sort." }
+```
 
 ### Example
 
 Request:
 
 ```http
-GET /api/watchlist?mediaType=movie&filter=available
+GET /api/watchlist?collection=all&availability=plex,not_on_plex,unreleased,unknown_match&sort=added_desc
 ```
 
 Response:
@@ -42,6 +62,7 @@ Response:
     "backdropUrl": "https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
     "releaseStatus": "released",
     "availabilityStatus": "available_on_plex",
+    "addedAt": "2026-05-20T10:00:00+02:00",
     "updatedAt": "2026-05-25T10:00:00+02:00"
   }
 ]
@@ -75,6 +96,7 @@ Response:
   "backdropUrl": "https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
   "releaseStatus": "released",
   "availabilityStatus": "available_on_plex",
+  "addedAt": "2026-05-20T10:00:00+02:00",
   "updatedAt": "2026-05-25T10:00:00+02:00"
 }
 ```

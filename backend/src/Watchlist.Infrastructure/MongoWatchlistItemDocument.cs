@@ -28,6 +28,8 @@ public sealed class MongoWatchlistItemDocument
 
     public AvailabilityStatus AvailabilityStatus { get; init; }
 
+    public DateTimeOffset? AddedAt { get; init; }
+
     public DateTimeOffset UpdatedAt { get; init; }
 
     public WatchlistItem ToDomain()
@@ -51,6 +53,7 @@ public sealed class MongoWatchlistItemDocument
             BackdropUrl,
             ReleaseStatus,
             AvailabilityStatus,
+            AddedAt ?? UpdatedAt,
             UpdatedAt);
     }
 
@@ -69,6 +72,7 @@ public sealed class MongoWatchlistItemDocument
             BackdropUrl = item.BackdropUrl,
             ReleaseStatus = item.ReleaseStatus,
             AvailabilityStatus = item.AvailabilityStatus,
+            AddedAt = item.AddedAt,
             UpdatedAt = item.UpdatedAt
         };
     }

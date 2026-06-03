@@ -15,4 +15,5 @@ public sealed record WatchlistItemDto(
     string? BackdropUrl,
     string ReleaseStatus,
     string AvailabilityStatus,
+    DateTimeOffset AddedAt,
     DateTimeOffset UpdatedAt);

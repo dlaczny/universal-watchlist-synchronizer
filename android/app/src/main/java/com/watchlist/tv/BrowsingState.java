@@ -22,7 +22,7 @@ public final class BrowsingState {
     }
 
     public static BrowsingState defaults() {
-        return new BrowsingState(MEDIA_MOVIES, CollectionOrganizer.SORT_DATE_ADDED, false, null);
+        return new BrowsingState(MEDIA_ALL, CollectionOrganizer.SORT_DATE_ADDED, false, null);
     }
 
     public String mediaType() {

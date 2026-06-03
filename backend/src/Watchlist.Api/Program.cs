@@ -15,25 +15,29 @@ WebApplication app = builder.Build();
 app.UseExceptionHandler();
 
 app.MapGet("/api/watchlist", async (
-    string? mediaType,
-    string? filter,
+    string? collection,
+    string? availability,
+    string? sort,
     WatchlistQueryService queryService,
     CancellationToken cancellationToken) =>
 {
-    if (!TryParseMediaType(mediaType, out MediaType parsedMediaType))
+    if (!TryParseCollection(collection, out WatchlistCollection parsedCollection))
     {
-        return Results.BadRequest(new { error = "Invalid mediaType." });
+        return Results.BadRequest(new { error = "Invalid collection." });
     }
 
-    if (!TryParseFilter(filter, out WatchlistFilter parsedFilter))
+    if (!TryParseAvailability(availability, out IReadOnlySet<AvailabilityStatus> parsedAvailability))
     {
-        return Results.BadRequest(new { error = "Invalid filter." });
+        return Results.BadRequest(new { error = "Invalid availability." });
     }
 
-    IReadOnlyList<WatchlistItemDto> items = await queryService.GetItemsAsync(
-        parsedMediaType,
-        parsedFilter,
-        cancellationToken);
+    if (!TryParseSort(sort, out WatchlistSort parsedSort))
+    {
+        return Results.BadRequest(new { error = "Invalid sort." });
+    }
+
+    WatchlistQuery query = new(parsedCollection, parsedAvailability, parsedSort);
+    IReadOnlyList<WatchlistItemDto> items = await queryService.GetItemsAsync(query, cancellationToken);
 
     return Results.Ok(items);
 });
@@ -59,28 +63,80 @@ app.MapGet("/api/sync/status", async (
 
 app.Run();
 
-static bool TryParseMediaType(string? value, out MediaType mediaType)
+static bool TryParseCollection(string? value, out WatchlistCollection collection)
 {
-    mediaType = value switch
+    collection = value switch
     {
-        "movie" => MediaType.Movie,
-        "tv" => MediaType.TvShow,
-        _ => MediaType.Unspecified
+        null or "all" => WatchlistCollection.All,
+        "movie" => WatchlistCollection.Movie,
+        "tv" => WatchlistCollection.Tv,
+        _ => WatchlistCollection.All
     };
 
-    return mediaType != MediaType.Unspecified;
+    return value is null or "all" or "movie" or "tv";
 }
 
-static bool TryParseFilter(string? value, out WatchlistFilter filter)
+static bool TryParseAvailability(string? value, out IReadOnlySet<AvailabilityStatus> availability)
 {
-    filter = value switch
+    if (value is null)
     {
-        "all" => WatchlistFilter.All,
-        "available" => WatchlistFilter.Available,
-        _ => WatchlistFilter.All
+        availability = AllAvailabilityStatuses();
+        return true;
+    }
+
+    string[] parts = value.Split(',', StringSplitOptions.None);
+    if (parts.Length == 0 || parts.Any(string.IsNullOrWhiteSpace))
+    {
+        availability = new HashSet<AvailabilityStatus>();
+        return false;
+    }
+
+    HashSet<AvailabilityStatus> parsed = [];
+    foreach (string part in parts)
+    {
+        AvailabilityStatus status = part switch
+        {
+            "plex" => AvailabilityStatus.AvailableOnPlex,
+            "not_on_plex" => AvailabilityStatus.NotOnPlex,
+            "unreleased" => AvailabilityStatus.Unreleased,
+            "unknown_match" => AvailabilityStatus.UnknownMatch,
+            _ => AvailabilityStatus.Unspecified
+        };
+
+        if (status == AvailabilityStatus.Unspecified)
+        {
+            availability = new HashSet<AvailabilityStatus>();
+            return false;
+        }
+
+        parsed.Add(status);
+    }
+
+    availability = parsed;
+    return availability.Count > 0;
+}
+
+static bool TryParseSort(string? value, out WatchlistSort sort)
+{
+    sort = value switch
+    {
+        null or "added_desc" => WatchlistSort.AddedDescending,
+        "title_asc" => WatchlistSort.TitleAscending,
+        _ => WatchlistSort.AddedDescending
     };
 
-    return value is "all" or "available";
+    return value is null or "added_desc" or "title_asc";
+}
+
+static IReadOnlySet<AvailabilityStatus> AllAvailabilityStatuses()
+{
+    return new HashSet<AvailabilityStatus>
+    {
+        AvailabilityStatus.AvailableOnPlex,
+        AvailabilityStatus.NotOnPlex,
+        AvailabilityStatus.Unreleased,
+        AvailabilityStatus.UnknownMatch
+    };
 }
 
 public partial class Program;

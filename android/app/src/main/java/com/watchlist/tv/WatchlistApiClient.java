@@ -20,9 +20,27 @@ public final class WatchlistApiClient {
         this.baseUrl = trimTrailingSlash(baseUrl);
     }
 
-    public List<WatchlistItem> getWatchlist(String mediaType, String filter) throws IOException, JSONException {
-        String json = get("/api/watchlist?mediaType=" + mediaType + "&filter=" + filter);
+    public List<WatchlistItem> getWatchlist(
+            String collection,
+            String sortMode,
+            boolean includeUnavailable) throws IOException, JSONException {
+        String json = get(buildWatchlistPath(collection, sortMode, includeUnavailable));
         return parseItems(json);
+    }
+
+    public static String buildWatchlistPath(String mediaType, String sortMode, boolean includeUnavailable) {
+        String collection = BrowsingState.MEDIA_TV.equals(mediaType)
+                ? "tv"
+                : BrowsingState.MEDIA_MOVIES.equals(mediaType) ? "movie" : "all";
+        String sort = CollectionOrganizer.SORT_ALPHABETICAL.equals(sortMode)
+                ? "title_asc"
+                : "added_desc";
+        String availability = includeUnavailable
+                ? "plex,not_on_plex,unreleased,unknown_match"
+                : "plex";
+        return "/api/watchlist?collection=" + collection
+                + "&availability=" + availability
+                + "&sort=" + sort;
     }
 
     public SyncStatus getSyncStatus() throws IOException, JSONException {
@@ -47,6 +65,7 @@ public final class WatchlistApiClient {
                     nullableString(item, "backdropUrl"),
                     item.getString("releaseStatus"),
                     item.getString("availabilityStatus"),
+                    item.getString("addedAt"),
                     item.getString("updatedAt")));
         }
 
