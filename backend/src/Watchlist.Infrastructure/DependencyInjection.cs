@@ -13,6 +13,7 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.Configure<MongoDbOptions>(configuration.GetSection(MongoDbOptions.SectionName));
+        services.Configure<LetterboxdOptions>(configuration.GetSection(LetterboxdOptions.SectionName));
         services.AddSingleton<IMongoClient>(serviceProvider =>
         {
             MongoDbOptions options = serviceProvider.GetRequiredService<IOptions<MongoDbOptions>>().Value;
@@ -26,6 +27,7 @@ public static class DependencyInjection
         });
         services.AddSingleton<IWatchlistReadRepository, MongoWatchlistReadRepository>();
         services.AddSingleton<ISyncStatusReadRepository, MongoSyncStatusReadRepository>();
+        services.AddHttpClient<ILetterboxdWatchlistClient, LetterboxdWatchlistClient>();
         services.AddHostedService<MongoBootstrapHostedService>();
 
         return services;
