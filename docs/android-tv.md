@@ -55,24 +55,24 @@ android/app/build/outputs/apk/debug/
 
 - Android TV launcher activity.
 - Remote-first poster grid with artwork, title, and availability badge on each tile.
-- Top navigation with a disabled `All` collection, `Movies`, `TV Shows`, and a disabled search icon.
-- Collection toolbar with `Date added` and `A-Z` sorting plus an availability filter icon.
-- Availability popup with an always-checked `On Plex` baseline and an `Unavailable` checkbox.
+- Top navigation with enabled `All`, `Movies`, `TV Shows`, and a disabled search icon.
+- Collection toolbar with backend-owned `Date added` and `A-Z` sorting plus an availability filter icon.
+- Availability popup with an always-checked `On Plex` baseline and an `Unavailable` checkbox that requests `not_on_plex`, `unreleased`, and `unknown_match` from the backend.
 - `SharedPreferences` restore for the selected collection, sort mode, availability filter, and the last focused item where possible.
 - Predictable D-pad focus movement across navigation, toolbar controls, the popup, and poster grid.
 - Back closes the availability popup first, then follows the normal Android activity flow.
 - Loading, empty, and backend error states.
 
-`Date added` currently preserves backend order. Stable watchlist `addedAt` data is a backend API follow-up.
+`Date added` uses the backend `addedAt` field and asks the API for `sort=added_desc`.
 
 ## Manual Remote Test
 
 Run the backend and launch the debug build on an Android TV emulator or device. Complete this flow using only D-pad navigation, Select, and Back:
 
 1. Confirm focus starts in a usable location and moves predictably through the top navigation, toolbar, and poster grid.
-2. Confirm `All` and search are visible but disabled, while `Movies` and `TV Shows` change the collection.
-3. Confirm `Date added` preserves backend order and `A-Z` sorts the visible collection alphabetically.
-4. Open the availability popup from the filter icon. Confirm `On Plex` remains checked, then toggle `Unavailable` and confirm unavailable items are included or excluded from the grid.
+2. Confirm `All`, `Movies`, and `TV Shows` change the collection, while search is visible but disabled.
+3. Confirm `Date added` and `A-Z` reload the collection from the backend with the selected sort.
+4. Open the availability popup from the filter icon. Confirm `On Plex` remains checked, then toggle `Unavailable` and confirm unavailable, unreleased, and uncertain-match items are included or excluded from the grid.
 5. Press Back while the popup is open. Confirm it closes without leaving the screen and focus returns to the filter icon.
 6. Move focus to a poster, change collection, sort mode, and the `Unavailable` filter, then leave and relaunch the activity. Confirm the saved state and last focused item are restored where possible.
 7. Confirm focus remains visually obvious and directional movement does not trap the user at grid or toolbar boundaries.
