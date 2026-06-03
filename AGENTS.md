@@ -4,6 +4,8 @@
 
 This repository contains a personal watchlist application for Android TV first, with Android phone support planned later. The app shows movies and TV shows the user wants to watch and clearly marks what is available on the user's Plex server.
 
+The app is not deployed and has no external users. Breaking backend API or Android client contract changes are acceptable while the project remains local-only, provided the affected code, tests, and documentation are updated together.
+
 Version 1 is read-only from the client UI. Do not add create, edit, delete, reorder, or watchlist mutation flows unless the product scope changes explicitly.
 
 ## Repository Layout
@@ -29,8 +31,9 @@ If these folders do not exist yet, create them only when there is implementation
 - TV watchlist source of truth: TMDB account watchlist.
 - Availability v1: available on the user's Plex server.
 - Streaming provider availability is a later extension, not part of v1.
-- Android TV UI direction: Plex-like Featured Detail Row.
-- Primary filters: Movies vs TV Shows, All vs Available.
+- Android TV UI direction: Apple TV-inspired remote-first poster grid.
+- Primary top navigation: All vs Movies vs TV Shows.
+- Availability is a secondary source-aware collection filter.
 - Treat unreleased items, missing Plex items, and uncertain Plex matches as distinct states.
 
 ## Backend Guidance
