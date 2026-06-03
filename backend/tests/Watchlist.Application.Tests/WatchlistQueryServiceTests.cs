@@ -10,19 +10,39 @@ public sealed class WatchlistQueryServiceTests
     private static readonly DateTimeOffset UpdatedAt = new(2026, 5, 25, 8, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task GetItemsAsync_WhenMediaTypeIsMovie_ReturnsOnlyMovies()
+    public async Task GetItemsAsync_WhenCollectionAll_ReturnsMoviesAndTv()
     {
         IReadOnlyList<WatchlistItem> items =
         [
-            CreateItem("movie-1", MediaType.Movie, "Alien"),
-            CreateItem("tv-1", MediaType.TvShow, "Severance")
+            CreateItem("old-movie", MediaType.Movie, "Dune: Part Two", DateTimeOffset.Parse("2026-05-20T10:00:00+02:00")),
+            CreateItem("new-tv", MediaType.TvShow, "Andor", DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"))
         ];
         WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQuery query = new(
+            WatchlistCollection.All,
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex, AvailabilityStatus.NotOnPlex },
+            WatchlistSort.AddedDescending);
 
-        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(
-            MediaType.Movie,
-            WatchlistFilter.All,
-            CancellationToken.None);
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
+
+        result.Select(item => item.Id).Should().Equal("new-tv", "old-movie");
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_WhenCollectionMovie_ReturnsOnlyMovies()
+    {
+        IReadOnlyList<WatchlistItem> items =
+        [
+            CreateItem("movie-1", MediaType.Movie, "Alien", AvailabilityStatus.AvailableOnPlex),
+            CreateItem("tv-1", MediaType.TvShow, "Severance", AvailabilityStatus.AvailableOnPlex)
+        ];
+        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQuery query = new(
+            WatchlistCollection.Movie,
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex },
+            WatchlistSort.AddedDescending);
+
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
 
         result.Should().ContainSingle();
         result[0].Id.Should().Be("movie-1");
@@ -30,24 +50,94 @@ public sealed class WatchlistQueryServiceTests
     }
 
     [Fact]
-    public async Task GetItemsAsync_WhenFilterIsAvailable_ReturnsOnlyAvailableOnPlex()
+    public async Task GetItemsAsync_WhenCollectionTv_ReturnsOnlyTvShows()
     {
         IReadOnlyList<WatchlistItem> items =
         [
-            CreateItem("available-1", MediaType.Movie, "Alien", AvailabilityStatus.AvailableOnPlex),
-            CreateItem("missing-1", MediaType.Movie, "Blade Runner", AvailabilityStatus.NotOnPlex),
-            CreateItem("uncertain-1", MediaType.TvShow, "Twin Peaks", AvailabilityStatus.UnknownMatch)
+            CreateItem("movie-1", MediaType.Movie, "Alien", AvailabilityStatus.AvailableOnPlex),
+            CreateItem("tv-1", MediaType.TvShow, "Severance", AvailabilityStatus.AvailableOnPlex)
         ];
         WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQuery query = new(
+            WatchlistCollection.Tv,
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex },
+            WatchlistSort.AddedDescending);
 
-        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(
-            null,
-            WatchlistFilter.Available,
-            CancellationToken.None);
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
 
         result.Should().ContainSingle();
-        result[0].Id.Should().Be("available-1");
-        result[0].AvailabilityStatus.Should().Be("available_on_plex");
+        result[0].Id.Should().Be("tv-1");
+        result[0].MediaType.Should().Be("tv");
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_WhenAvailabilityHasSplitReasons_ReturnsOnlyRequestedStates()
+    {
+        IReadOnlyList<WatchlistItem> items =
+        [
+            CreateItem("available", MediaType.Movie, "Available", DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"), AvailabilityStatus.AvailableOnPlex),
+            CreateItem("missing", MediaType.Movie, "Missing", DateTimeOffset.Parse("2026-05-21T10:00:00+02:00"), AvailabilityStatus.NotOnPlex),
+            CreateItem("uncertain", MediaType.TvShow, "Uncertain", DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"), AvailabilityStatus.UnknownMatch)
+        ];
+        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQuery query = new(
+            WatchlistCollection.All,
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex, AvailabilityStatus.UnknownMatch },
+            WatchlistSort.AddedDescending);
+
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
+
+        result.Select(item => item.AvailabilityStatus)
+            .Should()
+            .OnlyContain(status => status == "available_on_plex" || status == "unknown_match");
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_WhenSortAddedDescending_PreservesRepositoryOrderForEqualAddedAt()
+    {
+        DateTimeOffset latestAddedAt = DateTimeOffset.Parse("2026-05-22T10:00:00+02:00");
+        DateTimeOffset olderAddedAt = DateTimeOffset.Parse("2026-05-20T10:00:00+02:00");
+        IReadOnlyList<WatchlistItem> items =
+        [
+            CreateItem("tie-first", MediaType.Movie, "First", latestAddedAt, AvailabilityStatus.AvailableOnPlex),
+            CreateItem("older", MediaType.Movie, "Older", olderAddedAt, AvailabilityStatus.AvailableOnPlex),
+            CreateItem("tie-second", MediaType.TvShow, "Second", latestAddedAt, AvailabilityStatus.AvailableOnPlex)
+        ];
+        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQuery query = new(
+            WatchlistCollection.All,
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex },
+            WatchlistSort.AddedDescending);
+
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
+
+        result.Select(item => item.Id).Should().Equal("tie-first", "tie-second", "older");
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_WhenSortTitleAscending_SortsCaseInsensitively()
+    {
+        IReadOnlyList<WatchlistItem> items =
+        [
+            CreateItem("future", MediaType.Movie, "future Movie", DateTimeOffset.Parse("2026-05-21T10:00:00+02:00"), AvailabilityStatus.Unreleased),
+            CreateItem("dune", MediaType.Movie, "Dune: Part Two", DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"), AvailabilityStatus.AvailableOnPlex),
+            CreateItem("andor", MediaType.TvShow, "Andor", DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"), AvailabilityStatus.NotOnPlex)
+        ];
+        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQuery query = new(
+            WatchlistCollection.All,
+            new HashSet<AvailabilityStatus>
+            {
+                AvailabilityStatus.AvailableOnPlex,
+                AvailabilityStatus.NotOnPlex,
+                AvailabilityStatus.Unreleased,
+                AvailabilityStatus.UnknownMatch
+            },
+            WatchlistSort.TitleAscending);
+
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
+
+        result.Select(item => item.Title).Should().Equal("Andor", "Dune: Part Two", "future Movie");
     }
 
     [Fact]
@@ -83,6 +173,16 @@ public sealed class WatchlistQueryServiceTests
         string title,
         AvailabilityStatus availabilityStatus = AvailabilityStatus.NotOnPlex)
     {
+        return CreateItem(id, mediaType, title, AddedAt, availabilityStatus);
+    }
+
+    private static WatchlistItem CreateItem(
+        string id,
+        MediaType mediaType,
+        string title,
+        DateTimeOffset addedAt,
+        AvailabilityStatus availabilityStatus = AvailabilityStatus.NotOnPlex)
+    {
         return new WatchlistItem(
             id,
             mediaType,
@@ -95,7 +195,7 @@ public sealed class WatchlistQueryServiceTests
             "https://example.test/backdrop.jpg",
             ReleaseStatus.Released,
             availabilityStatus,
-            AddedAt,
+            addedAt,
             UpdatedAt);
     }
 

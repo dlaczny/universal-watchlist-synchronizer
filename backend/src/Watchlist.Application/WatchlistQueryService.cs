@@ -8,27 +8,36 @@ namespace Watchlist.Application;
 public sealed class WatchlistQueryService(IWatchlistReadRepository repository)
 {
     /// <summary>
-    /// Gets watchlist items filtered by media type and availability.
+    /// Gets watchlist items filtered and sorted by backend-owned query controls.
     /// </summary>
     public async Task<IReadOnlyList<WatchlistItemDto>> GetItemsAsync(
-        MediaType? mediaType,
-        WatchlistFilter filter,
+        WatchlistQuery query,
         CancellationToken cancellationToken)
     {
         IReadOnlyList<WatchlistItem> items = await repository.GetItemsAsync(cancellationToken);
         IEnumerable<WatchlistItem> filteredItems = items;
+
+        MediaType? mediaType = query.Collection switch
+        {
+            WatchlistCollection.Movie => MediaType.Movie,
+            WatchlistCollection.Tv => MediaType.TvShow,
+            _ => null
+        };
 
         if (mediaType is not null)
         {
             filteredItems = filteredItems.Where(item => item.MediaType == mediaType.Value);
         }
 
-        if (filter == WatchlistFilter.Available)
-        {
-            filteredItems = filteredItems.Where(item => item.AvailabilityStatus == AvailabilityStatus.AvailableOnPlex);
-        }
+        filteredItems = filteredItems.Where(item => query.Availability.Contains(item.AvailabilityStatus));
 
-        return filteredItems.Select(ToDto).ToList();
+        IEnumerable<WatchlistItem> sortedItems = query.Sort switch
+        {
+            WatchlistSort.TitleAscending => filteredItems.OrderBy(item => item.Title, StringComparer.OrdinalIgnoreCase),
+            _ => filteredItems.OrderByDescending(item => item.AddedAt)
+        };
+
+        return sortedItems.Select(ToDto).ToList();
     }
 
     /// <summary>
