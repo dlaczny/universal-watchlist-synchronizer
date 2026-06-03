@@ -71,6 +71,7 @@ public final class MainActivity extends Activity {
         browsingState = restoreBrowsingState();
         setContentView(createContentView());
         updateControlStyles();
+        allButton.requestFocus();
         loadItems();
     }
 
