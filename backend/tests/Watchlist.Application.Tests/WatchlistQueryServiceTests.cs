@@ -6,6 +6,7 @@ namespace Watchlist.Application.Tests;
 
 public sealed class WatchlistQueryServiceTests
 {
+    private static readonly DateTimeOffset AddedAt = new(2026, 5, 20, 8, 30, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset UpdatedAt = new(2026, 5, 25, 8, 30, 0, TimeSpan.Zero);
 
     [Fact]
@@ -72,6 +73,7 @@ public sealed class WatchlistQueryServiceTests
         result.BackdropUrl.Should().Be("https://example.test/backdrop.jpg");
         result.ReleaseStatus.Should().Be("released");
         result.AvailabilityStatus.Should().Be("available_on_plex");
+        result.AddedAt.Should().Be(AddedAt);
         result.UpdatedAt.Should().Be(UpdatedAt);
     }
 
@@ -93,6 +95,7 @@ public sealed class WatchlistQueryServiceTests
             "https://example.test/backdrop.jpg",
             ReleaseStatus.Released,
             availabilityStatus,
+            AddedAt,
             UpdatedAt);
     }
 

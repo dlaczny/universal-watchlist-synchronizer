@@ -18,6 +18,7 @@ public static class SeedData
             "https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
             ReleaseStatus.Released,
             AvailabilityStatus.AvailableOnPlex,
+            DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"),
             DateTimeOffset.Parse("2026-05-25T10:00:00+02:00")),
         new WatchlistItem(
             "movie-unreleased-example",
@@ -31,6 +32,7 @@ public static class SeedData
             null,
             ReleaseStatus.Unreleased,
             AvailabilityStatus.Unreleased,
+            DateTimeOffset.Parse("2026-05-21T10:00:00+02:00"),
             DateTimeOffset.Parse("2026-05-25T10:00:00+02:00")),
         new WatchlistItem(
             "tv-andor",
@@ -44,6 +46,7 @@ public static class SeedData
             "https://image.tmdb.org/t/p/w1280/5NbdcZdsu7Rr0RthcYk4qqv7W7J.jpg",
             ReleaseStatus.Released,
             AvailabilityStatus.NotOnPlex,
+            DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"),
             DateTimeOffset.Parse("2026-05-25T10:00:00+02:00"))
     ];
 

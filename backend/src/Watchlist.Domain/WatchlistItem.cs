@@ -12,4 +12,5 @@ public sealed record WatchlistItem(
     string? BackdropUrl,
     ReleaseStatus ReleaseStatus,
     AvailabilityStatus AvailabilityStatus,
+    DateTimeOffset AddedAt,
     DateTimeOffset UpdatedAt);
