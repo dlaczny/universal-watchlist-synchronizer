@@ -415,35 +415,38 @@ public final class MainActivity extends Activity {
             int above = index - GRID_COLUMNS;
             int below = index + GRID_COLUMNS;
 
-            if (column > 0 && previous >= 0) {
-                tile.setNextFocusLeftId(posterTiles.get(previous).getId());
-            }
-            if (column < GRID_COLUMNS - 1 && next < posterTiles.size()) {
-                tile.setNextFocusRightId(posterTiles.get(next).getId());
-            }
+            tile.setNextFocusLeftId(column > 0 && previous >= 0
+                    ? posterTiles.get(previous).getId()
+                    : tile.getId());
+            tile.setNextFocusRightId(column < GRID_COLUMNS - 1 && next < posterTiles.size()
+                    ? posterTiles.get(next).getId()
+                    : tile.getId());
             tile.setNextFocusUpId(above >= 0
                     ? posterTiles.get(above).getId()
                     : toolbarFocusTarget(column).getId());
-            if (below < posterTiles.size()) {
-                tile.setNextFocusDownId(posterTiles.get(below).getId());
-            }
+            tile.setNextFocusDownId(below < posterTiles.size()
+                    ? posterTiles.get(below).getId()
+                    : tile.getId());
             tile.setOnKeyListener((view, keyCode, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) {
                     return false;
                 }
                 View target = null;
-                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT && column > 0) {
-                    target = posterTiles.get(previous);
-                } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
-                        && column < GRID_COLUMNS - 1
-                        && next < posterTiles.size()) {
-                    target = posterTiles.get(next);
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    target = column > 0 ? posterTiles.get(previous) : view;
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    target = column < GRID_COLUMNS - 1 && next < posterTiles.size()
+                            ? posterTiles.get(next)
+                            : view;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                     target = above >= 0 ? posterTiles.get(above) : toolbarFocusTarget(column);
-                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN && below < posterTiles.size()) {
-                    target = posterTiles.get(below);
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    target = below < posterTiles.size() ? posterTiles.get(below) : view;
                 }
-                return target != null && target.requestFocus();
+                if (target == null) {
+                    return false;
+                }
+                return target == view || target.requestFocus();
             });
         }
 
