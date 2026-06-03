@@ -50,6 +50,7 @@ public final class MainActivity extends Activity {
     private GridLayout posterGrid;
     private TextView messageView;
     private ProgressBar progressBar;
+    private Button allButton;
     private Button moviesButton;
     private Button tvButton;
     private Button dateAddedButton;
@@ -149,8 +150,8 @@ public final class MainActivity extends Activity {
         LinearLayout navigation = horizontalZone();
         navigation.setPadding(0, dp(18), 0, dp(10));
 
-        Button allButton = textButton(getString(R.string.nav_all));
-        allButton.setEnabled(false);
+        allButton = textButton(getString(R.string.nav_all));
+        allButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_ALL));
         navigation.addView(allButton);
 
         moviesButton = textButton(getString(R.string.nav_movies));
@@ -167,6 +168,8 @@ public final class MainActivity extends Activity {
         searchButton.setEnabled(false);
         navigation.addView(searchButton);
 
+        allButton.setNextFocusRightId(moviesButton.getId());
+        moviesButton.setNextFocusLeftId(allButton.getId());
         moviesButton.setNextFocusRightId(tvButton.getId());
         tvButton.setNextFocusLeftId(moviesButton.getId());
         return navigation;
@@ -213,7 +216,7 @@ public final class MainActivity extends Activity {
         browsingState = browsingState.withSortMode(sortMode);
         persistBrowsingState();
         updateControlStyles();
-        renderItems(loadedItems, false);
+        loadItems();
     }
 
     private void showFilterPopup() {
@@ -241,7 +244,7 @@ public final class MainActivity extends Activity {
         unavailable.setOnCheckedChangeListener((buttonView, checked) -> {
             browsingState = browsingState.withIncludeUnavailable(checked);
             persistBrowsingState();
-            renderItems(loadedItems, false);
+            loadItems();
         });
         content.addView(unavailable);
 
@@ -267,11 +270,16 @@ public final class MainActivity extends Activity {
         }
         int generation = ++loadGeneration;
         String mediaType = browsingState.mediaType();
+        String sortMode = browsingState.sortMode();
+        boolean includeUnavailable = browsingState.includeUnavailable();
         showLoading();
         try {
             apiExecutor.execute(() -> {
                 try {
-                    List<WatchlistItem> items = apiClient.getWatchlist(mediaType, WatchlistFilters.FILTER_ALL);
+                    List<WatchlistItem> items = apiClient.getWatchlist(
+                            mediaType,
+                            sortMode,
+                            includeUnavailable);
                     if (!destroyed) {
                         mainHandler.post(() -> {
                             if (!destroyed && generation == loadGeneration) {
@@ -302,10 +310,7 @@ public final class MainActivity extends Activity {
         progressBar.setVisibility(View.GONE);
         clearPosterGrid();
 
-        List<WatchlistItem> visibleItems = CollectionOrganizer.organize(
-                items,
-                browsingState.includeUnavailable(),
-                browsingState.sortMode());
+        List<WatchlistItem> visibleItems = items;
         if (visibleItems.isEmpty()) {
             messageView.setText(R.string.message_empty);
             return;
@@ -509,7 +514,9 @@ public final class MainActivity extends Activity {
     private BrowsingState restoreBrowsingState() {
         BrowsingState defaults = BrowsingState.defaults();
         String mediaType = preferences.getString(PREF_MEDIA_TYPE, defaults.mediaType());
-        if (!BrowsingState.MEDIA_MOVIES.equals(mediaType) && !BrowsingState.MEDIA_TV.equals(mediaType)) {
+        if (!BrowsingState.MEDIA_ALL.equals(mediaType)
+                && !BrowsingState.MEDIA_MOVIES.equals(mediaType)
+                && !BrowsingState.MEDIA_TV.equals(mediaType)) {
             mediaType = defaults.mediaType();
         }
 
@@ -547,6 +554,7 @@ public final class MainActivity extends Activity {
     }
 
     private void updateControlStyles() {
+        styleTextButton(allButton, BrowsingState.MEDIA_ALL.equals(browsingState.mediaType()));
         styleTextButton(moviesButton, BrowsingState.MEDIA_MOVIES.equals(browsingState.mediaType()));
         styleTextButton(tvButton, BrowsingState.MEDIA_TV.equals(browsingState.mediaType()));
         styleTextButton(dateAddedButton, CollectionOrganizer.SORT_DATE_ADDED.equals(browsingState.sortMode()));
@@ -554,9 +562,10 @@ public final class MainActivity extends Activity {
     }
 
     private void updateZoneFocusLinks() {
-        dateAddedButton.setNextFocusUpId(moviesButton.getId());
+        dateAddedButton.setNextFocusUpId(allButton.getId());
         alphabeticalButton.setNextFocusUpId(moviesButton.getId());
         filterButton.setNextFocusUpId(tvButton.getId());
+        allButton.setNextFocusDownId(dateAddedButton.getId());
         moviesButton.setNextFocusDownId(dateAddedButton.getId());
         tvButton.setNextFocusDownId(filterButton.getId());
     }

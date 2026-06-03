@@ -16,10 +16,10 @@ public class BrowsingStateTest {
     }
 
     @Test
-    public void defaults_startWithMoviesByDateAddedAndUnavailableItemsExcluded() {
+    public void defaults_startWithAllByDateAddedAndUnavailableItemsExcluded() {
         BrowsingState state = BrowsingState.defaults();
 
-        assertEquals(BrowsingState.MEDIA_MOVIES, state.mediaType());
+        assertEquals(BrowsingState.MEDIA_ALL, state.mediaType());
         assertEquals(CollectionOrganizer.SORT_DATE_ADDED, state.sortMode());
         assertFalse(state.includeUnavailable());
         assertNull(state.focusedItemId());
@@ -49,7 +49,7 @@ public class BrowsingStateTest {
         BrowsingState availabilityUpdated = original.withIncludeUnavailable(true);
         BrowsingState focusUpdated = original.withFocusedItemId("movie-7");
 
-        assertEquals(BrowsingState.MEDIA_MOVIES, original.mediaType());
+        assertEquals(BrowsingState.MEDIA_ALL, original.mediaType());
         assertEquals(CollectionOrganizer.SORT_DATE_ADDED, original.sortMode());
         assertFalse(original.includeUnavailable());
         assertNull(original.focusedItemId());
@@ -59,17 +59,17 @@ public class BrowsingStateTest {
         assertFalse(mediaUpdated.includeUnavailable());
         assertNull(mediaUpdated.focusedItemId());
 
-        assertEquals(BrowsingState.MEDIA_MOVIES, sortUpdated.mediaType());
+        assertEquals(BrowsingState.MEDIA_ALL, sortUpdated.mediaType());
         assertEquals(CollectionOrganizer.SORT_ALPHABETICAL, sortUpdated.sortMode());
         assertFalse(sortUpdated.includeUnavailable());
         assertNull(sortUpdated.focusedItemId());
 
-        assertEquals(BrowsingState.MEDIA_MOVIES, availabilityUpdated.mediaType());
+        assertEquals(BrowsingState.MEDIA_ALL, availabilityUpdated.mediaType());
         assertEquals(CollectionOrganizer.SORT_DATE_ADDED, availabilityUpdated.sortMode());
         assertTrue(availabilityUpdated.includeUnavailable());
         assertNull(availabilityUpdated.focusedItemId());
 
-        assertEquals(BrowsingState.MEDIA_MOVIES, focusUpdated.mediaType());
+        assertEquals(BrowsingState.MEDIA_ALL, focusUpdated.mediaType());
         assertEquals(CollectionOrganizer.SORT_DATE_ADDED, focusUpdated.sortMode());
         assertFalse(focusUpdated.includeUnavailable());
         assertEquals("movie-7", focusUpdated.focusedItemId());

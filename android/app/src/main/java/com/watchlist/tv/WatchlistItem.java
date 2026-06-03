@@ -12,6 +12,7 @@ public final class WatchlistItem {
     private final String backdropUrl;
     private final String releaseStatus;
     private final String availabilityStatus;
+    private final String addedAt;
     private final String updatedAt;
 
     public WatchlistItem(
@@ -26,6 +27,7 @@ public final class WatchlistItem {
             String backdropUrl,
             String releaseStatus,
             String availabilityStatus,
+            String addedAt,
             String updatedAt) {
         this.id = id;
         this.mediaType = mediaType;
@@ -38,6 +40,7 @@ public final class WatchlistItem {
         this.backdropUrl = backdropUrl;
         this.releaseStatus = releaseStatus;
         this.availabilityStatus = availabilityStatus;
+        this.addedAt = addedAt;
         this.updatedAt = updatedAt;
     }
 
@@ -83,6 +86,10 @@ public final class WatchlistItem {
 
     public String availabilityStatus() {
         return availabilityStatus;
+    }
+
+    public String addedAt() {
+        return addedAt;
     }
 
     public String updatedAt() {

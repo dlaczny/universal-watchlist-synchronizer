@@ -72,6 +72,7 @@ public class CollectionOrganizerTest {
                 null,
                 "released",
                 availabilityStatus,
+                "2026-05-24T10:00:00+02:00",
                 "2026-05-25T10:00:00+02:00");
     }
 
