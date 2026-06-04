@@ -100,6 +100,44 @@ public sealed class MongoWatchlistItemDocumentTests
     }
 
     [Fact]
+    public void ToDomain_WhenDocumentHasTmdbMetadata_MapsDisplayFieldsFromDocument()
+    {
+        DateTimeOffset updatedAt = DateTimeOffset.Parse("2026-06-04T10:00:00+02:00");
+        MongoWatchlistItemDocument document = new()
+        {
+            Id = "movie-example",
+            MediaType = MediaType.Movie,
+            Source = WatchlistSource.Letterboxd,
+            SourceId = "letterboxd-example",
+            Title = "Display Title",
+            Year = 2026,
+            Overview = "Display overview",
+            PosterUrl = "https://example.com/display-poster.jpg",
+            BackdropUrl = "https://example.com/display-backdrop.jpg",
+            ReleaseStatus = ReleaseStatus.Released,
+            AvailabilityStatus = AvailabilityStatus.AvailableOnPlex,
+            UpdatedAt = updatedAt,
+            TmdbId = 1297842,
+            TmdbTitle = "TMDB Title",
+            OriginalTitle = "Original Title",
+            ReleaseDate = "2026-06-04",
+            Genres = ["Drama"],
+            PosterPath = "/tmdb-poster.jpg",
+            BackdropPath = "/tmdb-backdrop.jpg",
+            ReleasedOnVod = true,
+            VodRegions = ["PL", "US"],
+            OwnedServiceAvailability = ["Amazon Prime Video"],
+            TmdbMetadataStatus = "completed"
+        };
+
+        WatchlistItem item = document.ToDomain();
+
+        item.Overview.Should().Be("Display overview");
+        item.PosterUrl.Should().Be("https://example.com/display-poster.jpg");
+        item.BackdropUrl.Should().Be("https://example.com/display-backdrop.jpg");
+    }
+
+    [Fact]
     public void ToDomain_WhenEnumIsUnspecified_Throws()
     {
         MongoWatchlistItemDocument document = new()

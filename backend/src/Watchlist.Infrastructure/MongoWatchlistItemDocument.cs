@@ -28,6 +28,35 @@ public sealed class MongoWatchlistItemDocument
 
     public string? BackdropUrl { get; init; }
 
+    public int? TmdbId { get; init; }
+
+    public string? TmdbTitle { get; init; }
+
+    public string? OriginalTitle { get; init; }
+
+    public string? ReleaseDate { get; init; }
+
+    public IReadOnlyList<string> Genres { get; init; } = [];
+
+    public string? PosterPath { get; init; }
+
+    public string? BackdropPath { get; init; }
+
+    public IReadOnlyDictionary<string, MongoRegionWatchProvidersDocument> WatchProviders { get; init; }
+        = new Dictionary<string, MongoRegionWatchProvidersDocument>();
+
+    public IReadOnlyList<string> OwnedServiceAvailability { get; init; } = [];
+
+    public bool ReleasedOnVod { get; init; }
+
+    public IReadOnlyList<string> VodRegions { get; init; } = [];
+
+    public DateTimeOffset? TmdbMetadataUpdatedAt { get; init; }
+
+    public string TmdbMetadataStatus { get; init; } = "not_synced";
+
+    public string? TmdbMetadataError { get; init; }
+
     public ReleaseStatus ReleaseStatus { get; init; }
 
     public AvailabilityStatus AvailabilityStatus { get; init; }
