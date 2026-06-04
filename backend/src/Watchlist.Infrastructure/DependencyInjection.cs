@@ -34,6 +34,7 @@ public static class DependencyInjection
         });
         services.AddSingleton<IWatchlistReadRepository, MongoWatchlistReadRepository>();
         services.AddSingleton<IWatchlistWriteRepository, MongoWatchlistWriteRepository>();
+        services.AddSingleton<ITmdbMovieMetadataRepository, MongoTmdbMovieMetadataRepository>();
         services.AddSingleton<ISyncStatusReadRepository, MongoSyncStatusReadRepository>();
         services.AddSingleton(TimeProvider.System);
         services.AddHttpClient<ILetterboxdWatchlistClient, LetterboxdWatchlistClient>();
@@ -43,6 +44,7 @@ public static class DependencyInjection
             httpClient.BaseAddress = new Uri(options.BaseUrl);
         });
         services.AddScoped<ILetterboxdMovieSyncService, LetterboxdMovieSyncService>();
+        services.AddScoped<ITmdbMovieEnrichmentService, TmdbMovieEnrichmentService>();
         services.AddHostedService<MongoBootstrapHostedService>();
 
         return services;

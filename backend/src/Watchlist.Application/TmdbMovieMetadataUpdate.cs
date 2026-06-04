@@ -1,0 +1,21 @@
+namespace Watchlist.Application;
+
+public sealed record TmdbMovieMetadataUpdate(
+    int? TmdbId,
+    string? ImdbId,
+    string? TmdbTitle,
+    string? OriginalTitle,
+    string? Overview,
+    string? ReleaseDate,
+    IReadOnlyList<string> Genres,
+    string? PosterPath,
+    string? BackdropPath,
+    string? PosterUrl,
+    string? BackdropUrl,
+    TmdbMovieProviderDataDto Providers,
+    IReadOnlyList<string> OwnedServiceAvailability,
+    bool ReleasedOnVod,
+    IReadOnlyList<string> VodRegions,
+    DateTimeOffset UpdatedAt,
+    string MetadataStatus,
+    string? MetadataError);
