@@ -4,14 +4,19 @@
 
 Purpose: source of truth for movies the user wants to watch.
 
-The preferred integration is the official Letterboxd API if access is available. If API access is unavailable or limited, the project should document and choose a fallback before implementation. Do not build fragile scraping as a hidden assumption.
+The backend imports movies from:
 
-Needed data:
+`https://letterboxd-list-radarr.onrender.com/example-user/watchlist`
 
-- Movie title.
-- Release year.
-- Letterboxd identifier or URL.
-- External IDs if available.
+The URL is configured with `Letterboxd:WatchlistUrl` and can be overridden with `Letterboxd__WatchlistUrl`.
+
+The proxy returns Radarr-style JSON with `id`, `imdb_id`, `title`, `release_year`, `clean_title`, and `adult`.
+
+Imported source trace fields:
+
+- `id` maps to the backend `sourceId`.
+- `imdb_id` is stored on the MongoDB document for later TMDB/Plex matching.
+- `clean_title` is stored on the MongoDB document as the Letterboxd path.
 
 ## TMDB
 

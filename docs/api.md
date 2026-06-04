@@ -114,6 +114,28 @@ The latest sync status is read from MongoDB. The initial bootstrap response is:
 }
 ```
 
+## POST /api/sync/letterboxd
+
+Runs a manual import of the configured Letterboxd movie watchlist.
+
+Response:
+
+```json
+{
+  "status": "completed",
+  "startedAt": "2026-06-03T12:00:00Z",
+  "finishedAt": "2026-06-03T12:00:01Z",
+  "itemsFetched": 27,
+  "itemsUpserted": 27,
+  "itemsDeleted": 3
+}
+```
+
+Dependency errors:
+
+- `503 Service Unavailable` when the Letterboxd proxy is unavailable.
+- `502 Bad Gateway` when the Letterboxd proxy returns malformed JSON.
+
 ## Dependency Errors
 
 When MongoDB is unavailable, MongoDB-backed endpoints return:

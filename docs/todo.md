@@ -18,5 +18,8 @@
 - [x] Support a combined movie and TV query for the Android TV `All` collection.
 - [x] Add stable watchlist `addedAt` data to MongoDB documents and API DTOs.
 - [x] Replace the single availability mode with source-aware multi-select filtering.
+- [x] Add manual Letterboxd movie watchlist sync into MongoDB.
+- [ ] Add TMDB metadata enrichment for imported Letterboxd movies.
+- [ ] Add Plex availability matching for imported movies.
 - [ ] Add subscribed streaming-service availability later.
 
