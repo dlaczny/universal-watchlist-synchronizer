@@ -1,0 +1,14 @@
+namespace Watchlist.Application;
+
+public sealed record TmdbMovieDetailsDto(
+    int TmdbId,
+    string? ImdbId,
+    string Title,
+    string OriginalTitle,
+    string? Overview,
+    string? ReleaseDate,
+    string? PosterPath,
+    string? BackdropPath,
+    string? PosterUrl,
+    string? BackdropUrl,
+    IReadOnlyList<string> Genres);

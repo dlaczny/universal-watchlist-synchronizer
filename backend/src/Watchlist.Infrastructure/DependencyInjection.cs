@@ -17,6 +17,10 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(LetterboxdOptions.SectionName))
             .Validate(IsValidWatchlistUrl, "Letterboxd:WatchlistUrl must be an absolute HTTP or HTTPS URL.")
             .ValidateOnStart();
+        services.AddOptions<TmdbOptions>()
+            .Bind(configuration.GetSection(TmdbOptions.SectionName))
+            .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Tmdb:BaseUrl must be absolute.")
+            .Validate(options => Uri.TryCreate(options.ImageBaseUrl, UriKind.Absolute, out _), "Tmdb:ImageBaseUrl must be absolute.");
         services.AddSingleton<IMongoClient>(serviceProvider =>
         {
             MongoDbOptions options = serviceProvider.GetRequiredService<IOptions<MongoDbOptions>>().Value;
@@ -33,6 +37,11 @@ public static class DependencyInjection
         services.AddSingleton<ISyncStatusReadRepository, MongoSyncStatusReadRepository>();
         services.AddSingleton(TimeProvider.System);
         services.AddHttpClient<ILetterboxdWatchlistClient, LetterboxdWatchlistClient>();
+        services.AddHttpClient<ITmdbMovieClient, TmdbMovieClient>((serviceProvider, httpClient) =>
+        {
+            TmdbOptions options = serviceProvider.GetRequiredService<IOptions<TmdbOptions>>().Value;
+            httpClient.BaseAddress = new Uri(options.BaseUrl);
+        });
         services.AddScoped<ILetterboxdMovieSyncService, LetterboxdMovieSyncService>();
         services.AddHostedService<MongoBootstrapHostedService>();
 
