@@ -39,7 +39,7 @@ public sealed class MongoBootstrapHostedService(
                 cancellationToken: cancellationToken) == 0)
         {
             IEnumerable<MongoWatchlistItemDocument> documents =
-                SeedData.WatchlistItems.Select(MongoWatchlistItemDocument.FromDomain);
+                SeedData.WatchlistItems.Select(item => MongoWatchlistItemDocument.FromDomain(item));
             await watchlistItems.InsertManyAsync(documents, cancellationToken: cancellationToken);
         }
 

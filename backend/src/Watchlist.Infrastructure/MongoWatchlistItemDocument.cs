@@ -18,6 +18,10 @@ public sealed class MongoWatchlistItemDocument
 
     public int? Year { get; init; }
 
+    public string? ImdbId { get; init; }
+
+    public string? LetterboxdPath { get; init; }
+
     public string? Overview { get; init; }
 
     public string? PosterUrl { get; init; }
@@ -57,7 +61,10 @@ public sealed class MongoWatchlistItemDocument
             UpdatedAt);
     }
 
-    public static MongoWatchlistItemDocument FromDomain(WatchlistItem item)
+    public static MongoWatchlistItemDocument FromDomain(
+        WatchlistItem item,
+        string? imdbId = null,
+        string? letterboxdPath = null)
     {
         return new MongoWatchlistItemDocument
         {
@@ -67,6 +74,8 @@ public sealed class MongoWatchlistItemDocument
             SourceId = item.SourceId,
             Title = item.Title,
             Year = item.Year,
+            ImdbId = imdbId,
+            LetterboxdPath = letterboxdPath,
             Overview = item.Overview,
             PosterUrl = item.PosterUrl,
             BackdropUrl = item.BackdropUrl,

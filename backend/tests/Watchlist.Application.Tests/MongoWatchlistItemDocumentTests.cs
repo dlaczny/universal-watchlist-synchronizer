@@ -118,4 +118,31 @@ public sealed class MongoWatchlistItemDocumentTests
 
         action.Should().Throw<InvalidOperationException>();
     }
+
+    [Fact]
+    public void FromDomain_WhenDocumentHasSourceTraceFields_PreservesThemOnDocument()
+    {
+        WatchlistItem item = new(
+            "movie-letterboxd-1418998",
+            MediaType.Movie,
+            WatchlistSource.Letterboxd,
+            "1418998",
+            "Karma",
+            2026,
+            null,
+            null,
+            null,
+            ReleaseStatus.Unreleased,
+            AvailabilityStatus.Unreleased,
+            DateTimeOffset.Parse("2026-06-03T12:00:00Z"),
+            DateTimeOffset.Parse("2026-06-03T12:00:00Z"));
+
+        MongoWatchlistItemDocument document = MongoWatchlistItemDocument.FromDomain(
+            item,
+            "tt35450621",
+            "/film/karma-2026/");
+
+        document.ImdbId.Should().Be("tt35450621");
+        document.LetterboxdPath.Should().Be("/film/karma-2026/");
+    }
 }
