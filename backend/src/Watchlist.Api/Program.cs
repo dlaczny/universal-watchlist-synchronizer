@@ -61,6 +61,15 @@ app.MapGet("/api/sync/status", async (
     return status is null ? Results.NotFound() : Results.Ok(status);
 });
 
+app.MapPost("/api/sync/letterboxd", async (
+    ILetterboxdMovieSyncService syncService,
+    CancellationToken cancellationToken) =>
+{
+    LetterboxdSyncResultDto result = await syncService.SyncAsync(cancellationToken);
+
+    return Results.Ok(result);
+});
+
 app.Run();
 
 static bool TryParseCollection(string? value, out WatchlistCollection collection)

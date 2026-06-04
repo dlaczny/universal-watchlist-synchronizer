@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FluentAssertions;
+using Watchlist.Infrastructure;
 
 namespace Watchlist.Api.Tests;
 
@@ -107,6 +108,48 @@ public sealed class WatchlistApiTests
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         document.RootElement.GetProperty("status").GetString().Should().Be("seeded");
         document.RootElement.GetProperty("lastSuccessfulSyncAt").GetString().Should().Be("2026-05-25T10:00:00+02:00");
+    }
+
+    [Fact]
+    public async Task PostLetterboxdSync_ReturnsSyncResult()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/letterboxd", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        document.RootElement.GetProperty("itemsFetched").GetInt32().Should().Be(2);
+        document.RootElement.GetProperty("itemsUpserted").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task PostLetterboxdSync_WhenLetterboxdUnavailable_ReturnsServiceUnavailable()
+    {
+        using SeededApiFactory factory = new(new LetterboxdUnavailableException("unavailable"));
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/letterboxd", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("error").GetString().Should().Be("Letterboxd watchlist is unavailable.");
+    }
+
+    [Fact]
+    public async Task PostLetterboxdSync_WhenLetterboxdJsonMalformed_ReturnsBadGateway()
+    {
+        using SeededApiFactory factory = new(new LetterboxdParseException("malformed"));
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/letterboxd", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("error").GetString().Should().Be(
+            "Letterboxd watchlist returned malformed JSON.");
     }
 
     [Fact]
