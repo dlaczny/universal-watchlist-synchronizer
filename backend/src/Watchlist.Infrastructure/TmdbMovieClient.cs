@@ -107,7 +107,7 @@ public sealed class TmdbMovieClient(
         try
         {
             TmdbFindResponse? find = JsonSerializer.Deserialize<TmdbFindResponse>(content, SerializerOptions);
-            TmdbFindMovieResult? movie = find?.MovieResults.FirstOrDefault();
+            TmdbFindMovieResult? movie = find?.MovieResults?.FirstOrDefault();
             if (movie is null)
             {
                 throw new TmdbMovieNotFoundException(
@@ -148,7 +148,8 @@ public sealed class TmdbMovieClient(
             if (details is null
                 || details.Id <= 0
                 || string.IsNullOrWhiteSpace(details.Title)
-                || string.IsNullOrWhiteSpace(details.OriginalTitle))
+                || string.IsNullOrWhiteSpace(details.OriginalTitle)
+                || details.Genres is null)
             {
                 throw new TmdbParseException("TMDB movie details response returned an invalid movie item.");
             }
@@ -228,7 +229,8 @@ public sealed class TmdbMovieClient(
         string accessToken,
         CancellationToken cancellationToken)
     {
-        using HttpRequestMessage request = new(HttpMethod.Get, requestUri);
+        Uri uri = BuildRequestUri(requestUri);
+        using HttpRequestMessage request = new(HttpMethod.Get, uri);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         try
@@ -292,6 +294,13 @@ public sealed class TmdbMovieClient(
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
+    private Uri BuildRequestUri(string requestUri)
+    {
+        string baseUrl = options.Value.BaseUrl.TrimEnd('/');
+        string relativePath = requestUri.TrimStart('/');
+        return new Uri($"{baseUrl}/{relativePath}", UriKind.Absolute);
+    }
+
     private sealed record TmdbMovieDetailsResponse(
         [property: JsonPropertyName("id")] int Id,
         [property: JsonPropertyName("imdb_id")] string? ImdbId,
@@ -301,14 +310,14 @@ public sealed class TmdbMovieClient(
         [property: JsonPropertyName("release_date")] string? ReleaseDate,
         [property: JsonPropertyName("poster_path")] string? PosterPath,
         [property: JsonPropertyName("backdrop_path")] string? BackdropPath,
-        [property: JsonPropertyName("genres")] IReadOnlyList<TmdbGenreResponse> Genres);
+        [property: JsonPropertyName("genres")] IReadOnlyList<TmdbGenreResponse>? Genres);
 
     private sealed record TmdbGenreResponse(
         [property: JsonPropertyName("id")] int Id,
         [property: JsonPropertyName("name")] string Name);
 
     private sealed record TmdbFindResponse(
-        [property: JsonPropertyName("movie_results")] IReadOnlyList<TmdbFindMovieResult> MovieResults);
+        [property: JsonPropertyName("movie_results")] IReadOnlyList<TmdbFindMovieResult>? MovieResults);
 
     private sealed record TmdbFindMovieResult(
         [property: JsonPropertyName("id")] int Id);

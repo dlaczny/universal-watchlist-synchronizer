@@ -13,7 +13,7 @@ public sealed class TmdbMovieClientTests
     {
         Dictionary<string, string> responses = new()
         {
-            ["/movie/1297842"] = """
+            ["/3/movie/1297842"] = """
             {
               "id": 1297842,
               "imdb_id": "tt27613895",
@@ -26,7 +26,7 @@ public sealed class TmdbMovieClientTests
               "genres": [{ "id": 18, "name": "Drama" }]
             }
             """,
-            ["/movie/1297842/watch/providers"] = """
+            ["/3/movie/1297842/watch/providers"] = """
             {
               "results": {
                 "PL": {
@@ -78,15 +78,15 @@ public sealed class TmdbMovieClientTests
     {
         Dictionary<string, string> responses = new()
         {
-            ["/movie/1"] = "__404__",
-            ["/find/tt27613895?external_source=imdb_id"] = """
+            ["/3/movie/1"] = "__404__",
+            ["/3/find/tt27613895?external_source=imdb_id"] = """
             {
               "movie_results": [
                 { "id": 1297842, "title": "GOAT" }
               ]
             }
             """,
-            ["/movie/1297842"] = """
+            ["/3/movie/1297842"] = """
             {
               "id": 1297842,
               "imdb_id": "tt27613895",
@@ -99,7 +99,7 @@ public sealed class TmdbMovieClientTests
               "genres": []
             }
             """,
-            ["/movie/1297842/watch/providers"] = """{ "results": {} }"""
+            ["/3/movie/1297842/watch/providers"] = """{ "results": {} }"""
         };
         TmdbMovieClient client = CreateClient(responses);
 
@@ -112,11 +112,52 @@ public sealed class TmdbMovieClientTests
     }
 
     [Fact]
+    public async Task GetMovieMetadataAsync_SendsRequestsUnderConfiguredTmdbApiPath()
+    {
+        Dictionary<string, string> responses = new()
+        {
+            ["/3/movie/1"] = "__404__",
+            ["/3/find/tt27613895?external_source=imdb_id"] = """
+            {
+              "movie_results": [
+                { "id": 1297842, "title": "GOAT" }
+              ]
+            }
+            """,
+            ["/3/movie/1297842"] = """
+            {
+              "id": 1297842,
+              "imdb_id": "tt27613895",
+              "title": "GOAT",
+              "original_title": "GOAT",
+              "overview": "A promising athlete story.",
+              "release_date": "2026-02-13",
+              "poster_path": "/poster.jpg",
+              "backdrop_path": "/backdrop.jpg",
+              "genres": []
+            }
+            """,
+            ["/3/movie/1297842/watch/providers"] = """{ "results": {} }"""
+        };
+        StaticTmdbHandler handler = new(responses);
+        TmdbMovieClient client = CreateClient(handler);
+
+        await client.GetMovieMetadataAsync(1, "tt27613895", CancellationToken.None);
+
+        handler.RequestedPathAndQueries.Should().Equal(
+            "/3/movie/1",
+            "/3/find/tt27613895?external_source=imdb_id",
+            "/3/movie/1297842",
+            "/3/movie/1297842/watch/providers");
+    }
+
+
+    [Fact]
     public async Task GetMovieMetadataAsync_WhenMovieMissingAndNoFallback_ThrowsTmdbMovieNotFoundException()
     {
         TmdbMovieClient client = CreateClient(new Dictionary<string, string>
         {
-            ["/movie/1"] = "__404__"
+            ["/3/movie/1"] = "__404__"
         });
 
         Func<Task> action = () => client.GetMovieMetadataAsync(1, null, CancellationToken.None);
@@ -129,8 +170,25 @@ public sealed class TmdbMovieClientTests
     {
         TmdbMovieClient client = CreateClient(new Dictionary<string, string>
         {
-            ["/movie/1"] = "__404__",
-            ["/find/tt27613895?external_source=imdb_id"] = """{ "movie_results": [] }"""
+            ["/3/movie/1"] = "__404__",
+            ["/3/find/tt27613895?external_source=imdb_id"] = """{ "movie_results": [] }"""
+        });
+
+        Func<Task> action = () => client.GetMovieMetadataAsync(1, "tt27613895", CancellationToken.None);
+
+        await action.Should().ThrowAsync<TmdbMovieNotFoundException>();
+    }
+
+    [Theory]
+    [InlineData("""{ "movie_results": null }""")]
+    [InlineData("""{}""")]
+    public async Task GetMovieMetadataAsync_WhenFallbackMovieResultsMissing_ThrowsTmdbMovieNotFoundException(
+        string findResponse)
+    {
+        TmdbMovieClient client = CreateClient(new Dictionary<string, string>
+        {
+            ["/3/movie/1"] = "__404__",
+            ["/3/find/tt27613895?external_source=imdb_id"] = findResponse
         });
 
         Func<Task> action = () => client.GetMovieMetadataAsync(1, "tt27613895", CancellationToken.None);
@@ -147,7 +205,7 @@ public sealed class TmdbMovieClientTests
     {
         TmdbMovieClient client = CreateClient(new Dictionary<string, string>
         {
-            ["/movie/1297842"] = responseMarker
+            ["/3/movie/1297842"] = responseMarker
         });
 
         Func<Task> action = () => client.GetMovieMetadataAsync(
@@ -178,7 +236,25 @@ public sealed class TmdbMovieClientTests
     {
         TmdbMovieClient client = CreateClient(new Dictionary<string, string>
         {
-            ["/movie/1297842"] = "["
+            ["/3/movie/1297842"] = "["
+        });
+
+        Func<Task> action = () => client.GetMovieMetadataAsync(
+            1297842,
+            "tt27613895",
+            CancellationToken.None);
+
+        await action.Should().ThrowAsync<TmdbParseException>();
+    }
+
+    [Theory]
+    [InlineData("""{ "id": 1297842, "title": "GOAT", "original_title": "GOAT", "genres": null }""")]
+    [InlineData("""{ "id": 1297842, "title": "GOAT", "original_title": "GOAT" }""")]
+    public async Task GetMovieMetadataAsync_WhenDetailsGenresMissing_ThrowsTmdbParseException(string detailsResponse)
+    {
+        TmdbMovieClient client = CreateClient(new Dictionary<string, string>
+        {
+            ["/3/movie/1297842"] = detailsResponse
         });
 
         Func<Task> action = () => client.GetMovieMetadataAsync(
@@ -238,6 +314,17 @@ public sealed class TmdbMovieClientTests
         return new TmdbMovieClient(httpClient, Options.Create(options));
     }
 
+    private static TmdbMovieClient CreateClient(StaticTmdbHandler handler)
+    {
+        HttpClient httpClient = new(handler)
+        {
+            BaseAddress = new Uri("https://api.themoviedb.org/3")
+        };
+        TmdbOptions options = CreateOptions("token");
+
+        return new TmdbMovieClient(httpClient, Options.Create(options));
+    }
+
     private static TmdbOptions CreateOptions(string accessToken)
     {
         return new TmdbOptions
@@ -250,12 +337,16 @@ public sealed class TmdbMovieClientTests
 
     private sealed class StaticTmdbHandler(IReadOnlyDictionary<string, string> responses) : HttpMessageHandler
     {
+        public List<string> RequestedPathAndQueries { get; } = [];
+
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             request.Headers.Authorization.Should().NotBeNull();
-            string key = request.RequestUri!.PathAndQuery.Replace("/3", string.Empty, StringComparison.Ordinal);
+            string key = request.RequestUri!.PathAndQuery;
+            RequestedPathAndQueries.Add(key);
+            key.Should().BeOneOf(responses.Keys);
             if (!responses.TryGetValue(key, out string? content))
             {
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
