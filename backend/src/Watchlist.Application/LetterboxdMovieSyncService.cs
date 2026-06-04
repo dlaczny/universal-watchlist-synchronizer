@@ -8,7 +8,6 @@ namespace Watchlist.Application;
 public sealed class LetterboxdMovieSyncService(
     ILetterboxdWatchlistClient client,
     IWatchlistWriteRepository repository,
-    ILetterboxdSyncRunRepository syncRuns,
     TimeProvider timeProvider) : ILetterboxdMovieSyncService
 {
     private const string CompletedResultStatus = "completed";
@@ -31,10 +30,13 @@ public sealed class LetterboxdMovieSyncService(
             .Select(movie => movie.SourceId)
             .ToHashSet(StringComparer.Ordinal);
 
-        await repository.UpsertItemsAsync(upsertItems, cancellationToken);
-        int deleted = await repository.DeleteLetterboxdMoviesExceptAsync(sourceIds, cancellationToken);
         DateTimeOffset finishedAt = timeProvider.GetUtcNow();
-        await syncRuns.InsertSuccessfulRunAsync(CompletedRunStatus, finishedAt, cancellationToken);
+        int deleted = await repository.ApplyLetterboxdMovieSyncAsync(
+            upsertItems,
+            sourceIds,
+            CompletedRunStatus,
+            finishedAt,
+            cancellationToken);
 
         return new LetterboxdSyncResultDto(
             CompletedResultStatus,

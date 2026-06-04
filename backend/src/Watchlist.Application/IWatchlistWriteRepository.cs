@@ -13,16 +13,12 @@ public interface IWatchlistWriteRepository
     Task<IReadOnlyList<WatchlistItem>> GetItemsAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Upserts normalized watchlist items with backend-only source trace fields.
+    /// Applies one completed Letterboxd movie sync as a single persistence operation.
     /// </summary>
-    Task UpsertItemsAsync(
+    Task<int> ApplyLetterboxdMovieSyncAsync(
         IReadOnlyList<WatchlistItemWriteModel> items,
-        CancellationToken cancellationToken);
-
-    /// <summary>
-    /// Deletes Letterboxd movie records not present in the supplied source identifiers.
-    /// </summary>
-    Task<int> DeleteLetterboxdMoviesExceptAsync(
         IReadOnlySet<string> sourceIds,
+        string completedStatus,
+        DateTimeOffset completedAt,
         CancellationToken cancellationToken);
 }

@@ -21,8 +21,7 @@ public sealed class LetterboxdMovieSyncServiceTests
             CreateRemovedLetterboxdMovie("old"),
             CreateTvShow()
         ]);
-        FakeSyncRunRepository syncRuns = new();
-        LetterboxdMovieSyncService service = CreateService(client, repository, syncRuns);
+        LetterboxdMovieSyncService service = CreateService(client, repository);
 
         LetterboxdSyncResultDto result = await service.SyncAsync(CancellationToken.None);
 
@@ -32,16 +31,17 @@ public sealed class LetterboxdMovieSyncServiceTests
         result.ItemsFetched.Should().Be(2);
         result.ItemsUpserted.Should().Be(2);
         result.ItemsDeleted.Should().Be(1);
-        repository.Upserted.Select(item => item.Item.Id).Should().Equal(
+        repository.AppliedItems.Select(item => item.Item.Id).Should().Equal(
             "movie-letterboxd-1418998",
             "movie-letterboxd-4951");
-        repository.Upserted.Select(item => item.ImdbId).Should().Equal("tt35450621", "tt0147800");
-        repository.Upserted.Select(item => item.LetterboxdPath).Should().Equal(
+        repository.AppliedItems.Select(item => item.ImdbId).Should().Equal("tt35450621", "tt0147800");
+        repository.AppliedItems.Select(item => item.LetterboxdPath).Should().Equal(
             "/film/karma-2026/",
             "/film/10-things-i-hate-about-you/");
-        repository.DeletedSourceIds.Should().Equal("old");
+        repository.AppliedSourceIds.Should().Equal("1418998", "4951");
+        repository.CompletedStatuses.Should().Equal("letterboxd_completed");
+        repository.CompletedAtValues.Should().Equal(SyncTime);
         repository.Items.Should().Contain(item => item.MediaType == MediaType.TvShow);
-        syncRuns.Statuses.Should().Equal("letterboxd_completed");
     }
 
     [Fact]
@@ -52,11 +52,11 @@ public sealed class LetterboxdMovieSyncServiceTests
             new LetterboxdMovieDto("4951", "tt0147800", "10 Things I Hate About You", 1999, "/film/10-things-i-hate-about-you/")
         ]);
         FakeWatchlistWriteRepository repository = new([existing]);
-        LetterboxdMovieSyncService service = CreateService(client, repository, new FakeSyncRunRepository());
+        LetterboxdMovieSyncService service = CreateService(client, repository);
 
         await service.SyncAsync(CancellationToken.None);
 
-        WatchlistItem updated = repository.Upserted.Single().Item;
+        WatchlistItem updated = repository.AppliedItems.Single().Item;
         updated.AvailabilityStatus.Should().Be(AvailabilityStatus.AvailableOnPlex);
         updated.AddedAt.Should().Be(existing.AddedAt);
         updated.Overview.Should().Be(existing.Overview);
@@ -77,11 +77,11 @@ public sealed class LetterboxdMovieSyncServiceTests
             new LetterboxdMovieDto("source", "tt0000001", "Movie", releaseYear, "/film/movie/")
         ]);
         FakeWatchlistWriteRepository repository = new([]);
-        LetterboxdMovieSyncService service = CreateService(client, repository, new FakeSyncRunRepository());
+        LetterboxdMovieSyncService service = CreateService(client, repository);
 
         await service.SyncAsync(CancellationToken.None);
 
-        WatchlistItem item = repository.Upserted.Single().Item;
+        WatchlistItem item = repository.AppliedItems.Single().Item;
         item.ReleaseStatus.Should().Be(releaseStatus);
         item.AvailabilityStatus.Should().Be(availabilityStatus);
         item.AddedAt.Should().Be(SyncTime);
@@ -95,11 +95,11 @@ public sealed class LetterboxdMovieSyncServiceTests
             new LetterboxdMovieDto("source", null, "Movie", null, "/film/movie/")
         ]);
         FakeWatchlistWriteRepository repository = new([]);
-        LetterboxdMovieSyncService service = CreateService(client, repository, new FakeSyncRunRepository());
+        LetterboxdMovieSyncService service = CreateService(client, repository);
 
         await service.SyncAsync(CancellationToken.None);
 
-        WatchlistItem item = repository.Upserted.Single().Item;
+        WatchlistItem item = repository.AppliedItems.Single().Item;
         item.ReleaseStatus.Should().Be(ReleaseStatus.Unknown);
         item.AvailabilityStatus.Should().Be(AvailabilityStatus.UnknownMatch);
     }
@@ -109,26 +109,23 @@ public sealed class LetterboxdMovieSyncServiceTests
     {
         FakeLetterboxdWatchlistClient client = new(new LetterboxdUnavailableException("unavailable"));
         FakeWatchlistWriteRepository repository = new([CreateExistingMovie("4951")]);
-        FakeSyncRunRepository syncRuns = new();
-        LetterboxdMovieSyncService service = CreateService(client, repository, syncRuns);
+        LetterboxdMovieSyncService service = CreateService(client, repository);
 
         Func<Task> action = () => service.SyncAsync(CancellationToken.None);
 
         await action.Should().ThrowAsync<LetterboxdUnavailableException>();
-        repository.Upserted.Should().BeEmpty();
-        repository.DeletedSourceIds.Should().BeEmpty();
-        syncRuns.Statuses.Should().BeEmpty();
+        repository.AppliedItems.Should().BeEmpty();
+        repository.AppliedSourceIds.Should().BeEmpty();
+        repository.CompletedStatuses.Should().BeEmpty();
     }
 
     private static LetterboxdMovieSyncService CreateService(
         ILetterboxdWatchlistClient client,
-        FakeWatchlistWriteRepository repository,
-        FakeSyncRunRepository syncRuns)
+        FakeWatchlistWriteRepository repository)
     {
         return new LetterboxdMovieSyncService(
             client,
             repository,
-            syncRuns,
             new FakeTimeProvider(SyncTime));
     }
 
@@ -216,54 +213,40 @@ public sealed class LetterboxdMovieSyncServiceTests
     {
         public List<WatchlistItem> Items { get; } = items.ToList();
 
-        public List<WatchlistItemWriteModel> Upserted { get; } = [];
+        public List<WatchlistItemWriteModel> AppliedItems { get; } = [];
 
-        public List<string> DeletedSourceIds { get; } = [];
+        public List<string> AppliedSourceIds { get; } = [];
+
+        public List<string> CompletedStatuses { get; } = [];
+
+        public List<DateTimeOffset> CompletedAtValues { get; } = [];
 
         public Task<IReadOnlyList<WatchlistItem>> GetItemsAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult<IReadOnlyList<WatchlistItem>>(Items);
         }
 
-        public Task UpsertItemsAsync(
+        public Task<int> ApplyLetterboxdMovieSyncAsync(
             IReadOnlyList<WatchlistItemWriteModel> itemsToUpsert,
-            CancellationToken cancellationToken)
-        {
-            Upserted.AddRange(itemsToUpsert);
-            return Task.CompletedTask;
-        }
-
-        public Task<int> DeleteLetterboxdMoviesExceptAsync(
             IReadOnlySet<string> sourceIds,
+            string completedStatus,
+            DateTimeOffset completedAt,
             CancellationToken cancellationToken)
         {
+            AppliedItems.AddRange(itemsToUpsert);
+            AppliedSourceIds.AddRange(sourceIds);
+            CompletedStatuses.Add(completedStatus);
+            CompletedAtValues.Add(completedAt);
+
             List<WatchlistItem> deletedItems = Items
                 .Where(item => item.MediaType == MediaType.Movie
                     && item.Source == WatchlistSource.Letterboxd
                     && !sourceIds.Contains(item.SourceId))
                 .ToList();
 
-            DeletedSourceIds.AddRange(deletedItems.Select(item => item.SourceId));
             Items.RemoveAll(deletedItems.Contains);
 
             return Task.FromResult(deletedItems.Count);
-        }
-    }
-
-    private sealed class FakeSyncRunRepository : ILetterboxdSyncRunRepository
-    {
-        public List<string> Statuses { get; } = [];
-
-        public List<DateTimeOffset> FinishedAtValues { get; } = [];
-
-        public Task InsertSuccessfulRunAsync(
-            string status,
-            DateTimeOffset finishedAt,
-            CancellationToken cancellationToken)
-        {
-            Statuses.Add(status);
-            FinishedAtValues.Add(finishedAt);
-            return Task.CompletedTask;
         }
     }
 
