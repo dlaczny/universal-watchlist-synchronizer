@@ -6,7 +6,18 @@ using Watchlist.Application;
 
 namespace Watchlist.Infrastructure;
 
-public sealed class LetterboxdUnavailableException(string message) : Exception(message);
+public sealed class LetterboxdUnavailableException : Exception
+{
+    public LetterboxdUnavailableException(string message)
+        : base(message)
+    {
+    }
+
+    public LetterboxdUnavailableException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
 
 public sealed class LetterboxdParseException : Exception
 {
@@ -27,9 +38,7 @@ public sealed class LetterboxdWatchlistClient(
 {
     public async Task<IReadOnlyList<LetterboxdMovieDto>> GetMoviesAsync(CancellationToken cancellationToken)
     {
-        using HttpResponseMessage response = await httpClient.GetAsync(
-            options.Value.WatchlistUrl,
-            cancellationToken);
+        using HttpResponseMessage response = await GetResponseAsync(cancellationToken);
 
         if (response.StatusCode == HttpStatusCode.ServiceUnavailable
             || !response.IsSuccessStatusCode)
@@ -61,6 +70,26 @@ public sealed class LetterboxdWatchlistClient(
         catch (JsonException exception)
         {
             throw new LetterboxdParseException("Letterboxd watchlist proxy returned malformed JSON.", exception);
+        }
+    }
+
+    private async Task<HttpResponseMessage> GetResponseAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await httpClient.GetAsync(options.Value.WatchlistUrl, cancellationToken);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new LetterboxdUnavailableException(
+                "Letterboxd watchlist proxy could not be reached.",
+                exception);
+        }
+        catch (TaskCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new LetterboxdUnavailableException(
+                "Letterboxd watchlist proxy timed out.",
+                exception);
         }
     }
 

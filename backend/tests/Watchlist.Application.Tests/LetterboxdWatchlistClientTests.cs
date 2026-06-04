@@ -75,6 +75,21 @@ public sealed class LetterboxdWatchlistClientTests
     }
 
     [Fact]
+    public async Task GetMoviesAsync_WhenProxyCannotBeReached_ThrowsLetterboxdUnavailableException()
+    {
+        HttpClient httpClient = new(new ThrowingHttpMessageHandler(new HttpRequestException("network down")));
+        LetterboxdOptions options = new()
+        {
+            WatchlistUrl = "https://example.test/example-user/watchlist"
+        };
+        LetterboxdWatchlistClient client = new(httpClient, Options.Create(options));
+
+        Func<Task> action = () => client.GetMoviesAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<LetterboxdUnavailableException>();
+    }
+
+    [Fact]
     public async Task GetMoviesAsync_WhenJsonMalformed_ThrowsLetterboxdParseException()
     {
         LetterboxdWatchlistClient client = CreateClient(HttpStatusCode.OK, "[");
@@ -146,6 +161,16 @@ public sealed class LetterboxdWatchlistClientTests
             };
 
             return Task.FromResult(response);
+        }
+    }
+
+    private sealed class ThrowingHttpMessageHandler(Exception exception) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromException<HttpResponseMessage>(exception);
         }
     }
 }
