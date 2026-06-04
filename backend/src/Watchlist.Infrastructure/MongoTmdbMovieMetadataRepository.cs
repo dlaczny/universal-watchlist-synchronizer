@@ -9,6 +9,9 @@ public sealed class MongoTmdbMovieMetadataRepository(
     IMongoDatabase database,
     IOptions<MongoDbOptions> options) : ITmdbMovieMetadataRepository
 {
+    private const string FailedStatus = "failed";
+    private const string NotFoundStatus = "not_found";
+
     private readonly IMongoCollection<MongoWatchlistItemDocument> watchlistItems =
         database.GetCollection<MongoWatchlistItemDocument>(options.Value.WatchlistItemsCollectionName);
 
@@ -66,6 +69,14 @@ public sealed class MongoTmdbMovieMetadataRepository(
         TmdbMovieMetadataUpdate metadata)
     {
         UpdateDefinitionBuilder<MongoWatchlistItemDocument> update = Builders<MongoWatchlistItemDocument>.Update;
+
+        if (metadata.MetadataStatus is FailedStatus or NotFoundStatus)
+        {
+            return update
+                .Set(document => document.TmdbMetadataUpdatedAt, metadata.UpdatedAt)
+                .Set(document => document.TmdbMetadataStatus, metadata.MetadataStatus)
+                .Set(document => document.TmdbMetadataError, metadata.MetadataError);
+        }
 
         return update
             .Set(document => document.TmdbId, metadata.TmdbId)

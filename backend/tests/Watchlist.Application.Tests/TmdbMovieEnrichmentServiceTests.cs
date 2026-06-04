@@ -192,6 +192,30 @@ public sealed class TmdbMovieEnrichmentServiceTests
     }
 
     [Fact]
+    public async Task SyncMovieAsync_WhenMovieNotFound_StoresNotFoundAndReturnsNotFound()
+    {
+        FakeTmdbMovieClient client = new();
+        client.ExceptionsByCandidateId[1297842] = new TmdbMovieNotFoundException("TMDB movie 1297842 was not found.");
+        FakeTmdbMovieMetadataRepository repository = new([
+            CreateWriteModel("movie-letterboxd-1297842", MediaType.Movie, WatchlistSource.Letterboxd, "1297842")
+        ]);
+        TmdbMovieEnrichmentService service = CreateService(client, repository);
+
+        TmdbSingleMovieEnrichmentResultDto? result = await service.SyncMovieAsync(
+            "movie-letterboxd-1297842",
+            CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.Status.Should().Be("not_found");
+        result.Id.Should().Be("movie-letterboxd-1297842");
+        result.TmdbId.Should().BeNull();
+        repository.Updates.Should().ContainSingle().Which.Update.Should().Match<TmdbMovieMetadataUpdate>(update =>
+            update.MetadataStatus == "not_found"
+            && update.MetadataError == "TMDB movie 1297842 was not found."
+            && update.UpdatedAt == SyncTime);
+    }
+
+    [Fact]
     public async Task SyncMoviesAsync_WhenSourceIdCannotBeParsed_StoresFailedWithoutCallingTmdb()
     {
         FakeTmdbMovieClient client = new();

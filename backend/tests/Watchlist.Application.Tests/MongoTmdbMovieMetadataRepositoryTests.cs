@@ -132,6 +132,67 @@ public sealed class MongoTmdbMovieMetadataRepositoryTests : IAsyncLifetime
         storedTvShow.Should().BeEquivalentTo(tvShow);
     }
 
+    [Theory]
+    [InlineData("failed", "TMDB returned HTTP 503.")]
+    [InlineData("not_found", "TMDB movie 1297842 was not found.")]
+    public async Task ApplyTmdbMetadataAsync_WhenStatusIsFailureOrNotFound_PreservesExistingMetadata(
+        string metadataStatus,
+        string metadataError)
+    {
+        IMongoCollection<MongoWatchlistItemDocument> items =
+            database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
+        MongoWatchlistItemDocument letterboxdMovie = CreateEnrichedLetterboxdMovie();
+        await items.InsertOneAsync(letterboxdMovie);
+        MongoTmdbMovieMetadataRepository repository = new(database, Options.Create(options));
+        DateTimeOffset updatedAt = DateTimeOffset.Parse("2026-06-04T13:00:00Z");
+        TmdbMovieMetadataUpdate update = new(
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            [],
+            null,
+            null,
+            null,
+            null,
+            new TmdbMovieProviderDataDto(new Dictionary<string, TmdbRegionWatchProvidersDto>()),
+            [],
+            false,
+            [],
+            updatedAt,
+            metadataStatus,
+            metadataError);
+
+        await repository.ApplyTmdbMetadataAsync(
+            "movie-letterboxd-1297842",
+            update,
+            CancellationToken.None);
+
+        MongoWatchlistItemDocument storedLetterboxdMovie = await items
+            .Find(item => item.Id == "movie-letterboxd-1297842")
+            .SingleAsync();
+        storedLetterboxdMovie.TmdbId.Should().Be(letterboxdMovie.TmdbId);
+        storedLetterboxdMovie.ImdbId.Should().Be(letterboxdMovie.ImdbId);
+        storedLetterboxdMovie.TmdbTitle.Should().Be(letterboxdMovie.TmdbTitle);
+        storedLetterboxdMovie.OriginalTitle.Should().Be(letterboxdMovie.OriginalTitle);
+        storedLetterboxdMovie.Overview.Should().Be(letterboxdMovie.Overview);
+        storedLetterboxdMovie.ReleaseDate.Should().Be(letterboxdMovie.ReleaseDate);
+        storedLetterboxdMovie.Genres.Should().Equal(letterboxdMovie.Genres);
+        storedLetterboxdMovie.PosterPath.Should().Be(letterboxdMovie.PosterPath);
+        storedLetterboxdMovie.BackdropPath.Should().Be(letterboxdMovie.BackdropPath);
+        storedLetterboxdMovie.PosterUrl.Should().Be(letterboxdMovie.PosterUrl);
+        storedLetterboxdMovie.BackdropUrl.Should().Be(letterboxdMovie.BackdropUrl);
+        storedLetterboxdMovie.WatchProviders.Should().BeEquivalentTo(letterboxdMovie.WatchProviders);
+        storedLetterboxdMovie.OwnedServiceAvailability.Should().Equal(letterboxdMovie.OwnedServiceAvailability);
+        storedLetterboxdMovie.ReleasedOnVod.Should().Be(letterboxdMovie.ReleasedOnVod);
+        storedLetterboxdMovie.VodRegions.Should().Equal(letterboxdMovie.VodRegions);
+        storedLetterboxdMovie.TmdbMetadataUpdatedAt.Should().Be(updatedAt);
+        storedLetterboxdMovie.TmdbMetadataStatus.Should().Be(metadataStatus);
+        storedLetterboxdMovie.TmdbMetadataError.Should().Be(metadataError);
+    }
+
     public Task InitializeAsync()
     {
         return Task.CompletedTask;
@@ -157,6 +218,67 @@ public sealed class MongoTmdbMovieMetadataRepositoryTests : IAsyncLifetime
             Overview = "Old overview",
             PosterUrl = "https://example.test/old-poster.jpg",
             BackdropUrl = "https://example.test/old-backdrop.jpg",
+            ReleaseStatus = ReleaseStatus.Released,
+            AvailabilityStatus = AvailabilityStatus.AvailableOnPlex,
+            AddedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z"),
+            UpdatedAt = DateTimeOffset.Parse("2026-06-02T12:00:00Z")
+        };
+    }
+
+    private static MongoWatchlistItemDocument CreateEnrichedLetterboxdMovie()
+    {
+        return new MongoWatchlistItemDocument
+        {
+            Id = "movie-letterboxd-1297842",
+            MediaType = MediaType.Movie,
+            Source = WatchlistSource.Letterboxd,
+            SourceId = "1297842",
+            Title = "GOAT",
+            Year = 2026,
+            ImdbId = "tt27613895",
+            LetterboxdPath = "/film/goat/",
+            Overview = "A promising athlete story.",
+            PosterUrl = "https://image.tmdb.org/t/p/w500/poster.jpg",
+            BackdropUrl = "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
+            TmdbId = 1297842,
+            TmdbTitle = "GOAT",
+            OriginalTitle = "GOAT Original",
+            ReleaseDate = "2026-02-13",
+            Genres = ["Drama", "Thriller"],
+            PosterPath = "/poster.jpg",
+            BackdropPath = "/backdrop.jpg",
+            WatchProviders = new Dictionary<string, MongoRegionWatchProvidersDocument>
+            {
+                ["PL"] = new()
+                {
+                    Flatrate =
+                    [
+                        new MongoWatchProviderDocument
+                        {
+                            ProviderId = 119,
+                            ProviderName = "Amazon Prime Video",
+                            LogoPath = "/prime.jpg",
+                            DisplayPriority = 1
+                        }
+                    ],
+                    Rent =
+                    [
+                        new MongoWatchProviderDocument
+                        {
+                            ProviderId = 10,
+                            ProviderName = "Apple TV",
+                            LogoPath = "/apple.jpg",
+                            DisplayPriority = 2
+                        }
+                    ],
+                    Buy = []
+                }
+            },
+            OwnedServiceAvailability = ["Amazon Prime Video"],
+            ReleasedOnVod = true,
+            VodRegions = ["PL"],
+            TmdbMetadataUpdatedAt = DateTimeOffset.Parse("2026-06-04T12:00:00Z"),
+            TmdbMetadataStatus = "enriched",
             ReleaseStatus = ReleaseStatus.Released,
             AvailabilityStatus = AvailabilityStatus.AvailableOnPlex,
             AddedAt = DateTimeOffset.Parse("2026-06-01T12:00:00Z"),

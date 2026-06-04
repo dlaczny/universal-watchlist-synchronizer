@@ -81,15 +81,23 @@ public sealed class TmdbMovieEnrichmentService(
             return new TmdbSingleMovieEnrichmentResultDto(FailedStatus, item.Item.Id, null);
         }
 
-        TmdbMovieMetadataDto metadata = await client.GetMovieMetadataAsync(
-            candidateTmdbId,
-            item.ImdbId,
-            cancellationToken);
-        TmdbMovieMetadataUpdate update = CreateEnrichedUpdate(metadata);
+        try
+        {
+            TmdbMovieMetadataDto metadata = await client.GetMovieMetadataAsync(
+                candidateTmdbId,
+                item.ImdbId,
+                cancellationToken);
+            TmdbMovieMetadataUpdate update = CreateEnrichedUpdate(metadata);
 
-        await repository.ApplyTmdbMetadataAsync(item.Item.Id, update, cancellationToken);
+            await repository.ApplyTmdbMetadataAsync(item.Item.Id, update, cancellationToken);
 
-        return new TmdbSingleMovieEnrichmentResultDto(EnrichedStatus, item.Item.Id, metadata.Details.TmdbId);
+            return new TmdbSingleMovieEnrichmentResultDto(EnrichedStatus, item.Item.Id, metadata.Details.TmdbId);
+        }
+        catch (TmdbMovieNotFoundException exception)
+        {
+            await ApplyFailureAsync(item.Item.Id, NotFoundStatus, exception.Message, cancellationToken);
+            return new TmdbSingleMovieEnrichmentResultDto(NotFoundStatus, item.Item.Id, null);
+        }
     }
 
     private async Task<MovieEnrichmentOutcome> EnrichForBatchAsync(
