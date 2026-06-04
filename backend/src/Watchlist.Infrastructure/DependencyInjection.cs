@@ -30,6 +30,8 @@ public static class DependencyInjection
         });
         services.AddSingleton<IWatchlistReadRepository, MongoWatchlistReadRepository>();
         services.AddSingleton<ISyncStatusReadRepository, MongoSyncStatusReadRepository>();
+        services.AddSingleton(TimeProvider.System);
+        services.AddScoped<ILetterboxdMovieSyncService, LetterboxdMovieSyncService>();
         services.AddHttpClient<ILetterboxdWatchlistClient, LetterboxdWatchlistClient>();
         services.AddHostedService<MongoBootstrapHostedService>();
 
