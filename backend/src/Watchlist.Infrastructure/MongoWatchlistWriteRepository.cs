@@ -37,11 +37,12 @@ public sealed class MongoWatchlistWriteRepository(
                 item.Item,
                 item.ImdbId,
                 item.LetterboxdPath);
+            UpdateDefinition<MongoWatchlistItemDocument> update = CreateLetterboxdMovieUpsertUpdate(document);
 
-            await watchlistItems.ReplaceOneAsync(
+            await watchlistItems.UpdateOneAsync(
                 stored => stored.Id == document.Id,
-                document,
-                new ReplaceOptions { IsUpsert = true },
+                update,
+                new UpdateOptions { IsUpsert = true },
                 cancellationToken);
         }
 
@@ -69,5 +70,28 @@ public sealed class MongoWatchlistWriteRepository(
         return filter.Eq(document => document.MediaType, MediaType.Movie)
             & filter.Eq(document => document.Source, WatchlistSource.Letterboxd)
             & filter.Nin(document => document.SourceId, sourceIds);
+    }
+
+    private static UpdateDefinition<MongoWatchlistItemDocument> CreateLetterboxdMovieUpsertUpdate(
+        MongoWatchlistItemDocument document)
+    {
+        UpdateDefinitionBuilder<MongoWatchlistItemDocument> update = Builders<MongoWatchlistItemDocument>.Update;
+
+        return update
+            .SetOnInsert(stored => stored.Id, document.Id)
+            .Set(stored => stored.MediaType, document.MediaType)
+            .Set(stored => stored.Source, document.Source)
+            .Set(stored => stored.SourceId, document.SourceId)
+            .Set(stored => stored.Title, document.Title)
+            .Set(stored => stored.Year, document.Year)
+            .Set(stored => stored.ImdbId, document.ImdbId)
+            .Set(stored => stored.LetterboxdPath, document.LetterboxdPath)
+            .Set(stored => stored.Overview, document.Overview)
+            .Set(stored => stored.PosterUrl, document.PosterUrl)
+            .Set(stored => stored.BackdropUrl, document.BackdropUrl)
+            .Set(stored => stored.ReleaseStatus, document.ReleaseStatus)
+            .Set(stored => stored.AvailabilityStatus, document.AvailabilityStatus)
+            .Set(stored => stored.AddedAt, document.AddedAt)
+            .Set(stored => stored.UpdatedAt, document.UpdatedAt);
     }
 }
