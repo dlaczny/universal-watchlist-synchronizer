@@ -23,6 +23,9 @@
   - Use the Letterboxd proxy `id` as the TMDB movie id when it resolves, for example `1297842` -> `https://www.themoviedb.org/movie/1297842`.
   - Use `imdb_id` as a fallback/verification key when the direct TMDB id lookup is missing or ambiguous.
   - Cache poster, backdrop, overview, canonical title, release date/status, and useful matching metadata in MongoDB.
+  - Cache TMDB watch-provider data for Poland and mark subscribed-service availability for HBO Max/Max, SkyShowtime, Crunchyroll, and Amazon Prime Video.
+  - Mark `releasedOnVod` when TMDB watch providers show any stream, rent, or buy option in Poland or the US.
 - [ ] Add Plex availability matching for imported movies.
 - [ ] Add subscribed streaming-service availability later.
+- [ ] Keep TV shows visually below movies in the Android TV collection while movies are the product focus.
 
