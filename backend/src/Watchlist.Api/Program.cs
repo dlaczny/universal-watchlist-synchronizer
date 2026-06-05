@@ -5,6 +5,11 @@ using Watchlist.Infrastructure;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+builder.Configuration.AddJsonFile(
+    "appsettings.Development.Local.json",
+    optional: true,
+    reloadOnChange: true);
+
 builder.Services.AddWatchlistInfrastructure(builder.Configuration);
 builder.Services.AddScoped<WatchlistQueryService>();
 builder.Services.AddExceptionHandler<MongoUnavailableExceptionHandler>();

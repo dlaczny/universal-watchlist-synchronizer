@@ -30,6 +30,22 @@ Configuration:
 
 The backend starts without an access token so local read-only browsing still works. TMDB sync calls return a TMDB dependency error when the token is missing or invalid.
 
+For local development without setting an environment variable every time, create:
+
+`backend/src/Watchlist.Api/appsettings.Development.Local.json`
+
+Use this shape:
+
+```json
+{
+  "Tmdb": {
+    "AccessToken": "put-local-token-here"
+  }
+}
+```
+
+The repository ignores `appsettings.*.Local.json`, so the real token file stays local. A placeholder example is committed as `appsettings.Development.Local.example.json`.
+
 Implemented movie enrichment:
 
 - For Letterboxd movies, use the Letterboxd proxy `id` as the first candidate TMDB movie ID.
