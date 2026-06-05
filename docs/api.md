@@ -136,6 +136,60 @@ Dependency errors:
 - `503 Service Unavailable` when the Letterboxd proxy is unavailable.
 - `502 Bad Gateway` when the Letterboxd proxy returns malformed JSON.
 
+## POST /api/sync/tmdb/movies
+
+Runs manual TMDB enrichment for all existing Letterboxd movie records.
+
+The batch sync records per-movie not-found or dependency failures on the movie metadata status and continues processing the rest of the list. A dependency failure for one movie therefore returns a `partial` result rather than a top-level `503`.
+
+Response:
+
+```json
+{
+  "status": "completed",
+  "startedAt": "2026-06-04T12:00:00Z",
+  "finishedAt": "2026-06-04T12:00:01Z",
+  "itemsMatched": 27,
+  "itemsEnriched": 26,
+  "itemsNotFound": 1,
+  "itemsFailed": 0
+}
+```
+
+## POST /api/sync/tmdb/movies/{id}
+
+Runs manual TMDB enrichment for one existing Letterboxd movie record.
+
+- `200 OK` when the movie exists and sync returns a result.
+- `404 Not Found` when the backend item ID does not exist or is not a Letterboxd movie.
+- `503 Service Unavailable` when TMDB is unavailable.
+
+Example:
+
+```http
+POST /api/sync/tmdb/movies/movie-letterboxd-1297842
+```
+
+Response:
+
+```json
+{
+  "status": "enriched",
+  "id": "movie-letterboxd-1297842",
+  "tmdbId": 1297842
+}
+```
+
+When TMDB cannot find the movie, the endpoint records `not_found` metadata status and returns:
+
+```json
+{
+  "status": "not_found",
+  "id": "movie-letterboxd-1297842",
+  "tmdbId": null
+}
+```
+
 ## Dependency Errors
 
 When MongoDB is unavailable, MongoDB-backed endpoints return:
@@ -147,5 +201,17 @@ When MongoDB is unavailable, MongoDB-backed endpoints return:
 ```json
 {
   "error": "MongoDB is unavailable."
+}
+```
+
+When TMDB is unavailable for a single-movie sync, the backend returns:
+
+```http
+503 Service Unavailable
+```
+
+```json
+{
+  "error": "TMDB is unavailable."
 }
 ```

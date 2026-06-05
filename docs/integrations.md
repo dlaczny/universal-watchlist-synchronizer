@@ -22,7 +22,35 @@ Imported source trace fields:
 
 Purpose: source of truth for TV watchlist and metadata provider for movies and TV.
 
-Needed data:
+Configuration:
+
+- `Tmdb:AccessToken` / `TMDB__AccessToken`: TMDB v4 read token. Keep this out of committed files.
+- `Tmdb:BaseUrl`: defaults to `https://api.themoviedb.org/3`.
+- `Tmdb:ImageBaseUrl`: defaults to `https://image.tmdb.org/t/p`.
+
+The backend starts without an access token so local read-only browsing still works. TMDB sync calls return a TMDB dependency error when the token is missing or invalid.
+
+Implemented movie enrichment:
+
+- For Letterboxd movies, use the Letterboxd proxy `id` as the first candidate TMDB movie ID.
+- If direct `/movie/{id}` lookup returns missing, fallback through `/find/{imdbId}?external_source=imdb_id`.
+- Fetch `/movie/{id}` for title, original title, IMDb ID, overview, release date, genres, poster path, and backdrop path.
+- Build poster URL with `ImageBaseUrl + /w500 + poster_path`.
+- Build backdrop URL with `ImageBaseUrl + /w1280 + backdrop_path`.
+- Fetch `/movie/{id}/watch/providers` and store provider groups for each returned region.
+- Store provider details in MongoDB under `WatchProviders` with `flatrate`, `rent`, and `buy` groups.
+- Store metadata status on the movie document as `enriched`, `not_found`, or `failed`.
+- Failure and not-found updates are status-only so a temporary TMDB problem does not erase previously enriched metadata.
+
+Provider and VOD rules:
+
+- Owned subscribed-service availability currently uses Poland (`PL`) flatrate providers only.
+- Owned service names are matched case-insensitively against Max/HBO Max, SkyShowtime, Crunchyroll, Amazon Prime Video, and Prime Video.
+- Rent and buy providers do not count as subscribed-service availability.
+- `releasedOnVod` is true when Poland or the US has at least one flatrate, rent, or buy provider.
+- `vodRegions` stores the matching regions, currently `PL` and/or `US`.
+
+Still needed for TV watchlist:
 
 - TMDB movie and TV IDs.
 - Titles and original titles.
@@ -74,4 +102,4 @@ If MongoDB is unavailable, the backend returns `503 Service Unavailable` rather 
 
 ## Later Extension: Streaming Services
 
-Streaming-provider availability is not part of version 1. It can be added later using TMDB watch provider data and a user-configured list of subscribed services.
+TMDB watch-provider data is now cached for movies, but Android provider/VOD badges and provider-ID refinement are still later work.
