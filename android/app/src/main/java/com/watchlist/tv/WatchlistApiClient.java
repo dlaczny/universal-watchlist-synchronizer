@@ -25,7 +25,7 @@ public final class WatchlistApiClient {
             String sortMode,
             boolean includeUnavailable) throws IOException, JSONException {
         String json = get(buildWatchlistPath(collection, sortMode, includeUnavailable));
-        return parseItems(json);
+        return parseItems(json, baseUrl);
     }
 
     public static String buildWatchlistPath(String mediaType, String sortMode, boolean includeUnavailable) {
@@ -48,6 +48,10 @@ public final class WatchlistApiClient {
     }
 
     public static List<WatchlistItem> parseItems(String json) throws JSONException {
+        return parseItems(json, null);
+    }
+
+    private static List<WatchlistItem> parseItems(String json, String baseUrl) throws JSONException {
         JSONArray array = new JSONArray(json);
         List<WatchlistItem> items = new ArrayList<>();
 
@@ -61,8 +65,8 @@ public final class WatchlistApiClient {
                     item.getString("title"),
                     item.has("year") && !item.isNull("year") ? item.getInt("year") : null,
                     nullableString(item, "overview"),
-                    nullableString(item, "posterUrl"),
-                    nullableString(item, "backdropUrl"),
+                    resolveImageUrl(baseUrl, nullableString(item, "posterUrl")),
+                    resolveImageUrl(baseUrl, nullableString(item, "backdropUrl")),
                     item.getString("releaseStatus"),
                     item.getString("availabilityStatus"),
                     item.getString("addedAt"),
@@ -70,6 +74,18 @@ public final class WatchlistApiClient {
         }
 
         return items;
+    }
+
+    static String resolveImageUrl(String baseUrl, String imageUrl) {
+        if (imageUrl == null || imageUrl.isEmpty() || !imageUrl.startsWith("/")) {
+            return imageUrl;
+        }
+
+        if (baseUrl == null || baseUrl.isEmpty()) {
+            return imageUrl;
+        }
+
+        return trimTrailingSlash(baseUrl) + imageUrl;
     }
 
     public static SyncStatus parseSyncStatus(String json) throws JSONException {

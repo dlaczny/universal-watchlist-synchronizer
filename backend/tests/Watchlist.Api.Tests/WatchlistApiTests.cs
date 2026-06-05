@@ -84,6 +84,10 @@ public sealed class WatchlistApiTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         document.RootElement.GetProperty("title").GetString().Should().Be("Dune: Part Two");
+        document.RootElement.GetProperty("posterUrl").GetString().Should().Be(
+            "/api/images/tmdb/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg");
+        document.RootElement.GetProperty("backdropUrl").GetString().Should().Be(
+            "/api/images/tmdb/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg");
     }
 
     [Fact]

@@ -81,6 +81,24 @@ public class WatchlistApiClientTest {
     }
 
     @Test
+    public void resolveImageUrl_whenBackendReturnsRelativePath_usesBackendBaseUrl() {
+        String imageUrl = WatchlistApiClient.resolveImageUrl(
+                "http://10.0.2.2:5000/",
+                "/api/images/tmdb/w500/poster.jpg");
+
+        assertEquals("http://10.0.2.2:5000/api/images/tmdb/w500/poster.jpg", imageUrl);
+    }
+
+    @Test
+    public void resolveImageUrl_whenBackendReturnsAbsolutePath_keepsOriginalUrl() {
+        String imageUrl = WatchlistApiClient.resolveImageUrl(
+                "http://10.0.2.2:5000",
+                "https://image.example/poster.jpg");
+
+        assertEquals("https://image.example/poster.jpg", imageUrl);
+    }
+
+    @Test
     public void parseSyncStatus_parsesSeededStatus() throws Exception {
         String json = "{"
                 + "\"status\":\"seeded\","

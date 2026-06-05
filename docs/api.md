@@ -58,8 +58,8 @@ Response:
     "title": "Dune: Part Two",
     "year": 2024,
     "overview": "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.",
-    "posterUrl": "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
-    "backdropUrl": "https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
+    "posterUrl": "/api/images/tmdb/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+    "backdropUrl": "/api/images/tmdb/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
     "releaseStatus": "released",
     "availabilityStatus": "available_on_plex",
     "addedAt": "2026-05-20T10:00:00+02:00",
@@ -92,14 +92,25 @@ Response:
   "title": "Dune: Part Two",
   "year": 2024,
   "overview": "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.",
-  "posterUrl": "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
-  "backdropUrl": "https://image.tmdb.org/t/p/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
+  "posterUrl": "/api/images/tmdb/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
+  "backdropUrl": "/api/images/tmdb/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
   "releaseStatus": "released",
   "availabilityStatus": "available_on_plex",
   "addedAt": "2026-05-20T10:00:00+02:00",
   "updatedAt": "2026-05-25T10:00:00+02:00"
 }
 ```
+
+## GET /api/images/tmdb/{size}/{fileName}
+
+Proxies TMDB artwork through the backend. Android clients should use the `posterUrl` and `backdropUrl` values returned by watchlist endpoints and should not call TMDB image hosts directly.
+
+- `200 OK` with image bytes when TMDB returns the image.
+- `400 Bad Request` for unsupported image sizes.
+- `404 Not Found` when TMDB has no image for the path.
+- `502 Bad Gateway` when the TMDB image host cannot be reached or returns a non-success response.
+
+Supported image sizes are currently `w500` and `w1280`.
 
 ## GET /api/sync/status
 

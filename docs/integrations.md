@@ -53,6 +53,7 @@ Implemented movie enrichment:
 - Fetch `/movie/{id}` for title, original title, IMDb ID, overview, release date, genres, poster path, and backdrop path.
 - Build poster URL with `ImageBaseUrl + /w500 + poster_path`.
 - Build backdrop URL with `ImageBaseUrl + /w1280 + backdrop_path`.
+- Store TMDB image URLs in MongoDB, then expose them to Android through backend-relative `/api/images/tmdb/{size}/{fileName}` proxy URLs.
 - Fetch `/movie/{id}/watch/providers` and store provider groups for each returned region.
 - Store provider details in MongoDB under `WatchProviders` with `flatrate`, `rent`, and `buy` groups.
 - Store metadata status on the movie document as `enriched`, `not_found`, or `failed`.

@@ -76,9 +76,10 @@ The first Android TV API can stay small:
 
 - `GET /api/watchlist?collection=all|movie|tv&availability=plex,not_on_plex,unreleased,unknown_match&sort=added_desc|title_asc`
 - `GET /api/watchlist/{id}`
+- `GET /api/images/tmdb/{size}/{fileName}`
 - `GET /api/sync/status`
 
-The list endpoint is backend-owned: clients send collection, availability, and sort controls instead of duplicating integration-aware filtering.
+The list endpoint is backend-owned: clients send collection, availability, and sort controls instead of duplicating integration-aware filtering. Artwork is also backend-owned; clients consume backend image URLs instead of calling TMDB directly.
 
 ## API Contract
 
