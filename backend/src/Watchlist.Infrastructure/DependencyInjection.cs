@@ -50,6 +50,8 @@ public static class DependencyInjection
                 httpClient.BaseAddress = new Uri(options.BaseUrl);
             }
         });
+        services.AddSingleton<IPlexMovieInventoryRepository, MongoPlexMovieInventoryRepository>();
+        services.AddScoped<IPlexMovieSyncService, PlexMovieSyncService>();
         services.AddSingleton(TimeProvider.System);
         services.AddHttpClient<ILetterboxdWatchlistClient, LetterboxdWatchlistClient>();
         services.AddHttpClient<ITmdbMovieClient, TmdbMovieClient>((serviceProvider, httpClient) =>
