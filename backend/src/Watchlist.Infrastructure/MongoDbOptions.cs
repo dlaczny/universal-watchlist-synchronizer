@@ -11,4 +11,6 @@ public sealed class MongoDbOptions
     public string WatchlistItemsCollectionName { get; init; } = string.Empty;
 
     public string SyncRunsCollectionName { get; init; } = string.Empty;
+
+    public string PlexLibraryItemsCollectionName { get; init; } = string.Empty;
 }

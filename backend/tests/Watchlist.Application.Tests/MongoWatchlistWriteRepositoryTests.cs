@@ -139,7 +139,11 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
             VodRegions = ["PL", "US"],
             TmdbMetadataUpdatedAt = tmdbMetadataUpdatedAt,
             TmdbMetadataStatus = "failed",
-            TmdbMetadataError = "Rate limited"
+            TmdbMetadataError = "Rate limited",
+            PlexRatingKey = "8058",
+            PlexMatchedAt = DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+            PlexMatchReason = "imdb",
+            PlexMatchConfidence = "exact"
         };
         await items.InsertOneAsync(existingDocument);
         MongoWatchlistWriteRepository repository = new(database, Options.Create(options));
@@ -180,6 +184,10 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
         storedDocument.TmdbMetadataUpdatedAt.Should().Be(tmdbMetadataUpdatedAt);
         storedDocument.TmdbMetadataStatus.Should().Be("failed");
         storedDocument.TmdbMetadataError.Should().Be("Rate limited");
+        storedDocument.PlexRatingKey.Should().Be("8058");
+        storedDocument.PlexMatchedAt.Should().Be(DateTimeOffset.Parse("2026-06-05T12:00:00Z"));
+        storedDocument.PlexMatchReason.Should().Be("imdb");
+        storedDocument.PlexMatchConfidence.Should().Be("exact");
     }
 
     public Task InitializeAsync()

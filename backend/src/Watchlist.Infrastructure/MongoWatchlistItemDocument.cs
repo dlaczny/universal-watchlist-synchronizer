@@ -65,6 +65,14 @@ public sealed class MongoWatchlistItemDocument
 
     public DateTimeOffset UpdatedAt { get; init; }
 
+    public string? PlexRatingKey { get; init; }
+
+    public DateTimeOffset? PlexMatchedAt { get; init; }
+
+    public string PlexMatchReason { get; init; } = "none";
+
+    public string PlexMatchConfidence { get; init; } = "none";
+
     public WatchlistItem ToDomain()
     {
         if (MediaType == MediaType.Unspecified
