@@ -14,7 +14,8 @@ public sealed class SeededApiFactory(
     Exception? tmdbMovieSyncException = null,
     Exception? tmdbSingleMovieSyncException = null,
     Exception? plexMovieSyncException = null,
-    Exception? combinedSyncException = null) : WebApplicationFactory<Program>
+    Exception? combinedSyncException = null,
+    Exception? availabilityRefreshException = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -26,6 +27,7 @@ public sealed class SeededApiFactory(
             services.RemoveAll<ITmdbMovieEnrichmentService>();
             services.RemoveAll<IPlexMovieSyncService>();
             services.RemoveAll<ICombinedSyncService>();
+            services.RemoveAll<IAvailabilityRefreshService>();
             RemoveBootstrapHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
             services.AddSingleton<ISyncStatusReadRepository, SeededSyncStatusReadRepository>();
@@ -40,6 +42,8 @@ public sealed class SeededApiFactory(
                 _ => new SeededPlexMovieSyncService(plexMovieSyncException));
             services.AddSingleton<ICombinedSyncService>(
                 _ => new SeededCombinedSyncService(combinedSyncException));
+            services.AddSingleton<IAvailabilityRefreshService>(
+                _ => new SeededAvailabilityRefreshService(availabilityRefreshException));
         });
     }
 
@@ -61,6 +65,12 @@ public sealed class SeededApiFactory(
         {
             return Task.FromResult<SyncStatusDto?>(
                 new SyncStatusDto("seeded", DateTimeOffset.Parse("2026-05-25T10:00:00+02:00")));
+        }
+
+        public Task<SyncStatusDto?> GetLatestByStatusAsync(string status, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<SyncStatusDto?>(
+                new SyncStatusDto(status, DateTimeOffset.Parse("2026-06-05T12:00:00Z")));
         }
     }
 
@@ -149,6 +159,37 @@ public sealed class SeededApiFactory(
                 40,
                 220,
                 3);
+
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class SeededAvailabilityRefreshService(Exception? syncException) : IAvailabilityRefreshService
+    {
+        public Task<AvailabilityRefreshResultDto> RefreshAsync(CancellationToken cancellationToken)
+        {
+            if (syncException is not null)
+            {
+                return Task.FromException<AvailabilityRefreshResultDto>(syncException);
+            }
+
+            AvailabilityRefreshResultDto result = new(
+                "completed",
+                true,
+                "stale",
+                DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+                DateTimeOffset.Parse("2026-06-05T12:00:05Z"),
+                new PlexMovieSyncResultDto(
+                    "completed",
+                    DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+                    DateTimeOffset.Parse("2026-06-05T12:00:05Z"),
+                    1,
+                    500,
+                    500,
+                    2,
+                    40,
+                    220,
+                    3));
 
             return Task.FromResult(result);
         }

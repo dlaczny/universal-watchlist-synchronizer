@@ -258,6 +258,36 @@ public sealed class WatchlistApiTests
     }
 
     [Fact]
+    public async Task PostAvailabilityRefresh_ReturnsRefreshResult()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/availability/refresh", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        document.RootElement.GetProperty("ranPlexSync").GetBoolean().Should().BeTrue();
+        document.RootElement.GetProperty("reason").GetString().Should().Be("stale");
+        document.RootElement.GetProperty("plex").GetProperty("watchlistItemsMatched").GetInt32().Should().Be(40);
+    }
+
+    [Fact]
+    public async Task PostAvailabilityRefresh_WhenPlexUnavailable_ReturnsServiceUnavailable()
+    {
+        using SeededApiFactory factory = new(
+            availabilityRefreshException: new PlexUnavailableException("Plex token is not configured."));
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/availability/refresh", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("error").GetString().Should().Be("Plex is unavailable.");
+    }
+
+    [Fact]
     public async Task PostSyncAll_ReturnsCombinedResult()
     {
         using SeededApiFactory factory = new();

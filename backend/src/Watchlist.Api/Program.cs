@@ -148,6 +148,15 @@ app.MapPost("/api/sync/plex/movies", async (
     return Results.Ok(result);
 });
 
+app.MapPost("/api/sync/availability/refresh", async (
+    IAvailabilityRefreshService refreshService,
+    CancellationToken cancellationToken) =>
+{
+    AvailabilityRefreshResultDto result = await refreshService.RefreshAsync(cancellationToken);
+
+    return Results.Ok(result);
+});
+
 app.MapPost("/api/sync/all", async (
     ICombinedSyncService syncService,
     CancellationToken cancellationToken) =>
