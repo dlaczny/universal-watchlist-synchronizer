@@ -62,6 +62,7 @@ public final class MainActivity extends Activity {
     private List<WatchlistItem> loadedItems = new ArrayList<>();
     private int loadGeneration;
     private volatile boolean destroyed;
+    private boolean startupAvailabilityRefreshStarted;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -78,7 +79,7 @@ public final class MainActivity extends Activity {
         setContentView(createContentView());
         updateControlStyles();
         allButton.requestFocus();
-        loadItems();
+        loadItems(true);
     }
 
     @Override
@@ -213,7 +214,7 @@ public final class MainActivity extends Activity {
         browsingState = browsingState.withMediaType(mediaType).withFocusedItemId(null);
         persistBrowsingState();
         updateControlStyles();
-        loadItems();
+        loadItems(false);
     }
 
     private void selectSortMode(String sortMode) {
@@ -223,7 +224,7 @@ public final class MainActivity extends Activity {
         browsingState = browsingState.withSortMode(sortMode);
         persistBrowsingState();
         updateControlStyles();
-        loadItems();
+        loadItems(false);
     }
 
     private void showFilterPopup() {
@@ -251,7 +252,7 @@ public final class MainActivity extends Activity {
         unavailable.setOnCheckedChangeListener((buttonView, checked) -> {
             browsingState = browsingState.withIncludeUnavailable(checked);
             persistBrowsingState();
-            loadItems();
+            loadItems(false);
         });
         content.addView(unavailable);
 
@@ -272,6 +273,10 @@ public final class MainActivity extends Activity {
     }
 
     private void loadItems() {
+        loadItems(false);
+    }
+
+    private void loadItems(boolean requestStartupAvailabilityRefresh) {
         if (destroyed) {
             return;
         }
@@ -292,6 +297,9 @@ public final class MainActivity extends Activity {
                             if (!destroyed && generation == loadGeneration) {
                                 loadedItems = items;
                                 renderItems(items, true);
+                                if (requestStartupAvailabilityRefresh) {
+                                    refreshAvailabilityAfterInitialLoad(generation);
+                                }
                             }
                         });
                     }
@@ -303,6 +311,32 @@ public final class MainActivity extends Activity {
                             }
                         });
                     }
+                }
+            });
+        } catch (RejectedExecutionException ignored) {
+            // The Activity is tearing down.
+        }
+    }
+
+    private void refreshAvailabilityAfterInitialLoad(int initialGeneration) {
+        if (startupAvailabilityRefreshStarted || destroyed || initialGeneration != loadGeneration) {
+            return;
+        }
+
+        startupAvailabilityRefreshStarted = true;
+        try {
+            apiExecutor.execute(() -> {
+                try {
+                    AvailabilityRefreshResult result = apiClient.refreshAvailability();
+                    if (!destroyed && result.ranPlexSync()) {
+                        mainHandler.post(() -> {
+                            if (!destroyed) {
+                                loadItems(false);
+                            }
+                        });
+                    }
+                } catch (Exception ignored) {
+                    // Cached data is already visible; startup refresh must not replace it with an error.
                 }
             });
         } catch (RejectedExecutionException ignored) {
