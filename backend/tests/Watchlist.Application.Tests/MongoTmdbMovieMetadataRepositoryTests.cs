@@ -193,6 +193,42 @@ public sealed class MongoTmdbMovieMetadataRepositoryTests : IAsyncLifetime
         storedLetterboxdMovie.TmdbMetadataError.Should().Be(metadataError);
     }
 
+    [Fact]
+    public async Task GetLetterboxdMoviesAsync_IncludesTmdbIdForPlexMatching()
+    {
+        IMongoCollection<MongoWatchlistItemDocument> items =
+            database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
+        MongoWatchlistItemDocument document = CreateLetterboxdMovie();
+        document = new MongoWatchlistItemDocument
+        {
+            Id = document.Id,
+            MediaType = document.MediaType,
+            Source = document.Source,
+            SourceId = document.SourceId,
+            Title = document.Title,
+            Year = document.Year,
+            ImdbId = "tt27613895",
+            LetterboxdPath = document.LetterboxdPath,
+            Overview = document.Overview,
+            PosterUrl = document.PosterUrl,
+            BackdropUrl = document.BackdropUrl,
+            TmdbId = 1297842,
+            ReleaseStatus = document.ReleaseStatus,
+            AvailabilityStatus = document.AvailabilityStatus,
+            AddedAt = document.AddedAt,
+            UpdatedAt = document.UpdatedAt
+        };
+        await items.InsertOneAsync(document);
+        MongoTmdbMovieMetadataRepository repository = new(database, Options.Create(options));
+
+        IReadOnlyList<WatchlistItemWriteModel> movies = await repository.GetLetterboxdMoviesAsync(CancellationToken.None);
+
+        movies.Should().ContainSingle(movie =>
+            movie.Item.Id == "movie-letterboxd-1297842"
+            && movie.ImdbId == "tt27613895"
+            && movie.TmdbId == 1297842);
+    }
+
     public Task InitializeAsync()
     {
         return Task.CompletedTask;

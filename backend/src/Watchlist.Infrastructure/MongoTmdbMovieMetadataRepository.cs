@@ -129,6 +129,10 @@ public sealed class MongoTmdbMovieMetadataRepository(
 
     private static WatchlistItemWriteModel ToWriteModel(MongoWatchlistItemDocument document)
     {
-        return new WatchlistItemWriteModel(document.ToDomain(), document.ImdbId, document.LetterboxdPath);
+        return new WatchlistItemWriteModel(
+            document.ToDomain(),
+            document.ImdbId,
+            document.LetterboxdPath,
+            document.TmdbId);
     }
 }

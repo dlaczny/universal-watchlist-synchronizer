@@ -8,4 +8,5 @@ namespace Watchlist.Application;
 public sealed record WatchlistItemWriteModel(
     WatchlistItem Item,
     string? ImdbId,
-    string? LetterboxdPath);
+    string? LetterboxdPath,
+    int? TmdbId = null);
