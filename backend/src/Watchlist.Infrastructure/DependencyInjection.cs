@@ -36,6 +36,19 @@ public static class DependencyInjection
         services.AddSingleton<IWatchlistWriteRepository, MongoWatchlistWriteRepository>();
         services.AddSingleton<ITmdbMovieMetadataRepository, MongoTmdbMovieMetadataRepository>();
         services.AddSingleton<ISyncStatusReadRepository, MongoSyncStatusReadRepository>();
+        services.AddOptions<PlexOptions>()
+            .Bind(configuration.GetSection(PlexOptions.SectionName))
+            .Validate(options => string.IsNullOrWhiteSpace(options.BaseUrl)
+                || Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Plex:BaseUrl must be absolute.");
+
+        services.AddHttpClient<IPlexLibraryClient, PlexLibraryClient>((serviceProvider, httpClient) =>
+        {
+            PlexOptions options = serviceProvider.GetRequiredService<IOptions<PlexOptions>>().Value;
+            if (!string.IsNullOrWhiteSpace(options.BaseUrl))
+            {
+                httpClient.BaseAddress = new Uri(options.BaseUrl);
+            }
+        });
         services.AddSingleton(TimeProvider.System);
         services.AddHttpClient<ILetterboxdWatchlistClient, LetterboxdWatchlistClient>();
         services.AddHttpClient<ITmdbMovieClient, TmdbMovieClient>((serviceProvider, httpClient) =>
