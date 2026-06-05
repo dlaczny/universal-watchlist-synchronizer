@@ -18,5 +18,3 @@ public interface IPlexMovieInventoryRepository
         DateTimeOffset completedAt,
         CancellationToken cancellationToken);
 }
-
-public sealed record PlexInventoryApplyResult(int ItemsUpserted, int ItemsDeleted);

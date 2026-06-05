@@ -1,6 +1,6 @@
 namespace Watchlist.Application;
 
-public class PlexUnavailableException : Exception
+public sealed class PlexUnavailableException : Exception
 {
     public PlexUnavailableException(string message) : base(message)
     {
