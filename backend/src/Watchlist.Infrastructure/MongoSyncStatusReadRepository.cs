@@ -23,4 +23,16 @@ public sealed class MongoSyncStatusReadRepository : ISyncStatusReadRepository
 
         return document?.ToDto();
     }
+
+    public async Task<SyncStatusDto?> GetLatestByStatusAsync(
+        string status,
+        CancellationToken cancellationToken)
+    {
+        MongoSyncRunDocument? document = await collection
+            .Find(syncRun => syncRun.Status == status)
+            .SortByDescending(syncRun => syncRun.LastSuccessfulSyncAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return document?.ToDto();
+    }
 }

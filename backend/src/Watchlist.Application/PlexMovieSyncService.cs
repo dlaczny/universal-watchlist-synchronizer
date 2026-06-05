@@ -8,7 +8,6 @@ public sealed class PlexMovieSyncService(
     TimeProvider timeProvider) : IPlexMovieSyncService
 {
     private const string CompletedResultStatus = "completed";
-    private const string CompletedRunStatus = "plex_movies_completed";
 
     public async Task<PlexMovieSyncResultDto> SyncMoviesAsync(CancellationToken cancellationToken)
     {
@@ -44,7 +43,7 @@ public sealed class PlexMovieSyncService(
 
         await repository.ApplyMatchUpdatesAsync(
             updates,
-            CompletedRunStatus,
+            SyncRunStatuses.PlexMoviesCompleted,
             syncTime,
             cancellationToken);
 
