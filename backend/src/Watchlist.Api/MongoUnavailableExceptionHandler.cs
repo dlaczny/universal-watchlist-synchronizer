@@ -42,6 +42,26 @@ public sealed class MongoUnavailableExceptionHandler : IExceptionHandler
             return true;
         }
 
+        if (exception is PlexUnavailableException)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await httpContext.Response.WriteAsJsonAsync(
+                new { error = "Plex is unavailable." },
+                cancellationToken);
+
+            return true;
+        }
+
+        if (exception is PlexParseException)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
+            await httpContext.Response.WriteAsJsonAsync(
+                new { error = "Plex returned malformed XML." },
+                cancellationToken);
+
+            return true;
+        }
+
         if (exception is not MongoException)
         {
             return false;

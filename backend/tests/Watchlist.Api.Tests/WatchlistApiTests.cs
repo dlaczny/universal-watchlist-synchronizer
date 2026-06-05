@@ -216,6 +216,63 @@ public sealed class WatchlistApiTests
     }
 
     [Fact]
+    public async Task PostPlexMovieSync_ReturnsSyncResult()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/plex/movies", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        document.RootElement.GetProperty("sectionsScanned").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PostPlexMovieSync_WhenPlexUnavailable_ReturnsServiceUnavailable()
+    {
+        using SeededApiFactory factory = new(
+            plexMovieSyncException: new PlexUnavailableException("Plex token is not configured."));
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/plex/movies", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("error").GetString().Should().Be("Plex is unavailable.");
+    }
+
+    [Fact]
+    public async Task PostPlexMovieSync_WhenPlexXmlMalformed_ReturnsBadGateway()
+    {
+        using SeededApiFactory factory = new(
+            plexMovieSyncException: new PlexParseException("Plex returned malformed XML."));
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/plex/movies", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("error").GetString().Should().Be("Plex returned malformed XML.");
+    }
+
+    [Fact]
+    public async Task PostSyncAll_ReturnsCombinedResult()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/all", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        document.RootElement.GetProperty("letterboxd").GetProperty("itemsFetched").GetInt32().Should().Be(2);
+        document.RootElement.GetProperty("plexMovies").GetProperty("watchlistItemsMatched").GetInt32().Should().Be(40);
+    }
+
+    [Fact]
     public async Task GetWatchlist_WhenMongoUnavailable_ReturnsServiceUnavailable()
     {
         using MongoUnavailableApiFactory factory = new();

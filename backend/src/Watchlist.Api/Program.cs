@@ -139,6 +139,24 @@ app.MapPost("/api/sync/tmdb/movies/{id}", async (
     return result is null ? Results.NotFound() : Results.Ok(result);
 });
 
+app.MapPost("/api/sync/plex/movies", async (
+    IPlexMovieSyncService syncService,
+    CancellationToken cancellationToken) =>
+{
+    PlexMovieSyncResultDto result = await syncService.SyncMoviesAsync(cancellationToken);
+
+    return Results.Ok(result);
+});
+
+app.MapPost("/api/sync/all", async (
+    ICombinedSyncService syncService,
+    CancellationToken cancellationToken) =>
+{
+    CombinedSyncResultDto result = await syncService.SyncAllAsync(cancellationToken);
+
+    return Results.Ok(result);
+});
+
 app.Run();
 
 static bool TryParseCollection(string? value, out WatchlistCollection collection)

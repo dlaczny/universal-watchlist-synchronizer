@@ -12,7 +12,9 @@ public sealed class SeededApiFactory(
     Exception? letterboxdSyncException = null,
     bool tmdbSingleMovieReturnsNull = false,
     Exception? tmdbMovieSyncException = null,
-    Exception? tmdbSingleMovieSyncException = null) : WebApplicationFactory<Program>
+    Exception? tmdbSingleMovieSyncException = null,
+    Exception? plexMovieSyncException = null,
+    Exception? combinedSyncException = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -22,6 +24,8 @@ public sealed class SeededApiFactory(
             services.RemoveAll<ISyncStatusReadRepository>();
             services.RemoveAll<ILetterboxdMovieSyncService>();
             services.RemoveAll<ITmdbMovieEnrichmentService>();
+            services.RemoveAll<IPlexMovieSyncService>();
+            services.RemoveAll<ICombinedSyncService>();
             RemoveBootstrapHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
             services.AddSingleton<ISyncStatusReadRepository, SeededSyncStatusReadRepository>();
@@ -32,6 +36,10 @@ public sealed class SeededApiFactory(
                     tmdbSingleMovieReturnsNull,
                     tmdbMovieSyncException,
                     tmdbSingleMovieSyncException));
+            services.AddSingleton<IPlexMovieSyncService>(
+                _ => new SeededPlexMovieSyncService(plexMovieSyncException));
+            services.AddSingleton<ICombinedSyncService>(
+                _ => new SeededCombinedSyncService(combinedSyncException));
         });
     }
 
@@ -118,6 +126,52 @@ public sealed class SeededApiFactory(
             TmdbSingleMovieEnrichmentResultDto result = new("enriched", id, 1297842);
 
             return Task.FromResult<TmdbSingleMovieEnrichmentResultDto?>(result);
+        }
+    }
+
+    private sealed class SeededPlexMovieSyncService(Exception? syncException) : IPlexMovieSyncService
+    {
+        public Task<PlexMovieSyncResultDto> SyncMoviesAsync(CancellationToken cancellationToken)
+        {
+            if (syncException is not null)
+            {
+                return Task.FromException<PlexMovieSyncResultDto>(syncException);
+            }
+
+            PlexMovieSyncResultDto result = new(
+                "completed",
+                DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+                DateTimeOffset.Parse("2026-06-05T12:00:01Z"),
+                1,
+                500,
+                500,
+                0,
+                40,
+                220,
+                3);
+
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class SeededCombinedSyncService(Exception? syncException) : ICombinedSyncService
+    {
+        public Task<CombinedSyncResultDto> SyncAllAsync(CancellationToken cancellationToken)
+        {
+            if (syncException is not null)
+            {
+                return Task.FromException<CombinedSyncResultDto>(syncException);
+            }
+
+            CombinedSyncResultDto result = new(
+                "completed",
+                DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+                DateTimeOffset.Parse("2026-06-05T12:00:03Z"),
+                new LetterboxdSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:00Z"), DateTimeOffset.Parse("2026-06-05T12:00:01Z"), 2, 2, 0),
+                new TmdbMovieEnrichmentResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:01Z"), DateTimeOffset.Parse("2026-06-05T12:00:02Z"), 2, 2, 0, 0),
+                new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:02Z"), DateTimeOffset.Parse("2026-06-05T12:00:03Z"), 1, 500, 500, 0, 40, 220, 3));
+
+            return Task.FromResult(result);
         }
     }
 }
