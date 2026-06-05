@@ -227,6 +227,55 @@ Dependency errors:
 - `503 Service Unavailable` with `{ "error": "Plex is unavailable." }`
 - `502 Bad Gateway` with `{ "error": "Plex returned malformed XML." }`
 
+## POST /api/sync/availability/refresh
+
+Runs the app-open availability refresh. The backend checks the latest successful Plex movie sync and only runs Plex sync when the cached availability is missing or stale.
+
+Freshness window: 15 minutes.
+
+Skipped response:
+
+```json
+{
+  "status": "skipped",
+  "ranPlexSync": false,
+  "reason": "fresh",
+  "startedAt": "2026-06-05T12:00:00Z",
+  "finishedAt": "2026-06-05T12:00:00Z",
+  "plex": null
+}
+```
+
+Completed response:
+
+```json
+{
+  "status": "completed",
+  "ranPlexSync": true,
+  "reason": "stale",
+  "startedAt": "2026-06-05T12:00:00Z",
+  "finishedAt": "2026-06-05T12:00:05Z",
+  "plex": {
+    "status": "completed",
+    "sectionsScanned": 1,
+    "itemsFetched": 500,
+    "itemsUpserted": 500,
+    "itemsDeleted": 2,
+    "watchlistItemsMatched": 40,
+    "watchlistItemsNotMatched": 220,
+    "watchlistItemsUnknown": 3
+  }
+}
+```
+
+`reason` values:
+
+- `fresh`: latest successful Plex movie sync is inside the freshness window.
+- `stale`: latest successful Plex movie sync is older than the freshness window.
+- `missing`: no previous successful Plex movie sync is known.
+
+Dependency errors match `POST /api/sync/plex/movies`.
+
 ## POST /api/sync/all
 
 Runs Letterboxd movie sync, TMDB movie enrichment, and Plex movie sync in order.

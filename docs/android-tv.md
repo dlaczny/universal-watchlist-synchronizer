@@ -77,6 +77,22 @@ Run the backend and launch the debug build on an Android TV emulator or device. 
 6. Move focus to a poster, change collection, sort mode, and the `Unavailable` filter, then leave and relaunch the activity. Confirm the saved state and last focused item are restored where possible.
 7. Confirm focus remains visually obvious and directional movement does not trap the user at grid or toolbar boundaries.
 
+## Startup Availability Refresh
+
+On app open, Android TV loads cached watchlist data first. After the first successful render it calls `POST /api/sync/availability/refresh` in the background.
+
+- `ranPlexSync = false`: keep the current grid.
+- `ranPlexSync = true`: reload the current watchlist query once.
+- Refresh failure: keep cached data visible.
+
+Manual test:
+
+1. Start MongoDB and the backend.
+2. Open the Android TV app.
+3. Confirm posters render before Plex refresh needs to complete.
+4. Run `Invoke-RestMethod http://localhost:5000/api/sync/status` and confirm Plex sync state after refresh when stale or missing.
+5. Temporarily stop Plex or remove local Plex credentials, restart the backend, and confirm cached watchlist data still renders if `GET /api/watchlist` succeeds.
+
 ## Limitations
 
 - No Android phone UI.

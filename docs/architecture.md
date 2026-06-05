@@ -40,6 +40,7 @@ Letterboxd      TMDB Account/API      Plex Server
 - Render metadata, artwork, availability, and sync/error states from backend data.
 - Avoid storing integration credentials.
 - Avoid direct calls to external services.
+- Trigger backend-owned startup availability refresh without blocking cached watchlist rendering.
 
 ## Data Ownership
 
@@ -83,8 +84,11 @@ The backend exposes these endpoints:
 - `POST /api/sync/tmdb/movies/{id}` — single TMDB enrichment by backend item ID.
 - `POST /api/sync/plex/movies` — manual Plex movie inventory sync and availability update.
 - `POST /api/sync/all` — combined Letterboxd → TMDB → Plex sync in order.
+- `POST /api/sync/availability/refresh` — app-open stale-aware Plex availability refresh.
 
 The list endpoint is backend-owned: clients send collection, availability, and sort controls instead of duplicating integration-aware filtering. Artwork is also backend-owned; clients consume backend image URLs instead of calling TMDB directly. Plex inventory is cached in MongoDB for matching.
+
+Android startup is cached-first. The client loads `GET /api/watchlist` immediately, then triggers `POST /api/sync/availability/refresh`. The backend runs Plex sync only when the latest successful Plex movie sync is older than 15 minutes or missing. If Plex sync runs, Android reloads the current watchlist query once.
 
 ## API Contract
 
