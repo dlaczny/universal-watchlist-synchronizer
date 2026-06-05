@@ -110,4 +110,45 @@ public class WatchlistApiClientTest {
         assertEquals("seeded", status.status());
         assertEquals("2026-05-25T10:00:00+02:00", status.lastSuccessfulSyncAt());
     }
+
+    @Test
+    public void buildAvailabilityRefreshPath_usesStartupRefreshEndpoint() {
+        assertEquals("/api/sync/availability/refresh", WatchlistApiClient.buildAvailabilityRefreshPath());
+    }
+
+    @Test
+    public void parseAvailabilityRefreshResult_parsesCompletedResponse() throws Exception {
+        String json = "{"
+                + "\"status\":\"completed\","
+                + "\"ranPlexSync\":true,"
+                + "\"reason\":\"stale\","
+                + "\"startedAt\":\"2026-06-05T12:00:00Z\","
+                + "\"finishedAt\":\"2026-06-05T12:00:05Z\","
+                + "\"plex\":{\"watchlistItemsMatched\":40}"
+                + "}";
+
+        AvailabilityRefreshResult result = WatchlistApiClient.parseAvailabilityRefreshResult(json);
+
+        assertEquals("completed", result.status());
+        assertEquals(true, result.ranPlexSync());
+        assertEquals("stale", result.reason());
+    }
+
+    @Test
+    public void parseAvailabilityRefreshResult_parsesSkippedResponse() throws Exception {
+        String json = "{"
+                + "\"status\":\"skipped\","
+                + "\"ranPlexSync\":false,"
+                + "\"reason\":\"fresh\","
+                + "\"startedAt\":\"2026-06-05T12:00:00Z\","
+                + "\"finishedAt\":\"2026-06-05T12:00:00Z\","
+                + "\"plex\":null"
+                + "}";
+
+        AvailabilityRefreshResult result = WatchlistApiClient.parseAvailabilityRefreshResult(json);
+
+        assertEquals("skipped", result.status());
+        assertEquals(false, result.ranPlexSync());
+        assertEquals("fresh", result.reason());
+    }
 }

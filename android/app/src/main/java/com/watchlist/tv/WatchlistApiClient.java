@@ -43,8 +43,16 @@ public final class WatchlistApiClient {
                 + "&sort=" + sort;
     }
 
+    public static String buildAvailabilityRefreshPath() {
+        return "/api/sync/availability/refresh";
+    }
+
     public SyncStatus getSyncStatus() throws IOException, JSONException {
         return parseSyncStatus(get("/api/sync/status"));
+    }
+
+    public AvailabilityRefreshResult refreshAvailability() throws IOException, JSONException {
+        return parseAvailabilityRefreshResult(post(buildAvailabilityRefreshPath()));
     }
 
     public static List<WatchlistItem> parseItems(String json) throws JSONException {
@@ -95,6 +103,14 @@ public final class WatchlistApiClient {
                 object.getString("lastSuccessfulSyncAt"));
     }
 
+    public static AvailabilityRefreshResult parseAvailabilityRefreshResult(String json) throws JSONException {
+        JSONObject object = new JSONObject(json);
+        return new AvailabilityRefreshResult(
+                object.getString("status"),
+                object.getBoolean("ranPlexSync"),
+                object.getString("reason"));
+    }
+
     private static String nullableString(JSONObject object, String name) throws JSONException {
         return object.has(name) && !object.isNull(name) ? object.getString(name) : null;
     }
@@ -105,6 +121,29 @@ public final class WatchlistApiClient {
         connection.setConnectTimeout(5000);
         connection.setReadTimeout(5000);
         connection.setRequestMethod("GET");
+
+        int statusCode = connection.getResponseCode();
+        InputStream stream = statusCode >= 200 && statusCode < 300
+                ? connection.getInputStream()
+                : connection.getErrorStream();
+        String body = readAll(stream);
+        connection.disconnect();
+
+        if (statusCode < 200 || statusCode >= 300) {
+            throw new IOException("Backend returned HTTP " + statusCode + ": " + body);
+        }
+
+        return body;
+    }
+
+    private String post(String path) throws IOException {
+        URL url = new URL(baseUrl + path);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(30000);
+        connection.setRequestMethod("POST");
+        connection.setDoOutput(true);
+        connection.setFixedLengthStreamingMode(0);
 
         int statusCode = connection.getResponseCode();
         InputStream stream = statusCode >= 200 && statusCode < 300
