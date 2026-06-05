@@ -196,13 +196,15 @@ public sealed class WatchlistApiTests
     }
 
     [Fact]
-    public async Task PostTmdbMovieSync_WhenTmdbUnavailable_ReturnsServiceUnavailable()
+    public async Task PostTmdbSingleMovieSync_WhenTmdbUnavailable_ReturnsServiceUnavailable()
     {
         using SeededApiFactory factory = new(
-            tmdbSyncException: new TmdbUnavailableException("TMDB returned HTTP 503."));
+            tmdbSingleMovieSyncException: new TmdbUnavailableException("TMDB returned HTTP 503."));
         HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage response = await client.PostAsync("/api/sync/tmdb/movies", null);
+        HttpResponseMessage response = await client.PostAsync(
+            "/api/sync/tmdb/movies/movie-letterboxd-1297842",
+            null);
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         using JsonDocument document = await ReadJsonDocumentAsync(response);

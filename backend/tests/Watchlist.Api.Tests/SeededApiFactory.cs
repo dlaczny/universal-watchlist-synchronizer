@@ -11,7 +11,8 @@ namespace Watchlist.Api.Tests;
 public sealed class SeededApiFactory(
     Exception? letterboxdSyncException = null,
     bool tmdbSingleMovieReturnsNull = false,
-    Exception? tmdbSyncException = null) : WebApplicationFactory<Program>
+    Exception? tmdbMovieSyncException = null,
+    Exception? tmdbSingleMovieSyncException = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -27,7 +28,10 @@ public sealed class SeededApiFactory(
             services.AddSingleton<ILetterboxdMovieSyncService>(
                 _ => new SeededLetterboxdMovieSyncService(letterboxdSyncException));
             services.AddSingleton<ITmdbMovieEnrichmentService>(
-                _ => new SeededTmdbMovieEnrichmentService(tmdbSingleMovieReturnsNull, tmdbSyncException));
+                _ => new SeededTmdbMovieEnrichmentService(
+                    tmdbSingleMovieReturnsNull,
+                    tmdbMovieSyncException,
+                    tmdbSingleMovieSyncException));
         });
     }
 
@@ -75,13 +79,14 @@ public sealed class SeededApiFactory(
 
     private sealed class SeededTmdbMovieEnrichmentService(
         bool singleMovieReturnsNull,
-        Exception? syncException) : ITmdbMovieEnrichmentService
+        Exception? movieSyncException,
+        Exception? singleMovieSyncException) : ITmdbMovieEnrichmentService
     {
         public Task<TmdbMovieEnrichmentResultDto> SyncMoviesAsync(CancellationToken cancellationToken)
         {
-            if (syncException is not null)
+            if (movieSyncException is not null)
             {
-                return Task.FromException<TmdbMovieEnrichmentResultDto>(syncException);
+                return Task.FromException<TmdbMovieEnrichmentResultDto>(movieSyncException);
             }
 
             TmdbMovieEnrichmentResultDto result = new(
@@ -100,9 +105,9 @@ public sealed class SeededApiFactory(
             string id,
             CancellationToken cancellationToken)
         {
-            if (syncException is not null)
+            if (singleMovieSyncException is not null)
             {
-                return Task.FromException<TmdbSingleMovieEnrichmentResultDto?>(syncException);
+                return Task.FromException<TmdbSingleMovieEnrichmentResultDto?>(singleMovieSyncException);
             }
 
             if (singleMovieReturnsNull)
