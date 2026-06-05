@@ -70,6 +70,25 @@ app.MapPost("/api/sync/letterboxd", async (
     return Results.Ok(result);
 });
 
+app.MapPost("/api/sync/tmdb/movies", async (
+    ITmdbMovieEnrichmentService enrichmentService,
+    CancellationToken cancellationToken) =>
+{
+    TmdbMovieEnrichmentResultDto result = await enrichmentService.SyncMoviesAsync(cancellationToken);
+
+    return Results.Ok(result);
+});
+
+app.MapPost("/api/sync/tmdb/movies/{id}", async (
+    string id,
+    ITmdbMovieEnrichmentService enrichmentService,
+    CancellationToken cancellationToken) =>
+{
+    TmdbSingleMovieEnrichmentResultDto? result = await enrichmentService.SyncMovieAsync(id, cancellationToken);
+
+    return result is null ? Results.NotFound() : Results.Ok(result);
+});
+
 app.Run();
 
 static bool TryParseCollection(string? value, out WatchlistCollection collection)

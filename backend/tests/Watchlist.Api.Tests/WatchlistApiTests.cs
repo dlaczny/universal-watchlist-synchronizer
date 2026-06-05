@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FluentAssertions;
+using Watchlist.Application;
 using Watchlist.Infrastructure;
 
 namespace Watchlist.Api.Tests;
@@ -150,6 +151,62 @@ public sealed class WatchlistApiTests
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         document.RootElement.GetProperty("error").GetString().Should().Be(
             "Letterboxd watchlist returned malformed JSON.");
+    }
+
+    [Fact]
+    public async Task PostTmdbMovieSync_ReturnsBatchResult()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tmdb/movies", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        document.RootElement.GetProperty("itemsMatched").GetInt32().Should().Be(2);
+        document.RootElement.GetProperty("itemsEnriched").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task PostTmdbSingleMovieSync_ReturnsSingleResult()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync(
+            "/api/sync/tmdb/movies/movie-letterboxd-1297842",
+            null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("status").GetString().Should().Be("enriched");
+        document.RootElement.GetProperty("tmdbId").GetInt32().Should().Be(1297842);
+    }
+
+    [Fact]
+    public async Task PostTmdbSingleMovieSync_WhenMissing_ReturnsNotFound()
+    {
+        using SeededApiFactory factory = new(tmdbSingleMovieReturnsNull: true);
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tmdb/movies/missing", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task PostTmdbMovieSync_WhenTmdbUnavailable_ReturnsServiceUnavailable()
+    {
+        using SeededApiFactory factory = new(
+            tmdbSyncException: new TmdbUnavailableException("TMDB returned HTTP 503."));
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tmdb/movies", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("error").GetString().Should().Be("TMDB is unavailable.");
     }
 
     [Fact]

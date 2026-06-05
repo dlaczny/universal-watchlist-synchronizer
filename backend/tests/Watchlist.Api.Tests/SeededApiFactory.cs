@@ -8,7 +8,10 @@ using Watchlist.Infrastructure;
 
 namespace Watchlist.Api.Tests;
 
-public sealed class SeededApiFactory(Exception? letterboxdSyncException = null) : WebApplicationFactory<Program>
+public sealed class SeededApiFactory(
+    Exception? letterboxdSyncException = null,
+    bool tmdbSingleMovieReturnsNull = false,
+    Exception? tmdbSyncException = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -17,11 +20,14 @@ public sealed class SeededApiFactory(Exception? letterboxdSyncException = null) 
             services.RemoveAll<IWatchlistReadRepository>();
             services.RemoveAll<ISyncStatusReadRepository>();
             services.RemoveAll<ILetterboxdMovieSyncService>();
+            services.RemoveAll<ITmdbMovieEnrichmentService>();
             RemoveBootstrapHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
             services.AddSingleton<ISyncStatusReadRepository, SeededSyncStatusReadRepository>();
             services.AddSingleton<ILetterboxdMovieSyncService>(
                 _ => new SeededLetterboxdMovieSyncService(letterboxdSyncException));
+            services.AddSingleton<ITmdbMovieEnrichmentService>(
+                _ => new SeededTmdbMovieEnrichmentService(tmdbSingleMovieReturnsNull, tmdbSyncException));
         });
     }
 
@@ -64,6 +70,49 @@ public sealed class SeededApiFactory(Exception? letterboxdSyncException = null) 
                 0);
 
             return Task.FromResult(result);
+        }
+    }
+
+    private sealed class SeededTmdbMovieEnrichmentService(
+        bool singleMovieReturnsNull,
+        Exception? syncException) : ITmdbMovieEnrichmentService
+    {
+        public Task<TmdbMovieEnrichmentResultDto> SyncMoviesAsync(CancellationToken cancellationToken)
+        {
+            if (syncException is not null)
+            {
+                return Task.FromException<TmdbMovieEnrichmentResultDto>(syncException);
+            }
+
+            TmdbMovieEnrichmentResultDto result = new(
+                "completed",
+                DateTimeOffset.Parse("2026-06-04T12:00:00Z"),
+                DateTimeOffset.Parse("2026-06-04T12:00:01Z"),
+                2,
+                2,
+                0,
+                0);
+
+            return Task.FromResult(result);
+        }
+
+        public Task<TmdbSingleMovieEnrichmentResultDto?> SyncMovieAsync(
+            string id,
+            CancellationToken cancellationToken)
+        {
+            if (syncException is not null)
+            {
+                return Task.FromException<TmdbSingleMovieEnrichmentResultDto?>(syncException);
+            }
+
+            if (singleMovieReturnsNull)
+            {
+                return Task.FromResult<TmdbSingleMovieEnrichmentResultDto?>(null);
+            }
+
+            TmdbSingleMovieEnrichmentResultDto result = new("enriched", id, 1297842);
+
+            return Task.FromResult<TmdbSingleMovieEnrichmentResultDto?>(result);
         }
     }
 }

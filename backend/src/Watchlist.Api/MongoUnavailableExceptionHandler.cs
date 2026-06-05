@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using MongoDB.Driver;
+using Watchlist.Application;
 using Watchlist.Infrastructure;
 
 namespace Watchlist.Api;
@@ -26,6 +27,16 @@ public sealed class MongoUnavailableExceptionHandler : IExceptionHandler
             httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
             await httpContext.Response.WriteAsJsonAsync(
                 new { error = "Letterboxd watchlist returned malformed JSON." },
+                cancellationToken);
+
+            return true;
+        }
+
+        if (exception is TmdbUnavailableException)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await httpContext.Response.WriteAsJsonAsync(
+                new { error = "TMDB is unavailable." },
                 cancellationToken);
 
             return true;
