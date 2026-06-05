@@ -39,7 +39,8 @@ public static class DependencyInjection
         services.AddOptions<PlexOptions>()
             .Bind(configuration.GetSection(PlexOptions.SectionName))
             .Validate(options => string.IsNullOrWhiteSpace(options.BaseUrl)
-                || Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Plex:BaseUrl must be absolute.");
+                || Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Plex:BaseUrl must be absolute.")
+            .ValidateOnStart();
 
         services.AddHttpClient<IPlexLibraryClient, PlexLibraryClient>((serviceProvider, httpClient) =>
         {

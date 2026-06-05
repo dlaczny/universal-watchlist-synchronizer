@@ -90,6 +90,39 @@ public sealed class PlexLibraryClientTests
         await action.Should().ThrowAsync<PlexParseException>();
     }
 
+    [Theory]
+    [InlineData("__401__")]
+    [InlineData("__403__")]
+    [InlineData("__500__")]
+    public async Task GetSectionsAsync_WhenHttpError_ThrowsPlexUnavailable(string responseMarker)
+    {
+        PlexLibraryClient client = CreateClient(new Dictionary<string, string>
+        {
+            ["/library/sections"] = responseMarker
+        });
+
+        Func<Task> action = () => client.GetSectionsAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<PlexUnavailableException>();
+    }
+
+    [Fact]
+    public async Task GetSectionsAsync_WhenNetworkFails_ThrowsPlexUnavailable()
+    {
+        HttpClient httpClient = new(new ThrowingHandler(new HttpRequestException("connection refused")))
+        {
+            BaseAddress = new Uri("http://plex.local:32400")
+        };
+        PlexLibraryClient client = new(
+            httpClient,
+            Options.Create(new PlexOptions { BaseUrl = "http://plex.local:32400", Token = "token" }));
+
+        Func<Task> action = () => client.GetSectionsAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<PlexUnavailableException>()
+            .WithMessage("Plex could not be reached.");
+    }
+
     private static PlexLibraryClient CreateClient(
         IReadOnlyDictionary<string, string> responses,
         PlexOptions? options = null)
@@ -123,10 +156,35 @@ public sealed class PlexLibraryClientTests
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
             }
 
+            if (content == "__401__")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Unauthorized));
+            }
+
+            if (content == "__403__")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
+            }
+
+            if (content == "__500__")
+            {
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.InternalServerError));
+            }
+
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(content)
             });
+        }
+    }
+
+    private sealed class ThrowingHandler(Exception exception) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromException<HttpResponseMessage>(exception);
         }
     }
 }

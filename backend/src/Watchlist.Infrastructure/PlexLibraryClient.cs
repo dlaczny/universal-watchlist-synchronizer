@@ -87,7 +87,7 @@ public sealed class PlexLibraryClient(
             {
                 return XDocument.Parse(content);
             }
-            catch (Exception exception) when (exception is System.Xml.XmlException)
+            catch (System.Xml.XmlException exception)
             {
                 throw new PlexParseException("Plex returned malformed XML.", exception);
             }
