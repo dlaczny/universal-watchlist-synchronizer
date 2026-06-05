@@ -84,16 +84,20 @@ The backend should cache TMDB metadata in MongoDB and avoid repeated live calls 
 
 Purpose: source of truth for availability on the user's Plex server.
 
-Needed data:
+Implemented Plex movie sync:
 
-- Library inventory.
-- Media type.
-- Title.
-- Year.
-- Plex rating key.
-- GUIDs and external IDs where available.
-
-Matching should prefer stable IDs. Title/year fallback should produce an explicit confidence level or `unknown_match` when ambiguous.
+- Configuration: `Plex:BaseUrl` (e.g. `http://127.0.0.1:32400`) and `Plex:Token`.
+- Discovers movie libraries through `/library/sections`, filtering by type `movie`.
+- Scans every Plex movie section by fetching `/library/sections/{key}/all?type=1`.
+- Reads nested `Guid` IDs from per-movie metadata (`/library/metadata/{ratingKey}`) for IMDb, TMDB, and TVDB references.
+- Stores normalized movie inventory in MongoDB collection `plex_library_items` with sync timestamps.
+- Matches watchlist movies by:
+  1. IMDb ID match — highest confidence.
+  2. TMDB ID match — requires TMDB enrichment to have run first.
+  3. Normalized title + year match — punctuation-stripped, case-insensitive; produced only when exactly one Plex movie matches (otherwise `unknown_match`).
+- Updates watchlist availability to `available_on_plex`, `not_on_plex`, `unreleased`, or `unknown_match`.
+- Manual triggers: `POST /api/sync/plex/movies` and `POST /api/sync/all`.
+- Dependency errors: `503` when Plex is unreachable or token is missing, `502` when XML is malformed.
 
 ## MongoDB
 

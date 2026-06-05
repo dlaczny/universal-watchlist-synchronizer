@@ -201,6 +201,77 @@ When TMDB cannot find the movie, the endpoint records `not_found` metadata statu
 }
 ```
 
+## POST /api/sync/plex/movies
+
+Runs a manual Plex movie inventory sync and updates watchlist movie availability.
+
+Response:
+
+```json
+{
+  "status": "completed",
+  "startedAt": "2026-06-05T12:00:00Z",
+  "finishedAt": "2026-06-05T12:00:05Z",
+  "sectionsScanned": 1,
+  "itemsFetched": 500,
+  "itemsUpserted": 500,
+  "itemsDeleted": 2,
+  "watchlistItemsMatched": 40,
+  "watchlistItemsNotMatched": 220,
+  "watchlistItemsUnknown": 3
+}
+```
+
+Dependency errors:
+
+- `503 Service Unavailable` with `{ "error": "Plex is unavailable." }`
+- `502 Bad Gateway` with `{ "error": "Plex returned malformed XML." }`
+
+## POST /api/sync/all
+
+Runs Letterboxd movie sync, TMDB movie enrichment, and Plex movie sync in order.
+
+Response:
+
+```json
+{
+  "status": "completed",
+  "startedAt": "2026-06-05T12:00:00Z",
+  "finishedAt": "2026-06-05T12:00:03Z",
+  "letterboxd": {
+    "status": "completed",
+    "startedAt": "2026-06-05T12:00:00Z",
+    "finishedAt": "2026-06-05T12:00:01Z",
+    "itemsFetched": 27,
+    "itemsUpserted": 27,
+    "itemsDeleted": 3
+  },
+  "tmdbMovies": {
+    "status": "completed",
+    "startedAt": "2026-06-05T12:00:01Z",
+    "finishedAt": "2026-06-05T12:00:02Z",
+    "itemsMatched": 27,
+    "itemsEnriched": 26,
+    "itemsNotFound": 1,
+    "itemsFailed": 0
+  },
+  "plexMovies": {
+    "status": "completed",
+    "startedAt": "2026-06-05T12:00:02Z",
+    "finishedAt": "2026-06-05T12:00:03Z",
+    "sectionsScanned": 1,
+    "itemsFetched": 500,
+    "itemsUpserted": 500,
+    "itemsDeleted": 2,
+    "watchlistItemsMatched": 40,
+    "watchlistItemsNotMatched": 220,
+    "watchlistItemsUnknown": 3
+  }
+}
+```
+
+Dependency errors from any sub-sync propagate to the combined endpoint response.
+
 ## Dependency Errors
 
 When MongoDB is unavailable, MongoDB-backed endpoints return:

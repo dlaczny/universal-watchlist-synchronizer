@@ -70,16 +70,21 @@ The backend should represent availability explicitly:
 6. Persist normalized records and sync run details in MongoDB.
 7. Serve the latest successful read model to Android clients.
 
-## Initial API Surface
+## API Surface
 
-The first Android TV API can stay small:
+The backend exposes these endpoints:
 
 - `GET /api/watchlist?collection=all|movie|tv&availability=plex,not_on_plex,unreleased,unknown_match&sort=added_desc|title_asc`
 - `GET /api/watchlist/{id}`
 - `GET /api/images/tmdb/{size}/{fileName}`
 - `GET /api/sync/status`
+- `POST /api/sync/letterboxd` — manual Letterboxd movie watchlist sync.
+- `POST /api/sync/tmdb/movies` — batch TMDB enrichment for all Letterboxd movies.
+- `POST /api/sync/tmdb/movies/{id}` — single TMDB enrichment by backend item ID.
+- `POST /api/sync/plex/movies` — manual Plex movie inventory sync and availability update.
+- `POST /api/sync/all` — combined Letterboxd → TMDB → Plex sync in order.
 
-The list endpoint is backend-owned: clients send collection, availability, and sort controls instead of duplicating integration-aware filtering. Artwork is also backend-owned; clients consume backend image URLs instead of calling TMDB directly.
+The list endpoint is backend-owned: clients send collection, availability, and sort controls instead of duplicating integration-aware filtering. Artwork is also backend-owned; clients consume backend image URLs instead of calling TMDB directly. Plex inventory is cached in MongoDB for matching.
 
 ## API Contract
 
