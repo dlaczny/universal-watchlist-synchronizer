@@ -171,6 +171,70 @@ public sealed class WatchlistQueryServiceTests
         result.UpdatedAt.Should().Be(UpdatedAt);
     }
 
+    [Fact]
+    public async Task GetItemDetailsAsync_WhenItemExists_ReturnsDetailOnlyFieldsAndPrimaryAction()
+    {
+        IReadOnlyList<WatchlistItem> items =
+        [
+            CreateItem("movie-1", MediaType.Movie, "Alien", AvailabilityStatus.AvailableOnPlex) with
+            {
+                Genres = ["Horror", "Science Fiction"],
+                RuntimeMinutes = 117,
+                OriginalLanguage = "en",
+                TmdbVoteAverage = 8.2,
+                TmdbVoteCount = 15000
+            }
+        ];
+        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+
+        WatchlistItemDetailsDto? result = await service.GetItemDetailsAsync("movie-1", CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.Id.Should().Be("movie-1");
+        result.Genres.Should().Equal("Horror", "Science Fiction");
+        result.RuntimeMinutes.Should().Be(117);
+        result.OriginalLanguage.Should().Be("en");
+        result.TmdbVoteAverage.Should().Be(8.2);
+        result.TmdbVoteCount.Should().Be(15000);
+        result.PrimaryActionLabel.Should().Be("Open in Plex");
+        result.PrimaryActionEnabled.Should().BeTrue();
+        result.PrimaryActionTarget.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(AvailabilityStatus.AvailableOnPlex, "Open in Plex", true)]
+    [InlineData(AvailabilityStatus.NotOnPlex, "Unavailable", false)]
+    [InlineData(AvailabilityStatus.Unreleased, "Not released", false)]
+    [InlineData(AvailabilityStatus.UnknownMatch, "Match uncertain", false)]
+    public async Task GetItemDetailsAsync_MapsPrimaryActionFromAvailability(
+        AvailabilityStatus availability,
+        string label,
+        bool enabled)
+    {
+        IReadOnlyList<WatchlistItem> items =
+        [
+            CreateItem("movie-1", MediaType.Movie, "Alien", availability)
+        ];
+        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+
+        WatchlistItemDetailsDto? result = await service.GetItemDetailsAsync("movie-1", CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.PrimaryActionLabel.Should().Be(label);
+        result.PrimaryActionEnabled.Should().Be(enabled);
+        result.PrimaryActionTarget.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetItemDetailsAsync_WhenItemMissing_ReturnsNull()
+    {
+        WatchlistQueryService service = new(new StubWatchlistReadRepository([]));
+
+        WatchlistItemDetailsDto? result = await service.GetItemDetailsAsync("missing", CancellationToken.None);
+
+        result.Should().BeNull();
+    }
+
     private static WatchlistItem CreateItem(
         string id,
         MediaType mediaType,
@@ -205,7 +269,12 @@ public sealed class WatchlistQueryServiceTests
             VodReleaseKnown = true,
             ReleasedOnVod = true,
             VodRegions = ["PL", "US"],
-            OwnedServiceAvailability = ["Amazon Prime Video", "Max"]
+            OwnedServiceAvailability = ["Amazon Prime Video", "Max"],
+            Genres = ["Drama"],
+            RuntimeMinutes = 93,
+            OriginalLanguage = "en",
+            TmdbVoteAverage = 7.7,
+            TmdbVoteCount = 100
         };
     }
 

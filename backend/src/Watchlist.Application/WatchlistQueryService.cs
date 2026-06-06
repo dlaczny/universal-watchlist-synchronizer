@@ -51,6 +51,18 @@ public sealed class WatchlistQueryService(IWatchlistReadRepository repository)
         return item is null ? null : ToDto(item);
     }
 
+    /// <summary>
+    /// Gets detailed watchlist item information including detail fields and primary action.
+    /// </summary>
+    public async Task<WatchlistItemDetailsDto?> GetItemDetailsAsync(
+        string id,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<WatchlistItem> items = await repository.GetItemsAsync(cancellationToken);
+        WatchlistItem? item = items.FirstOrDefault(item => item.Id == id);
+        return item is null ? null : ToDetailsDto(item);
+    }
+
     private static WatchlistItemDto ToDto(WatchlistItem item)
     {
         return new WatchlistItemDto(
@@ -71,6 +83,38 @@ public sealed class WatchlistQueryService(IWatchlistReadRepository repository)
             item.OwnedServiceAvailability,
             item.AddedAt,
             item.UpdatedAt);
+    }
+
+    private static WatchlistItemDetailsDto ToDetailsDto(WatchlistItem item)
+    {
+        WatchlistPrimaryAction action = WatchlistPrimaryActionMapper.FromAvailability(item.AvailabilityStatus);
+
+        return new WatchlistItemDetailsDto(
+            item.Id,
+            ToApiValue(item.MediaType),
+            ToApiValue(item.Source),
+            item.SourceId,
+            item.Title,
+            item.Year,
+            item.Overview,
+            item.PosterUrl,
+            item.BackdropUrl,
+            ToApiValue(item.ReleaseStatus),
+            ToApiValue(item.AvailabilityStatus),
+            item.VodReleaseKnown,
+            item.ReleasedOnVod,
+            item.VodRegions,
+            item.OwnedServiceAvailability,
+            item.AddedAt,
+            item.UpdatedAt,
+            item.Genres,
+            item.RuntimeMinutes,
+            item.OriginalLanguage,
+            item.TmdbVoteAverage,
+            item.TmdbVoteCount,
+            action.Label,
+            action.Enabled,
+            action.Target);
     }
 
     private static string ToApiValue(MediaType mediaType)

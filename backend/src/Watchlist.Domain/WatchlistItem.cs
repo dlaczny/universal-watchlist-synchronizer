@@ -22,4 +22,14 @@ public sealed record WatchlistItem(
     public IReadOnlyList<string> VodRegions { get; init; } = [];
 
     public IReadOnlyList<string> OwnedServiceAvailability { get; init; } = [];
+
+    public IReadOnlyList<string> Genres { get; init; } = [];
+
+    public int? RuntimeMinutes { get; init; }
+
+    public string? OriginalLanguage { get; init; }
+
+    public double? TmdbVoteAverage { get; init; }
+
+    public int? TmdbVoteCount { get; init; }
 }
