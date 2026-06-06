@@ -456,6 +456,8 @@ public final class MainActivity extends Activity {
     }
 
     private void wirePosterFocusLinks() {
+        View railTarget = lastRailFocus != null ? lastRailFocus : allButton;
+
         for (int index = 0; index < posterTiles.size(); index++) {
             View tile = posterTiles.get(index);
             int column = index % gridColumns;
@@ -466,13 +468,15 @@ public final class MainActivity extends Activity {
 
             tile.setNextFocusLeftId(column > 0 && previous >= 0
                     ? posterTiles.get(previous).getId()
-                    : tile.getId());
+                    : railTarget.getId());
             tile.setNextFocusRightId(column < gridColumns - 1 && next < posterTiles.size()
                     ? posterTiles.get(next).getId()
                     : tile.getId());
+
+            View headerTarget = column < Math.max(1, gridColumns - 2) ? dateAddedButton : alphabeticalButton;
             tile.setNextFocusUpId(above >= 0
                     ? posterTiles.get(above).getId()
-                    : toolbarFocusTarget(column).getId());
+                    : headerTarget.getId());
             tile.setNextFocusDownId(below < posterTiles.size()
                     ? posterTiles.get(below).getId()
                     : tile.getId());
@@ -482,13 +486,14 @@ public final class MainActivity extends Activity {
                 }
                 View target = null;
                 if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                    target = column > 0 ? posterTiles.get(previous) : view;
+                    target = column > 0 ? posterTiles.get(previous) : railTarget;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
                     target = column < gridColumns - 1 && next < posterTiles.size()
                             ? posterTiles.get(next)
                             : view;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-                    target = above >= 0 ? posterTiles.get(above) : toolbarFocusTarget(column);
+                    View upHeaderTarget = column < Math.max(1, gridColumns - 2) ? dateAddedButton : alphabeticalButton;
+                    target = above >= 0 ? posterTiles.get(above) : upHeaderTarget;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                     target = below < posterTiles.size() ? posterTiles.get(below) : view;
                 }
@@ -500,16 +505,28 @@ public final class MainActivity extends Activity {
         }
 
         if (!posterTiles.isEmpty()) {
+            View gridTarget = focusedPosterOrFirst();
+            allButton.setNextFocusRightId(gridTarget.getId());
+            moviesButton.setNextFocusRightId(gridTarget.getId());
+            tvButton.setNextFocusRightId(gridTarget.getId());
+            onPlexButton.setNextFocusRightId(gridTarget.getId());
+            unavailableButton.setNextFocusRightId(gridTarget.getId());
+
             dateAddedButton.setNextFocusDownId(posterTiles.get(0).getId());
             alphabeticalButton.setNextFocusDownId(posterTiles.get(Math.min(gridColumns - 1, posterTiles.size() - 1)).getId());
         }
     }
 
-    private View toolbarFocusTarget(int column) {
-        if (column >= 2) {
-            return alphabeticalButton;
+    private View focusedPosterOrFirst() {
+        String focusedItemId = browsingState.focusedItemId();
+        if (focusedItemId != null) {
+            for (int index = 0; index < loadedItems.size() && index < posterTiles.size(); index++) {
+                if (focusedItemId.equals(loadedItems.get(index).id())) {
+                    return posterTiles.get(index);
+                }
+            }
         }
-        return dateAddedButton;
+        return posterTiles.get(0);
     }
 
     private void restorePosterFocus(List<WatchlistItem> visibleItems) {
