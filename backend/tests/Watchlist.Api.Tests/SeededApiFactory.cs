@@ -15,7 +15,8 @@ public sealed class SeededApiFactory(
     Exception? tmdbSingleMovieSyncException = null,
     Exception? plexMovieSyncException = null,
     Exception? combinedSyncException = null,
-    Exception? availabilityRefreshException = null) : WebApplicationFactory<Program>
+    Exception? availabilityRefreshException = null,
+    Exception? tmdbTvSyncException = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -27,6 +28,7 @@ public sealed class SeededApiFactory(
             services.RemoveAll<ITmdbMovieEnrichmentService>();
             services.RemoveAll<IPlexMovieSyncService>();
             services.RemoveAll<ICombinedSyncService>();
+            services.RemoveAll<ITmdbTvWatchlistSyncService>();
             services.RemoveAll<IAvailabilityRefreshService>();
             services.RemoveAll<IWatchlistExportRepository>();
             RemoveBootstrapHostedService(services);
@@ -43,6 +45,8 @@ public sealed class SeededApiFactory(
                 _ => new SeededPlexMovieSyncService(plexMovieSyncException));
             services.AddSingleton<ICombinedSyncService>(
                 _ => new SeededCombinedSyncService(combinedSyncException));
+            services.AddSingleton<ITmdbTvWatchlistSyncService>(
+                _ => new SeededTmdbTvWatchlistSyncService(tmdbTvSyncException));
             services.AddSingleton<IAvailabilityRefreshService>(
                 _ => new SeededAvailabilityRefreshService(availabilityRefreshException));
             services.AddSingleton<IWatchlistExportRepository, SeededWatchlistExportRepository>();
@@ -192,6 +196,30 @@ public sealed class SeededApiFactory(
                     40,
                     220,
                     3));
+
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class SeededTmdbTvWatchlistSyncService(Exception? syncException) : ITmdbTvWatchlistSyncService
+    {
+        public Task<TmdbTvSyncResultDto> SyncAsync(CancellationToken cancellationToken)
+        {
+            if (syncException is not null)
+            {
+                return Task.FromException<TmdbTvSyncResultDto>(syncException);
+            }
+
+            TmdbTvSyncResultDto result = new(
+                "completed",
+                DateTimeOffset.Parse("2026-06-06T12:00:00Z"),
+                DateTimeOffset.Parse("2026-06-06T12:00:02Z"),
+                2,
+                2,
+                0,
+                2,
+                0,
+                0);
 
             return Task.FromResult(result);
         }

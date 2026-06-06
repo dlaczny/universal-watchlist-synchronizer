@@ -168,6 +168,15 @@ app.MapPost("/api/sync/plex/movies", async (
     return Results.Ok(result);
 });
 
+app.MapPost("/api/sync/tmdb/tv", async (
+    ITmdbTvWatchlistSyncService syncService,
+    CancellationToken cancellationToken) =>
+{
+    TmdbTvSyncResultDto result = await syncService.SyncAsync(cancellationToken);
+
+    return Results.Ok(result);
+});
+
 app.MapPost("/api/sync/availability/refresh", async (
     IAvailabilityRefreshService refreshService,
     CancellationToken cancellationToken) =>

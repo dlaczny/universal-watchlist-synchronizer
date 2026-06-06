@@ -64,6 +64,17 @@ public static class DependencyInjection
         });
         services.AddScoped<ILetterboxdMovieSyncService, LetterboxdMovieSyncService>();
         services.AddScoped<ITmdbMovieEnrichmentService, TmdbMovieEnrichmentService>();
+        services.AddHttpClient<ITmdbTvWatchlistClient, TmdbTvWatchlistClient>((serviceProvider, httpClient) =>
+        {
+            TmdbOptions options = serviceProvider.GetRequiredService<IOptions<TmdbOptions>>().Value;
+            httpClient.BaseAddress = new Uri(options.BaseUrl);
+        });
+        services.AddHttpClient<ITmdbTvMetadataClient, TmdbTvMetadataClient>((serviceProvider, httpClient) =>
+        {
+            TmdbOptions options = serviceProvider.GetRequiredService<IOptions<TmdbOptions>>().Value;
+            httpClient.BaseAddress = new Uri(options.BaseUrl);
+        });
+        services.AddScoped<ITmdbTvWatchlistSyncService, TmdbTvWatchlistSyncService>();
         services.AddHostedService<MongoBootstrapHostedService>();
 
         return services;

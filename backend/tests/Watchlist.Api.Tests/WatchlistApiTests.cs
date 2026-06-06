@@ -324,6 +324,21 @@ public sealed class WatchlistApiTests
     }
 
     [Fact]
+    public async Task SyncTmdbTv_ReturnsTvSyncResult()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tmdb/tv", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        document.RootElement.GetProperty("itemsFetched").GetInt32().Should().Be(2);
+        document.RootElement.GetProperty("itemsUpserted").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
     public async Task GetWatchlist_WhenMongoUnavailable_ReturnsServiceUnavailable()
     {
         using MongoUnavailableApiFactory factory = new();
