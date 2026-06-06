@@ -28,6 +28,11 @@ public final class WatchlistApiClient {
         return parseItems(json, baseUrl);
     }
 
+    public WatchlistItemDetails getWatchlistItemDetails(String id) throws IOException, JSONException {
+        String json = get(buildWatchlistDetailPath(id));
+        return parseItemDetails(json, baseUrl);
+    }
+
     public static String buildWatchlistPath(String mediaType, String sortMode, boolean includeUnavailable) {
         String collection = BrowsingState.MEDIA_TV.equals(mediaType)
                 ? "tv"
@@ -45,6 +50,10 @@ public final class WatchlistApiClient {
 
     public static String buildAvailabilityRefreshPath() {
         return "/api/sync/availability/refresh";
+    }
+
+    public static String buildWatchlistDetailPath(String id) {
+        return "/api/watchlist/" + id;
     }
 
     public SyncStatus getSyncStatus() throws IOException, JSONException {
@@ -88,6 +97,43 @@ public final class WatchlistApiClient {
         }
 
         return items;
+    }
+
+    public static WatchlistItemDetails parseItemDetails(String json) throws JSONException {
+        return parseItemDetails(json, null);
+    }
+
+    public static WatchlistItemDetails parseItemDetails(String json, String baseUrl) throws JSONException {
+        JSONObject item = new JSONObject(json);
+        return new WatchlistItemDetails(
+                item.getString("id"),
+                item.getString("mediaType"),
+                item.getString("source"),
+                item.getString("sourceId"),
+                item.getString("title"),
+                item.has("year") && !item.isNull("year") ? item.getInt("year") : null,
+                nullableString(item, "overview"),
+                resolveImageUrl(baseUrl, nullableString(item, "posterUrl")),
+                resolveImageUrl(baseUrl, nullableString(item, "backdropUrl")),
+                item.getString("releaseStatus"),
+                item.getString("availabilityStatus"),
+                item.has("vodReleaseKnown") && !item.isNull("vodReleaseKnown")
+                        && item.getBoolean("vodReleaseKnown"),
+                item.has("releasedOnVod") && !item.isNull("releasedOnVod")
+                        && item.getBoolean("releasedOnVod"),
+                parseStringArray(item.optJSONArray("vodRegions")),
+                parseStringArray(item.optJSONArray("ownedServiceAvailability")),
+                item.getString("addedAt"),
+                item.getString("updatedAt"),
+                parseStringArray(item.optJSONArray("genres")),
+                item.has("runtimeMinutes") && !item.isNull("runtimeMinutes") ? item.getInt("runtimeMinutes") : null,
+                nullableString(item, "originalLanguage"),
+                item.has("tmdbVoteAverage") && !item.isNull("tmdbVoteAverage") ? item.getDouble("tmdbVoteAverage") : null,
+                item.has("tmdbVoteCount") && !item.isNull("tmdbVoteCount") ? item.getInt("tmdbVoteCount") : null,
+                item.optString("primaryActionLabel", "Unavailable"),
+                item.has("primaryActionEnabled") && !item.isNull("primaryActionEnabled")
+                        && item.getBoolean("primaryActionEnabled"),
+                nullableString(item, "primaryActionTarget"));
     }
 
     private static List<String> parseStringArray(JSONArray array) throws JSONException {

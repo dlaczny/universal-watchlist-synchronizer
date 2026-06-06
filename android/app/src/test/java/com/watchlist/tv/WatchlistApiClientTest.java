@@ -285,6 +285,89 @@ public class WatchlistApiClientTest {
     }
 
     @Test
+    public void buildWatchlistDetailPath_usesItemId() {
+        assertEquals("/api/watchlist/movie-dune-part-two", WatchlistApiClient.buildWatchlistDetailPath("movie-dune-part-two"));
+    }
+
+    @Test
+    public void parseItemDetails_parsesRichDetailJson() throws Exception {
+        String json = "{"
+                + "\"id\":\"movie-dune-part-two\","
+                + "\"mediaType\":\"movie\","
+                + "\"source\":\"letterboxd\","
+                + "\"sourceId\":\"letterboxd-dune-part-two\","
+                + "\"title\":\"Dune: Part Two\","
+                + "\"year\":2024,"
+                + "\"overview\":\"Overview\","
+                + "\"posterUrl\":\"/api/images/tmdb/w500/poster.jpg\","
+                + "\"backdropUrl\":\"/api/images/tmdb/w1280/backdrop.jpg\","
+                + "\"releaseStatus\":\"released\","
+                + "\"availabilityStatus\":\"available_on_plex\","
+                + "\"vodReleaseKnown\":true,"
+                + "\"releasedOnVod\":true,"
+                + "\"vodRegions\":[\"PL\"],"
+                + "\"ownedServiceAvailability\":[\"Amazon Prime Video\"],"
+                + "\"addedAt\":\"2026-05-24T10:00:00+02:00\","
+                + "\"updatedAt\":\"2026-05-25T10:00:00+02:00\","
+                + "\"genres\":[\"Science Fiction\",\"Adventure\"],"
+                + "\"runtimeMinutes\":166,"
+                + "\"originalLanguage\":\"en\","
+                + "\"tmdbVoteAverage\":8.1,"
+                + "\"tmdbVoteCount\":7000,"
+                + "\"primaryActionLabel\":\"Open in Plex\","
+                + "\"primaryActionEnabled\":true,"
+                + "\"primaryActionTarget\":null"
+                + "}";
+
+        WatchlistItemDetails details = WatchlistApiClient.parseItemDetails(json, "http://10.0.2.2:5000");
+
+        assertEquals("movie-dune-part-two", details.id());
+        assertEquals("http://10.0.2.2:5000/api/images/tmdb/w500/poster.jpg", details.posterUrl());
+        assertEquals(Integer.valueOf(166), details.runtimeMinutes());
+        assertEquals("en", details.originalLanguage());
+        assertEquals(Double.valueOf(8.1), details.tmdbVoteAverage());
+        assertEquals(Integer.valueOf(7000), details.tmdbVoteCount());
+        assertEquals("Science Fiction", details.genres().get(0));
+        assertEquals("Open in Plex", details.primaryActionLabel());
+        assertEquals(true, details.primaryActionEnabled());
+        assertEquals(null, details.primaryActionTarget());
+    }
+
+    @Test
+    public void parseItemDetails_whenOptionalFieldsMissing_defaultsSafely() throws Exception {
+        String json = "{"
+                + "\"id\":\"movie-minimal\","
+                + "\"mediaType\":\"movie\","
+                + "\"source\":\"letterboxd\","
+                + "\"sourceId\":\"source\","
+                + "\"title\":\"Minimal\","
+                + "\"year\":null,"
+                + "\"overview\":null,"
+                + "\"posterUrl\":null,"
+                + "\"backdropUrl\":null,"
+                + "\"releaseStatus\":\"released\","
+                + "\"availabilityStatus\":\"not_on_plex\","
+                + "\"vodReleaseKnown\":false,"
+                + "\"releasedOnVod\":false,"
+                + "\"vodRegions\":[],"
+                + "\"ownedServiceAvailability\":[],"
+                + "\"addedAt\":\"2026-05-24T10:00:00+02:00\","
+                + "\"updatedAt\":\"2026-05-25T10:00:00+02:00\","
+                + "\"primaryActionLabel\":\"Unavailable\","
+                + "\"primaryActionEnabled\":false,"
+                + "\"primaryActionTarget\":null"
+                + "}";
+
+        WatchlistItemDetails details = WatchlistApiClient.parseItemDetails(json);
+
+        assertEquals(0, details.genres().size());
+        assertEquals(null, details.runtimeMinutes());
+        assertEquals(null, details.originalLanguage());
+        assertEquals(null, details.tmdbVoteAverage());
+        assertEquals(null, details.tmdbVoteCount());
+    }
+
+    @Test
     public void formatAvailability_whenMovieHasMultipleOwnedProviders_returnsCompactProviderBadge() {
         WatchlistItem item = new WatchlistItem(
                 "movie-multi",
