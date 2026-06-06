@@ -45,3 +45,12 @@ data/
 *.db
 *.sqlite
 *.sqlite3
+
+# Local planning notes
+docs/android-tv.md
+docs/api.md
+docs/architecture.md
+docs/ideas.md
+docs/integrations.md
+docs/product-brief.md
+docs/todo.md
