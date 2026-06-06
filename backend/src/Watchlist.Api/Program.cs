@@ -14,6 +14,7 @@ builder.Configuration.AddJsonFile(
 
 builder.Services.AddWatchlistInfrastructure(builder.Configuration);
 builder.Services.AddScoped<WatchlistQueryService>();
+builder.Services.AddScoped<WatchlistExportService>();
 builder.Services.AddExceptionHandler<MongoUnavailableExceptionHandler>();
 builder.Services.AddProblemDetails();
 
@@ -57,6 +58,25 @@ app.MapGet("/api/watchlist/{id}", async (
     WatchlistItemDto? item = await queryService.GetItemAsync(id, cancellationToken);
 
     return item is null ? Results.NotFound() : Results.Ok(ToBackendImageUrls(item));
+});
+
+app.MapGet("/api/export/radarr/movies", async (
+    WatchlistExportService exportService,
+    CancellationToken cancellationToken) =>
+{
+    IReadOnlyList<RadarrMovieExportItemDto> items =
+        await exportService.GetRadarrMoviesAsync(cancellationToken);
+
+    return Results.Ok(items);
+});
+
+app.MapGet("/api/export/sonarr/tv", async (
+    WatchlistExportService exportService,
+    CancellationToken cancellationToken) =>
+{
+    IReadOnlyList<object> items = await exportService.GetSonarrTvAsync(cancellationToken);
+
+    return Results.Ok(items);
 });
 
 app.MapGet("/api/images/tmdb/{size}/{fileName}", async (

@@ -15,14 +15,25 @@ public sealed class MongoUnavailableApiFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IWatchlistReadRepository>();
+            services.RemoveAll<IWatchlistExportRepository>();
             SeededApiFactory.RemoveBootstrapHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, ThrowingWatchlistReadRepository>();
+            services.AddSingleton<IWatchlistExportRepository, ThrowingWatchlistExportRepository>();
         });
     }
 
     private sealed class ThrowingWatchlistReadRepository : IWatchlistReadRepository
     {
         public Task<IReadOnlyList<WatchlistItem>> GetItemsAsync(CancellationToken cancellationToken)
+        {
+            throw new MongoClientException("MongoDB is unavailable.");
+        }
+    }
+
+    private sealed class ThrowingWatchlistExportRepository : IWatchlistExportRepository
+    {
+        public Task<IReadOnlyList<WatchlistExportMovieModel>> GetLetterboxdMoviesAsync(
+            CancellationToken cancellationToken)
         {
             throw new MongoClientException("MongoDB is unavailable.");
         }

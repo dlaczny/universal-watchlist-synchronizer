@@ -88,6 +88,12 @@ public sealed class WatchlistApiTests
             "/api/images/tmdb/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg");
         document.RootElement.GetProperty("backdropUrl").GetString().Should().Be(
             "/api/images/tmdb/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg");
+        document.RootElement.TryGetProperty("vodReleaseKnown", out JsonElement vodReleaseKnown).Should().BeTrue();
+        vodReleaseKnown.GetBoolean().Should().BeFalse();
+        document.RootElement.TryGetProperty("releasedOnVod", out JsonElement releasedOnVod).Should().BeTrue();
+        releasedOnVod.GetBoolean().Should().BeFalse();
+        document.RootElement.TryGetProperty("vodRegions", out JsonElement vodRegions).Should().BeTrue();
+        vodRegions.GetArrayLength().Should().Be(0);
     }
 
     [Fact]
@@ -313,6 +319,54 @@ public sealed class WatchlistApiTests
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         document.RootElement.GetProperty("error").GetString().Should().Be("MongoDB is unavailable.");
+    }
+
+    [Fact]
+    public async Task GetRadarrMovieExport_ReturnsLetterboxdProxyShapeAndExcludesOwnedVodMovies()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/export/radarr/movies");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        JsonElement items = document.RootElement;
+        items.GetArrayLength().Should().Be(1);
+        JsonElement item = items[0];
+        item.GetProperty("id").GetInt32().Should().Be(1297842);
+        item.GetProperty("imdb_id").GetString().Should().Be("tt27613895");
+        item.GetProperty("title").GetString().Should().Be("GOAT");
+        item.GetProperty("release_year").GetString().Should().Be("2026");
+        item.GetProperty("clean_title").GetString().Should().Be("/film/goat-2026/");
+        item.GetProperty("adult").GetBoolean().Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetRadarrMovieExport_WhenMongoUnavailable_ReturnsServiceUnavailable()
+    {
+        using MongoUnavailableApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/export/radarr/movies");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("error").GetString().Should().Be("MongoDB is unavailable.");
+    }
+
+    [Fact]
+    public async Task GetSonarrTvExport_ForV1_ReturnsEmptyArray()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/export/sonarr/tv");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.ValueKind.Should().Be(JsonValueKind.Array);
+        document.RootElement.GetArrayLength().Should().Be(0);
     }
 
     private static async Task<JsonDocument> ReadJsonDocumentAsync(HttpResponseMessage response)

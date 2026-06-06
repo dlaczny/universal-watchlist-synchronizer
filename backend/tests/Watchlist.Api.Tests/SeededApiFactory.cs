@@ -28,6 +28,7 @@ public sealed class SeededApiFactory(
             services.RemoveAll<IPlexMovieSyncService>();
             services.RemoveAll<ICombinedSyncService>();
             services.RemoveAll<IAvailabilityRefreshService>();
+            services.RemoveAll<IWatchlistExportRepository>();
             RemoveBootstrapHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
             services.AddSingleton<ISyncStatusReadRepository, SeededSyncStatusReadRepository>();
@@ -44,6 +45,7 @@ public sealed class SeededApiFactory(
                 _ => new SeededCombinedSyncService(combinedSyncException));
             services.AddSingleton<IAvailabilityRefreshService>(
                 _ => new SeededAvailabilityRefreshService(availabilityRefreshException));
+            services.AddSingleton<IWatchlistExportRepository, SeededWatchlistExportRepository>();
         });
     }
 
@@ -192,6 +194,33 @@ public sealed class SeededApiFactory(
                     3));
 
             return Task.FromResult(result);
+        }
+    }
+
+    private sealed class SeededWatchlistExportRepository : IWatchlistExportRepository
+    {
+        public Task<IReadOnlyList<WatchlistExportMovieModel>> GetLetterboxdMoviesAsync(
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<WatchlistExportMovieModel> movies =
+            [
+                new WatchlistExportMovieModel(
+                    "1297842",
+                    "tt27613895",
+                    "GOAT",
+                    2026,
+                    "/film/goat-2026/",
+                    []),
+                new WatchlistExportMovieModel(
+                    "4951",
+                    "tt0147800",
+                    "10 Things I Hate About You",
+                    1999,
+                    "/film/10-things-i-hate-about-you/",
+                    ["Amazon Prime Video"])
+            ];
+
+            return Task.FromResult(movies);
         }
     }
 
