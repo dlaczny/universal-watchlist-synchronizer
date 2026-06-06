@@ -39,7 +39,7 @@ public final class MainActivity extends Activity {
     private static final String PREF_SORT_MODE = "sort_mode";
     private static final String PREF_INCLUDE_UNAVAILABLE = "include_unavailable";
     private static final String PREF_FOCUSED_ITEM_ID = "focused_item_id";
-    private static final int GRID_COLUMNS = 5;
+    private int gridColumns;
 
     private final ExecutorService apiExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService imageExecutor = Executors.newFixedThreadPool(3);
@@ -58,6 +58,11 @@ public final class MainActivity extends Activity {
     private Button tvButton;
     private Button dateAddedButton;
     private Button alphabeticalButton;
+    private Button onPlexButton;
+    private Button unavailableButton;
+    private TextView contentTitleView;
+    private TextView contentCountView;
+    private View lastRailFocus;
     private ImageButton filterButton;
     private PopupWindow filterPopup;
     private List<WatchlistItem> loadedItems = new ArrayList<>();
@@ -77,6 +82,7 @@ public final class MainActivity extends Activity {
         imageLoader = new RemoteImageLoader(imageExecutor, () -> !destroyed);
         preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         browsingState = restoreBrowsingState();
+        gridColumns = WatchlistConfig.gridColumns();
         setContentView(createContentView());
         updateControlStyles();
         allButton.requestFocus();
@@ -111,29 +117,26 @@ public final class MainActivity extends Activity {
 
     private View createContentView() {
         LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(44), dp(30), dp(44), dp(24));
+        root.setOrientation(LinearLayout.HORIZONTAL);
         root.setBackgroundColor(Color.rgb(15, 20, 25));
 
-        TextView heading = new TextView(this);
-        heading.setText(R.string.app_name);
-        heading.setTextColor(Color.WHITE);
-        heading.setTextSize(28);
-        heading.setTypeface(Typeface.DEFAULT_BOLD);
-        root.addView(heading);
+        root.addView(createLeftRail(), new LinearLayout.LayoutParams(dp(176), LinearLayout.LayoutParams.MATCH_PARENT));
 
-        root.addView(createTopNavigation());
-        root.addView(createToolbar());
+        LinearLayout main = new LinearLayout(this);
+        main.setOrientation(LinearLayout.VERTICAL);
+        main.setPadding(dp(28), dp(26), dp(34), dp(22));
+
+        main.addView(createMainHeader());
 
         messageView = new TextView(this);
         messageView.setTextColor(Color.rgb(203, 213, 225));
         messageView.setTextSize(17);
-        messageView.setPadding(0, dp(12), 0, dp(8));
-        root.addView(messageView);
+        messageView.setPadding(0, dp(10), 0, dp(8));
+        main.addView(messageView);
 
         progressBar = new ProgressBar(this);
         progressBar.setVisibility(View.GONE);
-        root.addView(progressBar);
+        main.addView(progressBar);
 
         ScrollView gridScrollView = new ScrollView(this);
         gridScrollView.setFillViewport(true);
@@ -141,18 +144,65 @@ public final class MainActivity extends Activity {
         gridScrollView.setFocusable(false);
 
         posterGrid = new GridLayout(this);
-        posterGrid.setColumnCount(GRID_COLUMNS);
+        posterGrid.setColumnCount(gridColumns);
         posterGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
-        posterGrid.setPadding(0, dp(10), 0, dp(18));
+        posterGrid.setPadding(0, dp(8), 0, dp(18));
         gridScrollView.addView(posterGrid, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT,
                 ScrollView.LayoutParams.WRAP_CONTENT));
-        root.addView(gridScrollView, new LinearLayout.LayoutParams(
+        main.addView(gridScrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1));
 
+        root.addView(main, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1));
         return root;
+    }
+
+    private LinearLayout createLeftRail() {
+        LinearLayout rail = new LinearLayout(this);
+        rail.setOrientation(LinearLayout.VERTICAL);
+        rail.setPadding(dp(10), dp(18), dp(10), dp(18));
+        rail.setBackgroundColor(Color.rgb(18, 24, 31));
+
+        TextView heading = new TextView(this);
+        heading.setText(R.string.app_name);
+        heading.setTextColor(Color.WHITE);
+        heading.setTextSize(19);
+        heading.setTypeface(Typeface.DEFAULT_BOLD);
+        heading.setPadding(dp(8), 0, dp(8), dp(16));
+        rail.addView(heading);
+
+        allButton = railButton(getString(R.string.nav_all));
+        allButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_ALL));
+        rail.addView(allButton);
+
+        moviesButton = railButton(getString(R.string.nav_movies));
+        moviesButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_MOVIES));
+        rail.addView(moviesButton);
+
+        tvButton = railButton(getString(R.string.nav_tv_shows));
+        tvButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_TV));
+        rail.addView(tvButton);
+
+        rail.addView(spacer(1, dp(18)));
+
+        onPlexButton = railButton(getString(R.string.rail_on_plex));
+        onPlexButton.setEnabled(false);
+        rail.addView(onPlexButton);
+
+        unavailableButton = railButton(getString(R.string.rail_unavailable));
+        unavailableButton.setOnClickListener(view -> toggleUnavailable());
+        rail.addView(unavailableButton);
+
+        rail.addView(spacer(1, 0), new LinearLayout.LayoutParams(1, 0, 1));
+
+        ImageButton searchButton = iconButton(R.drawable.ic_search, getString(R.string.action_search));
+        searchButton.setEnabled(false);
+        rail.addView(searchButton);
+
+        wireRailFocusLinks(searchButton);
+        return rail;
     }
 
     private LinearLayout createTopNavigation() {
@@ -184,6 +234,40 @@ public final class MainActivity extends Activity {
         return navigation;
     }
 
+    private LinearLayout createMainHeader() {
+        LinearLayout header = new LinearLayout(this);
+        header.setOrientation(LinearLayout.HORIZONTAL);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+
+        LinearLayout titleBlock = new LinearLayout(this);
+        titleBlock.setOrientation(LinearLayout.VERTICAL);
+
+        contentTitleView = new TextView(this);
+        contentTitleView.setTextColor(Color.WHITE);
+        contentTitleView.setTextSize(24);
+        contentTitleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleBlock.addView(contentTitleView);
+
+        contentCountView = new TextView(this);
+        contentCountView.setTextColor(Color.rgb(148, 163, 184));
+        contentCountView.setTextSize(13);
+        titleBlock.addView(contentCountView);
+
+        header.addView(titleBlock, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+
+        dateAddedButton = textButton(getString(R.string.sort_date_added));
+        dateAddedButton.setOnClickListener(view -> selectSortMode(CollectionOrganizer.SORT_DATE_ADDED));
+        header.addView(dateAddedButton);
+
+        alphabeticalButton = textButton(getString(R.string.sort_alphabetical));
+        alphabeticalButton.setOnClickListener(view -> selectSortMode(CollectionOrganizer.SORT_ALPHABETICAL));
+        header.addView(alphabeticalButton);
+
+        dateAddedButton.setNextFocusRightId(alphabeticalButton.getId());
+        alphabeticalButton.setNextFocusLeftId(dateAddedButton.getId());
+        return header;
+    }
+
     private LinearLayout createToolbar() {
         LinearLayout toolbar = horizontalZone();
         toolbar.setPadding(0, 0, 0, dp(8));
@@ -208,6 +292,19 @@ public final class MainActivity extends Activity {
         return toolbar;
     }
 
+    private void wireRailFocusLinks(View searchButton) {
+        allButton.setNextFocusDownId(moviesButton.getId());
+        moviesButton.setNextFocusUpId(allButton.getId());
+        moviesButton.setNextFocusDownId(tvButton.getId());
+        tvButton.setNextFocusUpId(moviesButton.getId());
+        tvButton.setNextFocusDownId(onPlexButton.getId());
+        onPlexButton.setNextFocusUpId(tvButton.getId());
+        onPlexButton.setNextFocusDownId(unavailableButton.getId());
+        unavailableButton.setNextFocusUpId(onPlexButton.getId());
+        unavailableButton.setNextFocusDownId(searchButton.getId());
+        searchButton.setNextFocusUpId(unavailableButton.getId());
+    }
+
     private void selectMediaType(String mediaType) {
         if (mediaType.equals(browsingState.mediaType())) {
             return;
@@ -224,6 +321,15 @@ public final class MainActivity extends Activity {
         Intent intent = new Intent(this, DetailsActivity.class);
         intent.putExtra(DetailsActivity.EXTRA_ITEM, item);
         startActivity(intent);
+    }
+
+    private void toggleUnavailable() {
+        browsingState = browsingState
+                .withIncludeUnavailable(!browsingState.includeUnavailable())
+                .withFocusedItemId(null);
+        persistBrowsingState();
+        updateControlStyles();
+        loadItems(false);
     }
 
     private void selectSortMode(String sortMode) {
@@ -464,16 +570,16 @@ public final class MainActivity extends Activity {
     private void wirePosterFocusLinks() {
         for (int index = 0; index < posterTiles.size(); index++) {
             View tile = posterTiles.get(index);
-            int column = index % GRID_COLUMNS;
+            int column = index % gridColumns;
             int previous = index - 1;
             int next = index + 1;
-            int above = index - GRID_COLUMNS;
-            int below = index + GRID_COLUMNS;
+            int above = index - gridColumns;
+            int below = index + gridColumns;
 
             tile.setNextFocusLeftId(column > 0 && previous >= 0
                     ? posterTiles.get(previous).getId()
                     : tile.getId());
-            tile.setNextFocusRightId(column < GRID_COLUMNS - 1 && next < posterTiles.size()
+            tile.setNextFocusRightId(column < gridColumns - 1 && next < posterTiles.size()
                     ? posterTiles.get(next).getId()
                     : tile.getId());
             tile.setNextFocusUpId(above >= 0
@@ -490,7 +596,7 @@ public final class MainActivity extends Activity {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
                     target = column > 0 ? posterTiles.get(previous) : view;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    target = column < GRID_COLUMNS - 1 && next < posterTiles.size()
+                    target = column < gridColumns - 1 && next < posterTiles.size()
                             ? posterTiles.get(next)
                             : view;
                 } else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
@@ -625,6 +731,20 @@ public final class MainActivity extends Activity {
         zone.setOrientation(LinearLayout.HORIZONTAL);
         zone.setGravity(Gravity.CENTER_VERTICAL);
         return zone;
+    }
+
+    private Button railButton(String text) {
+        Button button = textButton(text);
+        button.setGravity(Gravity.CENTER_VERTICAL);
+        button.setMinWidth(0);
+        button.setPadding(dp(12), 0, dp(12), 0);
+        button.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) {
+                lastRailFocus = view;
+            }
+            updateControlStyles();
+        });
+        return button;
     }
 
     private Button textButton(String text) {
