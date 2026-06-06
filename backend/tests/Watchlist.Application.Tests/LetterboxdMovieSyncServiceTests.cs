@@ -248,6 +248,16 @@ public sealed class LetterboxdMovieSyncServiceTests
 
             return Task.FromResult(deletedItems.Count);
         }
+
+        public Task<TmdbTvWatchlistApplyResult> ApplyTmdbTvWatchlistSyncAsync(
+            IReadOnlyList<WatchlistItemWriteModel> items,
+            IReadOnlySet<string> sourceIds,
+            string completedStatus,
+            DateTimeOffset completedAt,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new TmdbTvWatchlistApplyResult(0, 0));
+        }
     }
 
     private sealed class FakeTimeProvider(DateTimeOffset utcNow) : TimeProvider

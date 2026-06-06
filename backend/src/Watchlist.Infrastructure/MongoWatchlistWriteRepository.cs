@@ -72,6 +72,83 @@ public sealed class MongoWatchlistWriteRepository(
             & filter.Nin(document => document.SourceId, sourceIds);
     }
 
+    public async Task<TmdbTvWatchlistApplyResult> ApplyTmdbTvWatchlistSyncAsync(
+        IReadOnlyList<WatchlistItemWriteModel> items,
+        IReadOnlySet<string> sourceIds,
+        string completedStatus,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken)
+    {
+        foreach (WatchlistItemWriteModel item in items)
+        {
+            UpdateDefinition<MongoWatchlistItemDocument> update = CreateTmdbTvUpsertUpdate(item);
+
+            await watchlistItems.UpdateOneAsync(
+                stored => stored.Id == item.Item.Id,
+                update,
+                new UpdateOptions { IsUpsert = true },
+                cancellationToken);
+        }
+
+        DeleteResult deleteResult = await watchlistItems.DeleteManyAsync(
+            CreateRemovedTmdbTvFilter(sourceIds),
+            cancellationToken);
+
+        MongoSyncRunDocument syncRun = new()
+        {
+            Id = $"tmdb-tv-{completedAt:yyyyMMddHHmmssfffffff}",
+            Status = completedStatus,
+            LastSuccessfulSyncAt = completedAt
+        };
+
+        await syncRuns.InsertOneAsync(syncRun, cancellationToken: cancellationToken);
+
+        return new TmdbTvWatchlistApplyResult(items.Count, (int)deleteResult.DeletedCount);
+    }
+
+    private static FilterDefinition<MongoWatchlistItemDocument> CreateRemovedTmdbTvFilter(
+        IReadOnlySet<string> sourceIds)
+    {
+        FilterDefinitionBuilder<MongoWatchlistItemDocument> filter = Builders<MongoWatchlistItemDocument>.Filter;
+
+        return filter.Eq(document => document.MediaType, MediaType.TvShow)
+            & filter.Eq(document => document.Source, WatchlistSource.Tmdb)
+            & filter.Nin(document => document.SourceId, sourceIds);
+    }
+
+    private static UpdateDefinition<MongoWatchlistItemDocument> CreateTmdbTvUpsertUpdate(
+        WatchlistItemWriteModel item)
+    {
+        UpdateDefinitionBuilder<MongoWatchlistItemDocument> update = Builders<MongoWatchlistItemDocument>.Update;
+
+        return update
+            .SetOnInsert(stored => stored.Id, item.Item.Id)
+            .Set(stored => stored.MediaType, item.Item.MediaType)
+            .Set(stored => stored.Source, item.Item.Source)
+            .Set(stored => stored.SourceId, item.Item.SourceId)
+            .Set(stored => stored.Title, item.Item.Title)
+            .Set(stored => stored.Year, item.Item.Year)
+            .Set(stored => stored.ImdbId, item.ImdbId)
+            .Set(stored => stored.Overview, item.Item.Overview)
+            .Set(stored => stored.PosterUrl, item.Item.PosterUrl)
+            .Set(stored => stored.BackdropUrl, item.Item.BackdropUrl)
+            .Set(stored => stored.Genres, item.Item.Genres)
+            .Set(stored => stored.OriginalLanguage, item.Item.OriginalLanguage)
+            .Set(stored => stored.TmdbVoteAverage, item.Item.TmdbVoteAverage)
+            .Set(stored => stored.TmdbVoteCount, item.Item.TmdbVoteCount)
+            .Set(stored => stored.ReleaseStatus, item.Item.ReleaseStatus)
+            .Set(stored => stored.AvailabilityStatus, item.Item.AvailabilityStatus)
+            .Set(stored => stored.TmdbId, item.TmdbId)
+            .Set(stored => stored.TmdbTitle, item.Item.Title)
+            .Set(stored => stored.OriginalTitle, item.Item.Title)
+            .Set(stored => stored.ReleaseDate, null as string)
+            .Set(stored => stored.TmdbMetadataUpdatedAt, DateTimeOffset.UtcNow)
+            .Set(stored => stored.TmdbMetadataStatus, "enriched")
+            .Set(stored => stored.TmdbMetadataError, null as string)
+            .SetOnInsert(stored => stored.AddedAt, item.Item.AddedAt)
+            .Set(stored => stored.UpdatedAt, item.Item.UpdatedAt);
+    }
+
     private static UpdateDefinition<MongoWatchlistItemDocument> CreateLetterboxdMovieUpsertUpdate(
         MongoWatchlistItemDocument document)
     {

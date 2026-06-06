@@ -21,4 +21,15 @@ public interface IWatchlistWriteRepository
         string completedStatus,
         DateTimeOffset completedAt,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Applies one completed TMDB TV watchlist sync as a single persistence operation.
+    /// Returns the number of upserted and deleted TMDB TV records.
+    /// </summary>
+    Task<TmdbTvWatchlistApplyResult> ApplyTmdbTvWatchlistSyncAsync(
+        IReadOnlyList<WatchlistItemWriteModel> items,
+        IReadOnlySet<string> sourceIds,
+        string completedStatus,
+        DateTimeOffset completedAt,
+        CancellationToken cancellationToken);
 }
