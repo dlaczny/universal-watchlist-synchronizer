@@ -23,6 +23,8 @@ public sealed class WatchlistApiTests
         items.EnumerateArray().Should().Contain(item => item.GetProperty("mediaType").GetString() == "movie");
         items.EnumerateArray().Should().Contain(item => item.GetProperty("mediaType").GetString() == "tv");
         items[0].TryGetProperty("addedAt", out _).Should().BeTrue();
+        items[0].TryGetProperty("runtimeMinutes", out _).Should().BeFalse();
+        items[0].TryGetProperty("primaryActionLabel", out _).Should().BeFalse();
     }
 
     [Fact]
@@ -96,6 +98,17 @@ public sealed class WatchlistApiTests
         vodRegions.GetArrayLength().Should().Be(0);
         document.RootElement.TryGetProperty("ownedServiceAvailability", out JsonElement providers).Should().BeTrue();
         providers.EnumerateArray().Select(provider => provider.GetString()).Should().Equal("Amazon Prime Video");
+        document.RootElement.GetProperty("genres").EnumerateArray()
+            .Select(genre => genre.GetString())
+            .Should()
+            .Equal("Science Fiction", "Adventure");
+        document.RootElement.GetProperty("runtimeMinutes").GetInt32().Should().Be(166);
+        document.RootElement.GetProperty("originalLanguage").GetString().Should().Be("en");
+        document.RootElement.GetProperty("tmdbVoteAverage").GetDouble().Should().Be(8.1);
+        document.RootElement.GetProperty("tmdbVoteCount").GetInt32().Should().BeGreaterThan(10);
+        document.RootElement.GetProperty("primaryActionLabel").GetString().Should().Be("Open in Plex");
+        document.RootElement.GetProperty("primaryActionEnabled").GetBoolean().Should().BeTrue();
+        document.RootElement.GetProperty("primaryActionTarget").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]

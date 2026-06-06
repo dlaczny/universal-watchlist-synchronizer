@@ -122,6 +122,10 @@ public sealed class MongoWatchlistItemDocumentTests
             OriginalTitle = "Original Title",
             ReleaseDate = "2026-06-04",
             Genres = ["Drama"],
+            RuntimeMinutes = 93,
+            OriginalLanguage = "en",
+            TmdbVoteAverage = 7.7,
+            TmdbVoteCount = 1200,
             PosterPath = "/tmdb-poster.jpg",
             BackdropPath = "/tmdb-backdrop.jpg",
             ReleasedOnVod = true,
@@ -139,6 +143,11 @@ public sealed class MongoWatchlistItemDocumentTests
         item.ReleasedOnVod.Should().BeTrue();
         item.VodRegions.Should().Equal("PL", "US");
         item.OwnedServiceAvailability.Should().Equal("Amazon Prime Video");
+        item.Genres.Should().Equal("Drama");
+        item.RuntimeMinutes.Should().Be(93);
+        item.OriginalLanguage.Should().Be("en");
+        item.TmdbVoteAverage.Should().Be(7.7);
+        item.TmdbVoteCount.Should().Be(1200);
     }
 
     [Fact]

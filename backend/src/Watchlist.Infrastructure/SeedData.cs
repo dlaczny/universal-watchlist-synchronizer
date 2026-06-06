@@ -21,7 +21,12 @@ public static class SeedData
             DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"),
             DateTimeOffset.Parse("2026-05-25T10:00:00+02:00"))
         {
-            OwnedServiceAvailability = ["Amazon Prime Video"]
+            OwnedServiceAvailability = ["Amazon Prime Video"],
+            Genres = ["Science Fiction", "Adventure"],
+            RuntimeMinutes = 166,
+            OriginalLanguage = "en",
+            TmdbVoteAverage = 8.1,
+            TmdbVoteCount = 7000
         },
         new WatchlistItem(
             "movie-unreleased-example",

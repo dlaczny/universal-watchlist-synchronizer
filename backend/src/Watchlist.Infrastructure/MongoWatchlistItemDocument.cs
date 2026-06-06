@@ -38,6 +38,14 @@ public sealed class MongoWatchlistItemDocument
 
     public IReadOnlyList<string> Genres { get; init; } = [];
 
+    public int? RuntimeMinutes { get; init; }
+
+    public string? OriginalLanguage { get; init; }
+
+    public double? TmdbVoteAverage { get; init; }
+
+    public int? TmdbVoteCount { get; init; }
+
     public string? PosterPath { get; init; }
 
     public string? BackdropPath { get; init; }
@@ -97,6 +105,11 @@ public sealed class MongoWatchlistItemDocument
             AddedAt ?? UpdatedAt,
             UpdatedAt)
         {
+            Genres = Genres,
+            RuntimeMinutes = RuntimeMinutes,
+            OriginalLanguage = OriginalLanguage,
+            TmdbVoteAverage = TmdbVoteAverage,
+            TmdbVoteCount = TmdbVoteCount,
             VodReleaseKnown = string.Equals(TmdbMetadataStatus, "enriched", StringComparison.Ordinal),
             ReleasedOnVod = ReleasedOnVod,
             VodRegions = VodRegions,
@@ -122,6 +135,11 @@ public sealed class MongoWatchlistItemDocument
             Overview = item.Overview,
             PosterUrl = item.PosterUrl,
             BackdropUrl = item.BackdropUrl,
+            Genres = item.Genres,
+            RuntimeMinutes = item.RuntimeMinutes,
+            OriginalLanguage = item.OriginalLanguage,
+            TmdbVoteAverage = item.TmdbVoteAverage,
+            TmdbVoteCount = item.TmdbVoteCount,
             ReleasedOnVod = item.ReleasedOnVod,
             VodRegions = item.VodRegions,
             OwnedServiceAvailability = item.OwnedServiceAvailability,

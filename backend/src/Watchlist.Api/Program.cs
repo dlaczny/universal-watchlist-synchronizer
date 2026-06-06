@@ -55,9 +55,9 @@ app.MapGet("/api/watchlist/{id}", async (
     WatchlistQueryService queryService,
     CancellationToken cancellationToken) =>
 {
-    WatchlistItemDto? item = await queryService.GetItemAsync(id, cancellationToken);
+    WatchlistItemDetailsDto? item = await queryService.GetItemDetailsAsync(id, cancellationToken);
 
-    return item is null ? Results.NotFound() : Results.Ok(ToBackendImageUrls(item));
+    return item is null ? Results.NotFound() : Results.Ok(ToBackendDetailImageUrls(item));
 });
 
 app.MapGet("/api/export/radarr/movies", async (
@@ -265,6 +265,15 @@ static IReadOnlySet<AvailabilityStatus> AllAvailabilityStatuses()
 }
 
 static WatchlistItemDto ToBackendImageUrls(WatchlistItemDto item)
+{
+    return item with
+    {
+        PosterUrl = ToBackendTmdbImageUrl(item.PosterUrl),
+        BackdropUrl = ToBackendTmdbImageUrl(item.BackdropUrl)
+    };
+}
+
+static WatchlistItemDetailsDto ToBackendDetailImageUrls(WatchlistItemDetailsDto item)
 {
     return item with
     {
