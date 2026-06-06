@@ -14,16 +14,13 @@ import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.GridLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupWindow;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -63,8 +60,6 @@ public final class MainActivity extends Activity {
     private TextView contentTitleView;
     private TextView contentCountView;
     private View lastRailFocus;
-    private ImageButton filterButton;
-    private PopupWindow filterPopup;
     private List<WatchlistItem> loadedItems = new ArrayList<>();
     private int loadGeneration;
     private volatile boolean destroyed;
@@ -91,13 +86,6 @@ public final class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getKeyCode() == KeyEvent.KEYCODE_BACK
-                && event.getAction() == KeyEvent.ACTION_UP
-                && filterPopup != null
-                && filterPopup.isShowing()) {
-            filterPopup.dismiss();
-            return true;
-        }
         return super.dispatchKeyEvent(event);
     }
 
@@ -107,9 +95,6 @@ public final class MainActivity extends Activity {
         loadGeneration++;
         imageLoader.discardObsoleteRequests();
         mainHandler.removeCallbacksAndMessages(null);
-        if (filterPopup != null && filterPopup.isShowing()) {
-            filterPopup.dismiss();
-        }
         apiExecutor.shutdownNow();
         imageExecutor.shutdownNow();
         super.onDestroy();
@@ -205,35 +190,6 @@ public final class MainActivity extends Activity {
         return rail;
     }
 
-    private LinearLayout createTopNavigation() {
-        LinearLayout navigation = horizontalZone();
-        navigation.setPadding(0, dp(18), 0, dp(10));
-
-        allButton = textButton(getString(R.string.nav_all));
-        allButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_ALL));
-        navigation.addView(allButton);
-
-        moviesButton = textButton(getString(R.string.nav_movies));
-        moviesButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_MOVIES));
-        navigation.addView(moviesButton);
-
-        tvButton = textButton(getString(R.string.nav_tv_shows));
-        tvButton.setOnClickListener(view -> selectMediaType(BrowsingState.MEDIA_TV));
-        navigation.addView(tvButton);
-
-        navigation.addView(spacer(dp(12), 1));
-
-        ImageButton searchButton = iconButton(R.drawable.ic_search, getString(R.string.action_search));
-        searchButton.setEnabled(false);
-        navigation.addView(searchButton);
-
-        allButton.setNextFocusRightId(moviesButton.getId());
-        moviesButton.setNextFocusLeftId(allButton.getId());
-        moviesButton.setNextFocusRightId(tvButton.getId());
-        tvButton.setNextFocusLeftId(moviesButton.getId());
-        return navigation;
-    }
-
     private LinearLayout createMainHeader() {
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
@@ -266,30 +222,6 @@ public final class MainActivity extends Activity {
         dateAddedButton.setNextFocusRightId(alphabeticalButton.getId());
         alphabeticalButton.setNextFocusLeftId(dateAddedButton.getId());
         return header;
-    }
-
-    private LinearLayout createToolbar() {
-        LinearLayout toolbar = horizontalZone();
-        toolbar.setPadding(0, 0, 0, dp(8));
-
-        dateAddedButton = textButton(getString(R.string.sort_date_added));
-        dateAddedButton.setOnClickListener(view -> selectSortMode(CollectionOrganizer.SORT_DATE_ADDED));
-        toolbar.addView(dateAddedButton);
-
-        alphabeticalButton = textButton(getString(R.string.sort_alphabetical));
-        alphabeticalButton.setOnClickListener(view -> selectSortMode(CollectionOrganizer.SORT_ALPHABETICAL));
-        toolbar.addView(alphabeticalButton);
-
-        filterButton = iconButton(R.drawable.ic_filter, getString(R.string.action_filter));
-        filterButton.setOnClickListener(view -> showFilterPopup());
-        toolbar.addView(filterButton);
-
-        dateAddedButton.setNextFocusRightId(alphabeticalButton.getId());
-        alphabeticalButton.setNextFocusLeftId(dateAddedButton.getId());
-        alphabeticalButton.setNextFocusRightId(filterButton.getId());
-        filterButton.setNextFocusLeftId(alphabeticalButton.getId());
-        updateZoneFocusLinks();
-        return toolbar;
     }
 
     private void wireRailFocusLinks(View searchButton) {
@@ -340,51 +272,6 @@ public final class MainActivity extends Activity {
         persistBrowsingState();
         updateControlStyles();
         loadItems(false);
-    }
-
-    private void showFilterPopup() {
-        if (filterPopup != null && filterPopup.isShowing()) {
-            filterPopup.dismiss();
-            return;
-        }
-
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(14), dp(10), dp(18), dp(12));
-        content.setBackground(panelBackground());
-
-        CheckBox onPlex = new CheckBox(this);
-        onPlex.setText(R.string.filter_on_plex);
-        onPlex.setTextColor(Color.WHITE);
-        onPlex.setChecked(true);
-        onPlex.setEnabled(false);
-        content.addView(onPlex);
-
-        CheckBox unavailable = new CheckBox(this);
-        unavailable.setText(R.string.filter_unavailable);
-        unavailable.setTextColor(Color.WHITE);
-        unavailable.setChecked(browsingState.includeUnavailable());
-        unavailable.setOnCheckedChangeListener((buttonView, checked) -> {
-            browsingState = browsingState.withIncludeUnavailable(checked);
-            persistBrowsingState();
-            loadItems(false);
-        });
-        content.addView(unavailable);
-
-        filterPopup = new PopupWindow(
-                content,
-                dp(210),
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                true);
-        filterPopup.setBackgroundDrawable(panelBackground());
-        filterPopup.setOutsideTouchable(true);
-        filterPopup.setOnDismissListener(() -> {
-            if (!destroyed) {
-                filterButton.requestFocus();
-            }
-        });
-        filterPopup.showAsDropDown(filterButton, -dp(154), dp(4));
-        unavailable.requestFocus();
     }
 
     private void loadItems() {
@@ -465,6 +352,7 @@ public final class MainActivity extends Activity {
         }
         progressBar.setVisibility(View.GONE);
         clearPosterGrid();
+        updateHeaderText();
 
         List<WatchlistItem> visibleItems = items;
         if (visibleItems.isEmpty()) {
@@ -613,15 +501,11 @@ public final class MainActivity extends Activity {
 
         if (!posterTiles.isEmpty()) {
             dateAddedButton.setNextFocusDownId(posterTiles.get(0).getId());
-            alphabeticalButton.setNextFocusDownId(posterTiles.get(Math.min(2, posterTiles.size() - 1)).getId());
-            filterButton.setNextFocusDownId(posterTiles.get(Math.min(4, posterTiles.size() - 1)).getId());
+            alphabeticalButton.setNextFocusDownId(posterTiles.get(Math.min(gridColumns - 1, posterTiles.size() - 1)).getId());
         }
     }
 
     private View toolbarFocusTarget(int column) {
-        if (column >= 4) {
-            return filterButton;
-        }
         if (column >= 2) {
             return alphabeticalButton;
         }
@@ -647,6 +531,7 @@ public final class MainActivity extends Activity {
         messageView.setText(R.string.message_loading);
         loadedItems = new ArrayList<>();
         clearPosterGrid();
+        updateHeaderText();
     }
 
     private void showError(Exception exception) {
@@ -656,6 +541,7 @@ public final class MainActivity extends Activity {
                 R.string.message_backend_error,
                 WatchlistConfig.apiBaseUrl(),
                 exception.getMessage()));
+        updateHeaderText();
     }
 
     private void clearPosterGrid() {
@@ -664,7 +550,11 @@ public final class MainActivity extends Activity {
         posterTiles.clear();
         dateAddedButton.setNextFocusDownId(View.NO_ID);
         alphabeticalButton.setNextFocusDownId(View.NO_ID);
-        filterButton.setNextFocusDownId(View.NO_ID);
+        allButton.setNextFocusRightId(View.NO_ID);
+        moviesButton.setNextFocusRightId(View.NO_ID);
+        tvButton.setNextFocusRightId(View.NO_ID);
+        onPlexButton.setNextFocusRightId(View.NO_ID);
+        unavailableButton.setNextFocusRightId(View.NO_ID);
     }
 
     private BrowsingState restoreBrowsingState() {
@@ -713,24 +603,27 @@ public final class MainActivity extends Activity {
         styleTextButton(allButton, BrowsingState.MEDIA_ALL.equals(browsingState.mediaType()));
         styleTextButton(moviesButton, BrowsingState.MEDIA_MOVIES.equals(browsingState.mediaType()));
         styleTextButton(tvButton, BrowsingState.MEDIA_TV.equals(browsingState.mediaType()));
+        styleTextButton(onPlexButton, true);
+        styleTextButton(unavailableButton, browsingState.includeUnavailable());
         styleTextButton(dateAddedButton, CollectionOrganizer.SORT_DATE_ADDED.equals(browsingState.sortMode()));
         styleTextButton(alphabeticalButton, CollectionOrganizer.SORT_ALPHABETICAL.equals(browsingState.sortMode()));
+        updateHeaderText();
     }
 
-    private void updateZoneFocusLinks() {
-        dateAddedButton.setNextFocusUpId(allButton.getId());
-        alphabeticalButton.setNextFocusUpId(moviesButton.getId());
-        filterButton.setNextFocusUpId(tvButton.getId());
-        allButton.setNextFocusDownId(dateAddedButton.getId());
-        moviesButton.setNextFocusDownId(dateAddedButton.getId());
-        tvButton.setNextFocusDownId(filterButton.getId());
-    }
+    private void updateHeaderText() {
+        if (contentTitleView == null || contentCountView == null) {
+            return;
+        }
 
-    private LinearLayout horizontalZone() {
-        LinearLayout zone = new LinearLayout(this);
-        zone.setOrientation(LinearLayout.HORIZONTAL);
-        zone.setGravity(Gravity.CENTER_VERTICAL);
-        return zone;
+        if (BrowsingState.MEDIA_MOVIES.equals(browsingState.mediaType())) {
+            contentTitleView.setText(R.string.content_title_movies);
+        } else if (BrowsingState.MEDIA_TV.equals(browsingState.mediaType())) {
+            contentTitleView.setText(R.string.content_title_tv);
+        } else {
+            contentTitleView.setText(R.string.content_title_all);
+        }
+
+        contentCountView.setText(getString(R.string.content_count, loadedItems.size()));
     }
 
     private Button railButton(String text) {
@@ -818,14 +711,6 @@ public final class MainActivity extends Activity {
             color = Color.rgb(86, 99, 112);
         }
         drawable.setColor(color);
-        return drawable;
-    }
-
-    private GradientDrawable panelBackground() {
-        GradientDrawable drawable = new GradientDrawable();
-        drawable.setColor(Color.rgb(31, 41, 55));
-        drawable.setCornerRadius(dp(5));
-        drawable.setStroke(dp(1), Color.rgb(100, 116, 139));
         return drawable;
     }
 
