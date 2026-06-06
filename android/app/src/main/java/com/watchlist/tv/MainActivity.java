@@ -398,7 +398,7 @@ public final class MainActivity extends Activity {
 
         FrameLayout artworkFrame = new FrameLayout(this);
         artworkFrame.setBackgroundColor(Color.rgb(42, 48, 56));
-        tile.addView(artworkFrame, new LinearLayout.LayoutParams(dp(132), dp(188)));
+        tile.addView(artworkFrame, new LinearLayout.LayoutParams(dp(118), dp(168)));
 
         ImageView artwork = new ImageView(this);
         artwork.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -436,7 +436,7 @@ public final class MainActivity extends Activity {
         title.setMaxLines(2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setGravity(Gravity.CENTER_VERTICAL);
-        tile.addView(title, new LinearLayout.LayoutParams(dp(132), dp(40)));
+        tile.addView(title, new LinearLayout.LayoutParams(dp(118), dp(36)));
 
         TextView badge = new TextView(this);
         badge.setText(formatAvailability(item));
@@ -445,12 +445,12 @@ public final class MainActivity extends Activity {
         badge.setMaxLines(1);
         badge.setGravity(Gravity.CENTER);
         badge.setBackground(badgeBackground(item));
-        tile.addView(badge, new LinearLayout.LayoutParams(dp(132), dp(24)));
+        tile.addView(badge, new LinearLayout.LayoutParams(dp(118), dp(24)));
 
         GridLayout.LayoutParams layoutParams = new GridLayout.LayoutParams();
-        layoutParams.width = dp(142);
-        layoutParams.height = dp(264);
-        layoutParams.setMargins(0, 0, dp(12), dp(12));
+        layoutParams.width = dp(128);
+        layoutParams.height = dp(236);
+        layoutParams.setMargins(0, 0, dp(10), dp(10));
         tile.setLayoutParams(layoutParams);
         return tile;
     }
