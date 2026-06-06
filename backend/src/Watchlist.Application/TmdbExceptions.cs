@@ -21,6 +21,14 @@ public sealed class TmdbMovieNotFoundException : Exception
     }
 }
 
+public sealed class TmdbTvNotFoundException : Exception
+{
+    public TmdbTvNotFoundException(string message)
+        : base(message)
+    {
+    }
+}
+
 public sealed class TmdbParseException : Exception
 {
     public TmdbParseException(string message)
