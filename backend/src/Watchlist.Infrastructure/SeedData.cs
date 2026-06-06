@@ -55,7 +55,21 @@ public static class SeedData
             ReleaseStatus.Released,
             AvailabilityStatus.NotOnPlex,
             DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"),
-            DateTimeOffset.Parse("2026-05-25T10:00:00+02:00"))
+            DateTimeOffset.Parse("2026-05-25T10:00:00+02:00")),
+        new WatchlistItem(
+            "tv-tmdb-1399",
+            MediaType.TvShow,
+            WatchlistSource.Tmdb,
+            "1399",
+            "Game of Thrones",
+            2011,
+            "Nine noble families fight for control.",
+            "https://image.tmdb.org/t/p/w500/poster.jpg",
+            "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
+            ReleaseStatus.Released,
+            AvailabilityStatus.NotOnPlex,
+            DateTimeOffset.Parse("2026-06-06T12:00:00Z"),
+            DateTimeOffset.Parse("2026-06-06T12:00:00Z"))
     ];
 
     public static readonly IReadOnlyList<MongoSyncRunDocument> SyncRuns =

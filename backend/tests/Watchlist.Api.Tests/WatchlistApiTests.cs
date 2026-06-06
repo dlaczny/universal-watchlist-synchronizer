@@ -43,6 +43,24 @@ public sealed class WatchlistApiTests
     }
 
     [Fact]
+    public async Task GetWatchlist_WhenCollectionTv_ReturnsTmdbTvShows()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            "/api/watchlist?collection=tv&availability=plex,not_on_plex,unreleased,unknown_match&sort=title_asc");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        JsonElement item = document.RootElement.EnumerateArray()
+            .Single(element => element.GetProperty("id").GetString() == "tv-tmdb-1399");
+        item.GetProperty("mediaType").GetString().Should().Be("tv");
+        item.GetProperty("source").GetString().Should().Be("tmdb");
+        item.GetProperty("title").GetString().Should().Be("Game of Thrones");
+    }
+
+    [Fact]
     public async Task GetWatchlist_WhenAvailabilityPlex_ReturnsOnlyPlexAvailableItems()
     {
         using SeededApiFactory factory = new();
