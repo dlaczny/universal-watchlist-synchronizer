@@ -11,6 +11,7 @@ out/
 .vscode/
 *.user
 *.suo
+opencode.json
 
 # Android
 local.properties
@@ -33,6 +34,14 @@ secrets.json
 tmp/
 temp/
 
-# Superpowers brainstorming scratch files
+# Local generated artifacts and agent scratch files
+.artifacts/
+.testartifacts/
 .superpowers/
 .worktrees/
+
+# Local data stores
+data/
+*.db
+*.sqlite
+*.sqlite3
