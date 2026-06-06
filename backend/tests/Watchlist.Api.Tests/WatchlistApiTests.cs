@@ -94,6 +94,8 @@ public sealed class WatchlistApiTests
         releasedOnVod.GetBoolean().Should().BeFalse();
         document.RootElement.TryGetProperty("vodRegions", out JsonElement vodRegions).Should().BeTrue();
         vodRegions.GetArrayLength().Should().Be(0);
+        document.RootElement.TryGetProperty("ownedServiceAvailability", out JsonElement providers).Should().BeTrue();
+        providers.EnumerateArray().Select(provider => provider.GetString()).Should().Equal("Amazon Prime Video");
     }
 
     [Fact]

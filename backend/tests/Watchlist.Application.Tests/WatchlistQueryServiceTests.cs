@@ -163,6 +163,10 @@ public sealed class WatchlistQueryServiceTests
         result.BackdropUrl.Should().Be("https://example.test/backdrop.jpg");
         result.ReleaseStatus.Should().Be("released");
         result.AvailabilityStatus.Should().Be("available_on_plex");
+        result.VodReleaseKnown.Should().BeTrue();
+        result.ReleasedOnVod.Should().BeTrue();
+        result.VodRegions.Should().Equal("PL", "US");
+        result.OwnedServiceAvailability.Should().Equal("Amazon Prime Video", "Max");
         result.AddedAt.Should().Be(AddedAt);
         result.UpdatedAt.Should().Be(UpdatedAt);
     }
@@ -196,7 +200,13 @@ public sealed class WatchlistQueryServiceTests
             ReleaseStatus.Released,
             availabilityStatus,
             addedAt,
-            UpdatedAt);
+            UpdatedAt)
+        {
+            VodReleaseKnown = true,
+            ReleasedOnVod = true,
+            VodRegions = ["PL", "US"],
+            OwnedServiceAvailability = ["Amazon Prime Video", "Max"]
+        };
     }
 
     private sealed class StubWatchlistReadRepository(IReadOnlyList<WatchlistItem> items) : IWatchlistReadRepository

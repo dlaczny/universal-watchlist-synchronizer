@@ -15,5 +15,9 @@ public sealed record WatchlistItemDto(
     string? BackdropUrl,
     string ReleaseStatus,
     string AvailabilityStatus,
+    bool VodReleaseKnown,
+    bool ReleasedOnVod,
+    IReadOnlyList<string> VodRegions,
+    IReadOnlyList<string> OwnedServiceAvailability,
     DateTimeOffset AddedAt,
     DateTimeOffset UpdatedAt);

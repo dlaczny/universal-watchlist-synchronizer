@@ -65,6 +65,10 @@ public sealed class WatchlistQueryService(IWatchlistReadRepository repository)
             item.BackdropUrl,
             ToApiValue(item.ReleaseStatus),
             ToApiValue(item.AvailabilityStatus),
+            item.VodReleaseKnown,
+            item.ReleasedOnVod,
+            item.VodRegions,
+            item.OwnedServiceAvailability,
             item.AddedAt,
             item.UpdatedAt);
     }

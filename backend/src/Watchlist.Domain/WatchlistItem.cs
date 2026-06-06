@@ -13,4 +13,13 @@ public sealed record WatchlistItem(
     ReleaseStatus ReleaseStatus,
     AvailabilityStatus AvailabilityStatus,
     DateTimeOffset AddedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    public bool VodReleaseKnown { get; init; }
+
+    public bool ReleasedOnVod { get; init; }
+
+    public IReadOnlyList<string> VodRegions { get; init; } = [];
+
+    public IReadOnlyList<string> OwnedServiceAvailability { get; init; } = [];
+}

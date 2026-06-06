@@ -77,11 +77,30 @@ public final class WatchlistApiClient {
                     resolveImageUrl(baseUrl, nullableString(item, "backdropUrl")),
                     item.getString("releaseStatus"),
                     item.getString("availabilityStatus"),
+                    item.has("vodReleaseKnown") && !item.isNull("vodReleaseKnown")
+                            && item.getBoolean("vodReleaseKnown"),
+                    item.has("releasedOnVod") && !item.isNull("releasedOnVod")
+                            && item.getBoolean("releasedOnVod"),
+                    parseStringArray(item.optJSONArray("vodRegions")),
+                    parseStringArray(item.optJSONArray("ownedServiceAvailability")),
                     item.getString("addedAt"),
                     item.getString("updatedAt")));
         }
 
         return items;
+    }
+
+    private static List<String> parseStringArray(JSONArray array) throws JSONException {
+        List<String> values = new ArrayList<>();
+        if (array == null) {
+            return values;
+        }
+
+        for (int index = 0; index < array.length(); index++) {
+            values.add(array.getString(index));
+        }
+
+        return values;
     }
 
     static String resolveImageUrl(String baseUrl, String imageUrl) {

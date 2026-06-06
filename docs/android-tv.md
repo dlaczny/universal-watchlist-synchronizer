@@ -55,6 +55,8 @@ android/app/build/outputs/apk/debug/
 
 - Android TV launcher activity.
 - Remote-first poster grid with artwork, title, and availability badge on each tile.
+- Non-Plex movies with `vodReleaseKnown=true` and `releasedOnVod=false` render a `Not released` badge, based on backend TMDB watch-provider data for Poland and the US.
+- Non-Plex movies with `ownedServiceAvailability` entries render a provider badge such as `Prime`, `Max`, `SkyShowtime`, `Crunchyroll`, or `Max +1`.
 - Top navigation with enabled `All`, `Movies`, `TV Shows`, and a disabled search icon.
 - Collection toolbar with backend-owned `Date added` and `A-Z` sorting plus an availability filter icon.
 - Availability popup with an always-checked `On Plex` baseline and an `Unavailable` checkbox that requests `not_on_plex`, `unreleased`, and `unknown_match` from the backend.

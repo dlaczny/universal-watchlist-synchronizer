@@ -42,6 +42,10 @@ public class WatchlistApiClientTest {
                 + "\"backdropUrl\":\"https://image.example/backdrop.jpg\","
                 + "\"releaseStatus\":\"released\","
                 + "\"availabilityStatus\":\"available_on_plex\","
+                + "\"vodReleaseKnown\":true,"
+                + "\"releasedOnVod\":true,"
+                + "\"vodRegions\":[\"PL\",\"US\"],"
+                + "\"ownedServiceAvailability\":[\"Amazon Prime Video\",\"Max\"],"
                 + "\"addedAt\":\"2026-05-24T10:00:00+02:00\","
                 + "\"updatedAt\":\"2026-05-25T10:00:00+02:00\""
                 + "}]";
@@ -54,6 +58,86 @@ public class WatchlistApiClientTest {
         assertEquals("movie", item.mediaType());
         assertEquals("Dune: Part Two", item.title());
         assertEquals("available_on_plex", item.availabilityStatus());
+        assertEquals(true, item.vodReleaseKnown());
+        assertEquals(true, item.releasedOnVod());
+        assertEquals("PL", item.vodRegions().get(0));
+        assertEquals("US", item.vodRegions().get(1));
+        assertEquals("Amazon Prime Video", item.ownedServiceAvailability().get(0));
+        assertEquals("Max", item.ownedServiceAvailability().get(1));
+    }
+
+    @Test
+    public void parseItems_whenVodFieldsMissing_defaultsToNotReleasedOnVod() throws Exception {
+        String json = "[{"
+                + "\"id\":\"movie-future\","
+                + "\"mediaType\":\"movie\","
+                + "\"source\":\"letterboxd\","
+                + "\"sourceId\":\"letterboxd-future\","
+                + "\"title\":\"Future Movie\","
+                + "\"year\":2026,"
+                + "\"overview\":null,"
+                + "\"posterUrl\":null,"
+                + "\"backdropUrl\":null,"
+                + "\"releaseStatus\":\"released\","
+                + "\"availabilityStatus\":\"not_on_plex\","
+                + "\"addedAt\":\"2026-05-24T10:00:00+02:00\","
+                + "\"updatedAt\":\"2026-05-25T10:00:00+02:00\""
+                + "}]";
+
+        WatchlistItem item = WatchlistApiClient.parseItems(json).get(0);
+
+        assertEquals(false, item.vodReleaseKnown());
+        assertEquals(false, item.releasedOnVod());
+        assertEquals(0, item.vodRegions().size());
+        assertEquals(0, item.ownedServiceAvailability().size());
+    }
+
+    @Test
+    public void formatAvailability_whenMovieIsUnavailableAndNotReleasedOnVod_returnsNotReleased() {
+        WatchlistItem item = new WatchlistItem(
+                "movie-future",
+                "movie",
+                "letterboxd",
+                "letterboxd-future",
+                "Future Movie",
+                2026,
+                null,
+                null,
+                null,
+                "released",
+                "not_on_plex",
+                true,
+                false,
+                List.of(),
+                List.of(),
+                "2026-05-24T10:00:00+02:00",
+                "2026-05-25T10:00:00+02:00");
+
+        assertEquals("Not released", MainActivity.formatAvailability(item));
+    }
+
+    @Test
+    public void formatAvailability_whenVodReleaseIsUnknown_returnsUnavailable() {
+        WatchlistItem item = new WatchlistItem(
+                "movie-unsynced",
+                "movie",
+                "letterboxd",
+                "letterboxd-unsynced",
+                "Unsynced Movie",
+                2026,
+                null,
+                null,
+                null,
+                "released",
+                "not_on_plex",
+                false,
+                false,
+                List.of(),
+                List.of(),
+                "2026-05-24T10:00:00+02:00",
+                "2026-05-25T10:00:00+02:00");
+
+        assertEquals("Unavailable", MainActivity.formatAvailability(item));
     }
 
     @Test
@@ -150,5 +234,77 @@ public class WatchlistApiClientTest {
         assertEquals("skipped", result.status());
         assertEquals(false, result.ranPlexSync());
         assertEquals("fresh", result.reason());
+    }
+
+    @Test
+    public void formatAvailability_whenMovieIsOnOwnedProvider_returnsProviderBadge() {
+        WatchlistItem item = new WatchlistItem(
+                "movie-prime",
+                "movie",
+                "letterboxd",
+                "letterboxd-prime",
+                "Prime Movie",
+                2025,
+                null,
+                null,
+                null,
+                "released",
+                "not_on_plex",
+                true,
+                true,
+                List.of("PL"),
+                List.of("Amazon Prime Video"),
+                "2026-05-24T10:00:00+02:00",
+                "2026-05-25T10:00:00+02:00");
+
+        assertEquals("Prime", MainActivity.formatAvailability(item));
+    }
+
+    @Test
+    public void formatAvailability_whenMovieIsOnPlexAndOwnedProvider_returnsPlexBadge() {
+        WatchlistItem item = new WatchlistItem(
+                "movie-plex",
+                "movie",
+                "letterboxd",
+                "letterboxd-plex",
+                "Plex Movie",
+                2025,
+                null,
+                null,
+                null,
+                "released",
+                "available_on_plex",
+                true,
+                true,
+                List.of("PL"),
+                List.of("Amazon Prime Video"),
+                "2026-05-24T10:00:00+02:00",
+                "2026-05-25T10:00:00+02:00");
+
+        assertEquals("On Plex", MainActivity.formatAvailability(item));
+    }
+
+    @Test
+    public void formatAvailability_whenMovieHasMultipleOwnedProviders_returnsCompactProviderBadge() {
+        WatchlistItem item = new WatchlistItem(
+                "movie-multi",
+                "movie",
+                "letterboxd",
+                "letterboxd-multi",
+                "Multi Provider Movie",
+                2025,
+                null,
+                null,
+                null,
+                "released",
+                "not_on_plex",
+                true,
+                true,
+                List.of("PL"),
+                List.of("HBO Max", "Amazon Prime Video"),
+                "2026-05-24T10:00:00+02:00",
+                "2026-05-25T10:00:00+02:00");
+
+        assertEquals("Max +1", MainActivity.formatAvailability(item));
     }
 }

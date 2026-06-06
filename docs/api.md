@@ -65,6 +65,7 @@ Response:
     "vodReleaseKnown": true,
     "releasedOnVod": true,
     "vodRegions": ["PL", "US"],
+    "ownedServiceAvailability": ["Amazon Prime Video"],
     "addedAt": "2026-05-20T10:00:00+02:00",
     "updatedAt": "2026-05-25T10:00:00+02:00"
   }
@@ -102,10 +103,13 @@ Response:
   "vodReleaseKnown": true,
   "releasedOnVod": true,
   "vodRegions": ["PL", "US"],
+  "ownedServiceAvailability": ["Amazon Prime Video"],
   "addedAt": "2026-05-20T10:00:00+02:00",
   "updatedAt": "2026-05-25T10:00:00+02:00"
 }
 ```
+
+`ownedServiceAvailability` contains subscribed streaming services where TMDB shows Poland flatrate availability. Android uses this list for provider badges when the item is not available on Plex.
 
 `vodReleaseKnown` is `true` after successful TMDB metadata enrichment. `releasedOnVod` is `true` when TMDB watch-provider data shows at least one stream, rent, or buy option in Poland or the US. Android uses `vodReleaseKnown=true` plus `releasedOnVod=false` on non-Plex items to show a `Not released` badge instead of a generic `Unavailable` badge.
 

@@ -136,4 +136,4 @@ If MongoDB is unavailable, the backend returns `503 Service Unavailable` rather 
 
 ## Later Extension: Streaming Services
 
-TMDB watch-provider data is cached for movies. Android consumes `vodReleaseKnown` plus `releasedOnVod` to distinguish non-Plex movies that have confirmed no Poland or US stream/rent/buy release yet. Provider-specific badges and provider-ID refinement are still later work.
+TMDB watch-provider data is cached for movies. Android consumes `ownedServiceAvailability`, `vodReleaseKnown`, and `releasedOnVod` for card badges. Provider-ID refinement remains later work.

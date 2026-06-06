@@ -12,5 +12,5 @@ public sealed class MongoDbOptions
 
     public string SyncRunsCollectionName { get; init; } = string.Empty;
 
-    public string PlexLibraryItemsCollectionName { get; init; } = string.Empty;
+    public string PlexLibraryItemsCollectionName { get; init; } = "plex_library_items";
 }

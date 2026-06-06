@@ -95,7 +95,13 @@ public sealed class MongoWatchlistItemDocument
             ReleaseStatus,
             AvailabilityStatus,
             AddedAt ?? UpdatedAt,
-            UpdatedAt);
+            UpdatedAt)
+        {
+            VodReleaseKnown = string.Equals(TmdbMetadataStatus, "enriched", StringComparison.Ordinal),
+            ReleasedOnVod = ReleasedOnVod,
+            VodRegions = VodRegions,
+            OwnedServiceAvailability = OwnedServiceAvailability
+        };
     }
 
     public static MongoWatchlistItemDocument FromDomain(
@@ -116,6 +122,9 @@ public sealed class MongoWatchlistItemDocument
             Overview = item.Overview,
             PosterUrl = item.PosterUrl,
             BackdropUrl = item.BackdropUrl,
+            ReleasedOnVod = item.ReleasedOnVod,
+            VodRegions = item.VodRegions,
+            OwnedServiceAvailability = item.OwnedServiceAvailability,
             ReleaseStatus = item.ReleaseStatus,
             AvailabilityStatus = item.AvailabilityStatus,
             AddedAt = item.AddedAt,

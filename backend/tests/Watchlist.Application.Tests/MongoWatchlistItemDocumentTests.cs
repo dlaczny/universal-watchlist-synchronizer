@@ -127,7 +127,7 @@ public sealed class MongoWatchlistItemDocumentTests
             ReleasedOnVod = true,
             VodRegions = ["PL", "US"],
             OwnedServiceAvailability = ["Amazon Prime Video"],
-            TmdbMetadataStatus = "completed"
+            TmdbMetadataStatus = "enriched"
         };
 
         WatchlistItem item = document.ToDomain();
@@ -135,6 +135,10 @@ public sealed class MongoWatchlistItemDocumentTests
         item.Overview.Should().Be("Display overview");
         item.PosterUrl.Should().Be("https://example.com/display-poster.jpg");
         item.BackdropUrl.Should().Be("https://example.com/display-backdrop.jpg");
+        item.VodReleaseKnown.Should().BeTrue();
+        item.ReleasedOnVod.Should().BeTrue();
+        item.VodRegions.Should().Equal("PL", "US");
+        item.OwnedServiceAvailability.Should().Equal("Amazon Prime Video");
     }
 
     [Fact]

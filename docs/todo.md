@@ -25,7 +25,8 @@
   - Cache poster, backdrop, overview, canonical title, release date/status, and useful matching metadata in MongoDB.
   - Cache TMDB watch-provider data for Poland and mark subscribed-service availability for HBO Max/Max, SkyShowtime, Crunchyroll, and Amazon Prime Video.
   - Mark `releasedOnVod` when TMDB watch providers show any stream, rent, or buy option in Poland or the US.
-- [ ] Add Android TV badges for TMDB provider availability and `releasedOnVod`.
+- [x] Add Android TV `Not released` badge from TMDB `releasedOnVod`.
+- [x] Add Android TV badges for TMDB provider availability.
 - [ ] Cache TMDB poster/backdrop image bytes locally instead of storing only TMDB image URLs.
 - [ ] Refine TMDB subscribed-service matching with provider IDs after confirming provider names/IDs from live data.
 - [ ] Add Plex availability matching for imported movies.

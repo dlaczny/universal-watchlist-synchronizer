@@ -19,7 +19,10 @@ public static class SeedData
             ReleaseStatus.Released,
             AvailabilityStatus.AvailableOnPlex,
             DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"),
-            DateTimeOffset.Parse("2026-05-25T10:00:00+02:00")),
+            DateTimeOffset.Parse("2026-05-25T10:00:00+02:00"))
+        {
+            OwnedServiceAvailability = ["Amazon Prime Video"]
+        },
         new WatchlistItem(
             "movie-unreleased-example",
             MediaType.Movie,

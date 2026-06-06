@@ -61,6 +61,8 @@ The backend should represent availability explicitly:
 - `unreleased`: item is not released yet.
 - `unknown_match`: matching data is incomplete or ambiguous.
 
+The watchlist read model also exposes `vodReleaseKnown`, `releasedOnVod`, and `ownedServiceAvailability`, derived from cached TMDB watch-provider data. Android uses `vodReleaseKnown=true` plus `releasedOnVod=false` on non-Plex items to label them as `Not released`, and uses `ownedServiceAvailability` for the single card badge after Plex priority.
+
 ## Sync Pipeline
 
 1. Fetch Letterboxd movie watchlist.

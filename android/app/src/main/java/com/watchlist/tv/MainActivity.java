@@ -680,9 +680,15 @@ public final class MainActivity extends Activity {
     private GradientDrawable badgeBackground(WatchlistItem item) {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setCornerRadius(dp(3));
-        drawable.setColor(WatchlistFilters.AVAILABLE_ON_PLEX.equals(item.availabilityStatus())
-                ? Color.rgb(20, 120, 80)
-                : Color.rgb(86, 99, 112));
+        int color;
+        if (WatchlistFilters.AVAILABLE_ON_PLEX.equals(item.availabilityStatus())) {
+            color = Color.rgb(20, 120, 80);
+        } else if (!item.ownedServiceAvailability().isEmpty()) {
+            color = Color.rgb(14, 116, 144);
+        } else {
+            color = Color.rgb(86, 99, 112);
+        }
+        drawable.setColor(color);
         return drawable;
     }
 
@@ -694,9 +700,16 @@ public final class MainActivity extends Activity {
         return drawable;
     }
 
-    private static String formatAvailability(WatchlistItem item) {
+    static String formatAvailability(WatchlistItem item) {
         if (WatchlistFilters.AVAILABLE_ON_PLEX.equals(item.availabilityStatus())) {
             return "On Plex";
+        }
+        String providerBadge = formatOwnedProviderBadge(item);
+        if (providerBadge != null) {
+            return providerBadge;
+        }
+        if (item.vodReleaseKnown() && !item.releasedOnVod()) {
+            return "Not released";
         }
         if ("unreleased".equals(item.availabilityStatus())) {
             return "Unreleased";
@@ -705,6 +718,43 @@ public final class MainActivity extends Activity {
             return "Match uncertain";
         }
         return "Unavailable";
+    }
+
+    private static String formatOwnedProviderBadge(WatchlistItem item) {
+        if (item.ownedServiceAvailability().isEmpty()) {
+            return null;
+        }
+
+        String first = shortProviderName(item.ownedServiceAvailability().get(0));
+        int count = item.ownedServiceAvailability().size();
+        if (count == 1) {
+            return first;
+        }
+
+        if (count == 2 && first.length() <= 10) {
+            return first + " +1";
+        }
+
+        return count + " services";
+    }
+
+    private static String shortProviderName(String providerName) {
+        if ("Amazon Prime Video".equalsIgnoreCase(providerName)
+                || "Prime Video".equalsIgnoreCase(providerName)) {
+            return "Prime";
+        }
+        if ("Max".equalsIgnoreCase(providerName)
+                || "HBO Max".equalsIgnoreCase(providerName)) {
+            return "Max";
+        }
+        if ("SkyShowtime".equalsIgnoreCase(providerName)) {
+            return "SkyShowtime";
+        }
+        if ("Crunchyroll".equalsIgnoreCase(providerName)) {
+            return "Crunchyroll";
+        }
+
+        return providerName;
     }
 
     private View spacer(int width, int height) {
