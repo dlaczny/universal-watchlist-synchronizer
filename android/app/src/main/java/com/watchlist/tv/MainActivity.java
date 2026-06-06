@@ -1,6 +1,7 @@
 package com.watchlist.tv;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -217,6 +218,14 @@ public final class MainActivity extends Activity {
         loadItems(false);
     }
 
+    private void openDetails(WatchlistItem item) {
+        browsingState = browsingState.withFocusedItemId(item.id());
+        persistBrowsingState();
+        Intent intent = new Intent(this, DetailsActivity.class);
+        intent.putExtra(DetailsActivity.EXTRA_ITEM, item);
+        startActivity(intent);
+    }
+
     private void selectSortMode(String sortMode) {
         if (sortMode.equals(browsingState.sortMode())) {
             return;
@@ -379,7 +388,7 @@ public final class MainActivity extends Activity {
         tile.setClickable(true);
         tile.setPadding(dp(5), dp(5), dp(5), dp(6));
         tile.setBackground(tileBackground(false));
-        tile.setOnClickListener(view -> view.requestFocus());
+        tile.setOnClickListener(view -> openDetails(item));
         tile.setOnFocusChangeListener((view, hasFocus) -> {
             view.setBackground(tileBackground(hasFocus));
             view.animate()

@@ -1,10 +1,12 @@
 package com.watchlist.tv;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public final class WatchlistItem {
+public final class WatchlistItem implements Serializable {
+    private static final long serialVersionUID = 1L;
     private final String id;
     private final String mediaType;
     private final String source;

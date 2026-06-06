@@ -13,4 +13,6 @@
     <string name="message_loading">Loading watchlist...</string>
     <string name="message_artwork_unavailable">Artwork\nunavailable</string>
     <string name="message_backend_error">Could not load watchlist from %1$s. %2$s</string>
+    <string name="message_detail_backend_error">Could not refresh details. %1$s</string>
+    <string name="message_no_description">No description available.</string>
 </resources>
