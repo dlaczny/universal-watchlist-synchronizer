@@ -190,6 +190,69 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
         storedDocument.PlexMatchConfidence.Should().Be("exact");
     }
 
+    [Fact]
+    public async Task ApplyTmdbTvWatchlistSyncAsync_UpsertsTvDeletesRemovedTvAndPreservesOtherSources()
+    {
+        IMongoCollection<MongoWatchlistItemDocument> items =
+            database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
+        IMongoCollection<MongoSyncRunDocument> syncRuns =
+            database.GetCollection<MongoSyncRunDocument>(options.SyncRunsCollectionName);
+        await items.InsertManyAsync([
+            MongoWatchlistItemDocument.FromDomain(CreateTmdbTv("removed", "Removed")),
+            MongoWatchlistItemDocument.FromDomain(CreateLetterboxdMovie("1297842", "GOAT")),
+            MongoWatchlistItemDocument.FromDomain(CreateTmdbMovie())
+        ]);
+        MongoWatchlistWriteRepository repository = new(database, Options.Create(options));
+        WatchlistItem syncedItem = new(
+            "tv-tmdb-1399",
+            MediaType.TvShow,
+            WatchlistSource.Tmdb,
+            "1399",
+            "Game of Thrones",
+            2011,
+            "Nine noble families fight for control.",
+            "https://image.tmdb.org/t/p/w500/poster.jpg",
+            "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
+            ReleaseStatus.Released,
+            AvailabilityStatus.NotOnPlex,
+            DateTimeOffset.Parse("2026-06-06T12:00:00Z"),
+            DateTimeOffset.Parse("2026-06-06T12:00:00Z"))
+        {
+            Genres = ["Drama"],
+            OriginalLanguage = "en",
+            TmdbVoteAverage = 8.5,
+            TmdbVoteCount = 25000
+        };
+        WatchlistItemWriteModel writeModel = new(
+            syncedItem,
+            "tt0944947",
+            null,
+            1399,
+            TvdbId: 121361);
+
+        TmdbTvWatchlistApplyResult result = await repository.ApplyTmdbTvWatchlistSyncAsync(
+            [writeModel],
+            new HashSet<string>(["1399"], StringComparer.Ordinal),
+            "tmdb_tv_completed",
+            DateTimeOffset.Parse("2026-06-06T12:00:01Z"),
+            CancellationToken.None);
+
+        result.ItemsUpserted.Should().Be(1);
+        result.ItemsDeleted.Should().Be(1);
+        MongoWatchlistItemDocument stored = await items.Find(item => item.Id == "tv-tmdb-1399").SingleAsync();
+        stored.TmdbId.Should().Be(1399);
+        stored.ImdbId.Should().Be("tt0944947");
+        stored.TvdbId.Should().Be(121361);
+        stored.TmdbMetadataStatus.Should().Be("enriched");
+        stored.Genres.Should().Equal("Drama");
+        stored.PlexRatingKey.Should().BeNull();
+
+        MongoSyncRunDocument syncRun = await syncRuns
+            .Find(FilterDefinition<MongoSyncRunDocument>.Empty)
+            .SingleAsync();
+        syncRun.Status.Should().Be("tmdb_tv_completed");
+    }
+
     public Task InitializeAsync()
     {
         return Task.CompletedTask;
@@ -198,6 +261,24 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
     public async Task DisposeAsync()
     {
         await client.DropDatabaseAsync(databaseName);
+    }
+
+    private static WatchlistItem CreateTmdbTv(string sourceId, string title)
+    {
+        return new WatchlistItem(
+            $"tv-tmdb-{sourceId}",
+            MediaType.TvShow,
+            WatchlistSource.Tmdb,
+            sourceId,
+            title,
+            2024,
+            null,
+            null,
+            null,
+            ReleaseStatus.Released,
+            AvailabilityStatus.NotOnPlex,
+            DateTimeOffset.Parse("2026-06-06T12:00:00Z"),
+            DateTimeOffset.Parse("2026-06-06T12:00:00Z"));
     }
 
     private static WatchlistItem CreateLetterboxdMovie(string sourceId, string title)

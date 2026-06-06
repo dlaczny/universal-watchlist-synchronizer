@@ -139,6 +139,7 @@ public sealed class MongoWatchlistWriteRepository(
             .Set(stored => stored.ReleaseStatus, item.Item.ReleaseStatus)
             .Set(stored => stored.AvailabilityStatus, item.Item.AvailabilityStatus)
             .Set(stored => stored.TmdbId, item.TmdbId)
+            .Set(stored => stored.TvdbId, item.TvdbId)
             .Set(stored => stored.TmdbTitle, item.Item.Title)
             .Set(stored => stored.OriginalTitle, item.Item.Title)
             .Set(stored => stored.ReleaseDate, null as string)

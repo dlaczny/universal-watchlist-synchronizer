@@ -9,4 +9,5 @@ public sealed record WatchlistItemWriteModel(
     WatchlistItem Item,
     string? ImdbId,
     string? LetterboxdPath,
-    int? TmdbId = null);
+    int? TmdbId = null,
+    int? TvdbId = null);

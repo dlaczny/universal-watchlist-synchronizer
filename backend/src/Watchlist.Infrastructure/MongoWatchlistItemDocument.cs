@@ -30,6 +30,8 @@ public sealed class MongoWatchlistItemDocument
 
     public int? TmdbId { get; init; }
 
+    public int? TvdbId { get; init; }
+
     public string? TmdbTitle { get; init; }
 
     public string? OriginalTitle { get; init; }
@@ -120,7 +122,8 @@ public sealed class MongoWatchlistItemDocument
     public static MongoWatchlistItemDocument FromDomain(
         WatchlistItem item,
         string? imdbId = null,
-        string? letterboxdPath = null)
+        string? letterboxdPath = null,
+        int? tvdbId = null)
     {
         return new MongoWatchlistItemDocument
         {
@@ -131,6 +134,7 @@ public sealed class MongoWatchlistItemDocument
             Title = item.Title,
             Year = item.Year,
             ImdbId = imdbId,
+            TvdbId = tvdbId,
             LetterboxdPath = letterboxdPath,
             Overview = item.Overview,
             PosterUrl = item.PosterUrl,
