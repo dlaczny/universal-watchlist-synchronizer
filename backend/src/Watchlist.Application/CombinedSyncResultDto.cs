@@ -6,4 +6,5 @@ public sealed record CombinedSyncResultDto(
     DateTimeOffset FinishedAt,
     LetterboxdSyncResultDto Letterboxd,
     TmdbMovieEnrichmentResultDto TmdbMovies,
+    TmdbTvSyncResultDto TmdbTv,
     PlexMovieSyncResultDto PlexMovies);

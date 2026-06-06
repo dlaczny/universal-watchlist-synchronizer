@@ -3,6 +3,7 @@ namespace Watchlist.Application;
 public sealed class CombinedSyncService(
     ILetterboxdMovieSyncService letterboxdSyncService,
     ITmdbMovieEnrichmentService tmdbMovieEnrichmentService,
+    ITmdbTvWatchlistSyncService tmdbTvWatchlistSyncService,
     IPlexMovieSyncService plexMovieSyncService,
     TimeProvider timeProvider) : ICombinedSyncService
 {
@@ -12,6 +13,7 @@ public sealed class CombinedSyncService(
 
         LetterboxdSyncResultDto letterboxd = await letterboxdSyncService.SyncAsync(cancellationToken);
         TmdbMovieEnrichmentResultDto tmdb = await tmdbMovieEnrichmentService.SyncMoviesAsync(cancellationToken);
+        TmdbTvSyncResultDto tmdbTv = await tmdbTvWatchlistSyncService.SyncAsync(cancellationToken);
         PlexMovieSyncResultDto plex = await plexMovieSyncService.SyncMoviesAsync(cancellationToken);
 
         DateTimeOffset finishedAt = timeProvider.GetUtcNow();
@@ -22,6 +24,7 @@ public sealed class CombinedSyncService(
             finishedAt,
             letterboxd,
             tmdb,
+            tmdbTv,
             plex);
     }
 }

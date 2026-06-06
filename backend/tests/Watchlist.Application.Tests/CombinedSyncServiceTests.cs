@@ -6,21 +6,23 @@ namespace Watchlist.Application.Tests;
 public sealed class CombinedSyncServiceTests
 {
     [Fact]
-    public async Task SyncAllAsync_RunsLetterboxdTmdbAndPlexInOrder()
+    public async Task SyncAllAsync_RunsLetterboxdTmdbMoviesTmdbTvAndPlexInOrder()
     {
         List<string> calls = [];
         CombinedSyncService service = new(
             new FakeLetterboxd(calls),
             new FakeTmdb(calls),
+            new FakeTmdbTv(calls),
             new FakePlex(calls),
             new FakeTimeProvider());
 
         CombinedSyncResultDto result = await service.SyncAllAsync(CancellationToken.None);
 
-        calls.Should().Equal("letterboxd", "tmdb", "plex");
+        calls.Should().Equal("letterboxd", "tmdb", "tmdb_tv", "plex");
         result.Status.Should().Be("completed");
         result.Letterboxd.ItemsFetched.Should().Be(2);
         result.TmdbMovies.ItemsEnriched.Should().Be(2);
+        result.TmdbTv.ItemsFetched.Should().Be(14);
         result.PlexMovies.WatchlistItemsMatched.Should().Be(1);
     }
 
@@ -47,12 +49,21 @@ public sealed class CombinedSyncServiceTests
         }
     }
 
+    private sealed class FakeTmdbTv(List<string> calls) : ITmdbTvWatchlistSyncService
+    {
+        public Task<TmdbTvSyncResultDto> SyncAsync(CancellationToken cancellationToken)
+        {
+            calls.Add("tmdb_tv");
+            return Task.FromResult(new TmdbTvSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:02Z"), DateTimeOffset.Parse("2026-06-05T12:00:03Z"), 14, 14, 0, 14, 0, 0));
+        }
+    }
+
     private sealed class FakePlex(List<string> calls) : IPlexMovieSyncService
     {
         public Task<PlexMovieSyncResultDto> SyncMoviesAsync(CancellationToken cancellationToken)
         {
             calls.Add("plex");
-            return Task.FromResult(new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:02Z"), DateTimeOffset.Parse("2026-06-05T12:00:03Z"), 1, 1, 1, 0, 1, 1, 0));
+            return Task.FromResult(new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:03Z"), DateTimeOffset.Parse("2026-06-05T12:00:04Z"), 1, 1, 1, 0, 1, 1, 0));
         }
     }
 

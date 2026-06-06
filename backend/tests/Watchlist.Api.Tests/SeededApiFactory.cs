@@ -264,10 +264,11 @@ public sealed class SeededApiFactory(
             CombinedSyncResultDto result = new(
                 "completed",
                 DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
-                DateTimeOffset.Parse("2026-06-05T12:00:03Z"),
+                DateTimeOffset.Parse("2026-06-05T12:00:04Z"),
                 new LetterboxdSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:00Z"), DateTimeOffset.Parse("2026-06-05T12:00:01Z"), 2, 2, 0),
                 new TmdbMovieEnrichmentResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:01Z"), DateTimeOffset.Parse("2026-06-05T12:00:02Z"), 2, 2, 0, 0),
-                new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:02Z"), DateTimeOffset.Parse("2026-06-05T12:00:03Z"), 1, 500, 500, 0, 40, 220, 3));
+                new TmdbTvSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:02Z"), DateTimeOffset.Parse("2026-06-05T12:00:03Z"), 14, 14, 0, 14, 0, 0),
+                new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:03Z"), DateTimeOffset.Parse("2026-06-05T12:00:04Z"), 1, 500, 500, 0, 40, 220, 3));
 
             return Task.FromResult(result);
         }
