@@ -64,6 +64,8 @@ android/app/build/outputs/apk/debug/
 - Predictable D-pad focus movement across navigation, toolbar controls, the popup, and poster grid.
 - Back closes the availability popup first, then follows the normal Android activity flow.
 - Loading, empty, and backend error states.
+- Pressing Select on a focused poster opens a Plex-like detail screen with backdrop, poster, metadata, description, and a state-aware primary action button.
+- The details screen renders from grid data immediately, then refreshes from `GET /api/watchlist/{id}`.
 
 `Date added` uses the backend `addedAt` field and asks the API for `sort=added_desc`.
 
@@ -78,6 +80,8 @@ Run the backend and launch the debug build on an Android TV emulator or device. 
 5. Press Back while the popup is open. Confirm it closes without leaving the screen and focus returns to the filter icon.
 6. Move focus to a poster, change collection, sort mode, and the `Unavailable` filter, then leave and relaunch the activity. Confirm the saved state and last focused item are restored where possible.
 7. Confirm focus remains visually obvious and directional movement does not trap the user at grid or toolbar boundaries.
+8. Focus a poster and press Select. Confirm the detail screen opens, the primary action button receives focus, and Back returns to the grid with the poster focus restored.
+9. Confirm missing detail metadata is hidden and missing artwork uses the neutral fallback.
 
 ## Startup Availability Refresh
 

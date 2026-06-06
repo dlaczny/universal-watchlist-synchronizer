@@ -105,9 +105,19 @@ Response:
   "vodRegions": ["PL", "US"],
   "ownedServiceAvailability": ["Amazon Prime Video"],
   "addedAt": "2026-05-20T10:00:00+02:00",
-  "updatedAt": "2026-05-25T10:00:00+02:00"
+  "updatedAt": "2026-05-25T10:00:00+02:00",
+  "genres": ["Science Fiction", "Adventure"],
+  "runtimeMinutes": 166,
+  "originalLanguage": "en",
+  "tmdbVoteAverage": 8.1,
+  "tmdbVoteCount": 7000,
+  "primaryActionLabel": "Open in Plex",
+  "primaryActionEnabled": true,
+  "primaryActionTarget": null
 }
 ```
+
+The list endpoint remains optimized for poster-grid browsing. Detail-only fields are returned by `GET /api/watchlist/{id}` so Android can render a richer page without increasing every grid response.
 
 `ownedServiceAvailability` contains subscribed streaming services where TMDB shows Poland flatrate availability. Android uses this list for provider badges when the item is not available on Plex.
 
