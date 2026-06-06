@@ -137,7 +137,11 @@ public sealed class TmdbMovieClient(
                 details.Genres
                     .Select(genre => genre.Name)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
-                    .ToList());
+                    .ToList(),
+                details.Runtime is > 0 ? details.Runtime : null,
+                NormalizeOptionalString(details.OriginalLanguage),
+                details.VoteAverage,
+                details.VoteCount);
         }
         catch (JsonException exception)
         {
@@ -276,6 +280,10 @@ public sealed class TmdbMovieClient(
         [property: JsonPropertyName("release_date")] string? ReleaseDate,
         [property: JsonPropertyName("poster_path")] string? PosterPath,
         [property: JsonPropertyName("backdrop_path")] string? BackdropPath,
+        [property: JsonPropertyName("runtime")] int? Runtime,
+        [property: JsonPropertyName("original_language")] string? OriginalLanguage,
+        [property: JsonPropertyName("vote_average")] double? VoteAverage,
+        [property: JsonPropertyName("vote_count")] int? VoteCount,
         [property: JsonPropertyName("genres")] IReadOnlyList<TmdbGenreResponse>? Genres);
 
     private sealed record TmdbGenreResponse(

@@ -11,4 +11,8 @@ public sealed record TmdbMovieDetailsDto(
     string? BackdropPath,
     string? PosterUrl,
     string? BackdropUrl,
-    IReadOnlyList<string> Genres);
+    IReadOnlyList<string> Genres,
+    int? RuntimeMinutes,
+    string? OriginalLanguage,
+    double? TmdbVoteAverage,
+    int? TmdbVoteCount);

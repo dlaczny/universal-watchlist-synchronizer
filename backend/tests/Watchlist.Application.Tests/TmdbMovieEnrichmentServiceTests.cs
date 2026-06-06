@@ -35,6 +35,10 @@ public sealed class TmdbMovieEnrichmentServiceTests
             .Which.Update.Should().Match<TmdbMovieMetadataUpdate>(update =>
                 update.TmdbId == 1297842
                 && update.TmdbTitle == "GOAT"
+                && update.RuntimeMinutes == 96
+                && update.OriginalLanguage == "en"
+                && update.TmdbVoteAverage == 7.4
+                && update.TmdbVoteCount == 812
                 && update.MetadataStatus == "enriched"
                 && update.MetadataError == null);
     }
@@ -283,7 +287,11 @@ public sealed class TmdbMovieEnrichmentServiceTests
                 "/backdrop.jpg",
                 "https://image.tmdb.org/t/p/w500/poster.jpg",
                 "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
-                ["Drama"]),
+                ["Drama"],
+                96,
+                "en",
+                7.4,
+                812),
             providers ?? new TmdbMovieProviderDataDto(new Dictionary<string, TmdbRegionWatchProvidersDto>()));
     }
 

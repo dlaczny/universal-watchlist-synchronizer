@@ -23,6 +23,10 @@ public sealed class TmdbMovieClientTests
               "release_date": "2026-02-13",
               "poster_path": "/poster.jpg",
               "backdrop_path": "/backdrop.jpg",
+              "runtime": 96,
+              "original_language": "en",
+              "vote_average": 7.4,
+              "vote_count": 812,
               "genres": [{ "id": 18, "name": "Drama" }]
             }
             """,
@@ -64,7 +68,11 @@ public sealed class TmdbMovieClientTests
             "/backdrop.jpg",
             "https://image.tmdb.org/t/p/w500/poster.jpg",
             "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
-            ["Drama"]));
+            ["Drama"],
+            96,
+            "en",
+            7.4,
+            812));
         metadata.Providers.Regions.Should().ContainKey("PL");
         metadata.Providers.Regions["PL"].Flatrate.Should().ContainSingle(provider =>
             provider.ProviderName == "Amazon Prime Video"
