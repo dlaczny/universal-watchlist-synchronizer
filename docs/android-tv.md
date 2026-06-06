@@ -57,12 +57,11 @@ android/app/build/outputs/apk/debug/
 - Remote-first poster grid with artwork, title, and availability badge on each tile.
 - Non-Plex movies with `vodReleaseKnown=true` and `releasedOnVod=false` render a `Not released` badge, based on backend TMDB watch-provider data for Poland and the US.
 - Non-Plex movies with `ownedServiceAvailability` entries render a provider badge such as `Prime`, `Max`, `SkyShowtime`, `Crunchyroll`, or `Max +1`.
-- Top navigation with enabled `All`, `Movies`, `TV Shows`, and a disabled search icon.
-- Collection toolbar with backend-owned `Date added` and `A-Z` sorting plus an availability filter icon.
-- Availability popup with an always-checked `On Plex` baseline and an `Unavailable` checkbox that requests `not_on_plex`, `unreleased`, and `unknown_match` from the backend.
-- `SharedPreferences` restore for the selected collection, sort mode, availability filter, and the last focused item where possible.
-- Predictable D-pad focus movement across navigation, toolbar controls, the popup, and poster grid.
-- Back closes the availability popup first, then follows the normal Android activity flow.
+- Persistent Plex-inspired left rail with `All`, `Movies`, `TV Shows`, `On Plex`, `Unavailable`, and disabled search.
+- Main content header with the active collection title, item count, and `Date added` / `A-Z` sort controls.
+- Configurable poster grid density through `WATCHLIST_GRID_COLUMNS` in `android/app/build.gradle`; the default TV value is `7`.
+- `SharedPreferences` restore for the selected collection, sort mode, unavailable filter, and the last focused item where possible.
+- Predictable D-pad focus movement between the left rail, sort controls, and poster grid.
 - Loading, empty, and backend error states.
 - Pressing Select on a focused poster opens a Plex-like detail screen with backdrop, poster, metadata, description, and a state-aware primary action button.
 - The details screen renders from grid data immediately, then refreshes from `GET /api/watchlist/{id}`.
@@ -73,13 +72,13 @@ android/app/build/outputs/apk/debug/
 
 Run the backend and launch the debug build on an Android TV emulator or device. Complete this flow using only D-pad navigation, Select, and Back:
 
-1. Confirm focus starts in a usable location and moves predictably through the top navigation, toolbar, and poster grid.
-2. Confirm `All`, `Movies`, and `TV Shows` change the collection, while search is visible but disabled.
+1. Confirm focus starts in a usable location and moves predictably through the left rail, sort controls, and poster grid.
+2. Confirm `All`, `Movies`, and `TV Shows` change the collection from the left rail.
 3. Confirm `Date added` and `A-Z` reload the collection from the backend with the selected sort.
-4. Open the availability popup from the filter icon. Confirm `On Plex` remains checked, then toggle `Unavailable` and confirm unavailable, unreleased, and uncertain-match items are included or excluded from the grid.
-5. Press Back while the popup is open. Confirm it closes without leaving the screen and focus returns to the filter icon.
-6. Move focus to a poster, change collection, sort mode, and the `Unavailable` filter, then leave and relaunch the activity. Confirm the saved state and last focused item are restored where possible.
-7. Confirm focus remains visually obvious and directional movement does not trap the user at grid or toolbar boundaries.
+4. Confirm `On Plex` remains selected in the rail and `Unavailable` toggles unavailable, unreleased, and uncertain-match items.
+5. From a poster in the first grid column, press Left and confirm focus moves into the rail.
+6. From the rail, press Right and confirm focus returns to the last focused poster where possible.
+7. Confirm more than one poster row is visible on a common TV viewport with the default grid density.
 8. Focus a poster and press Select. Confirm the detail screen opens, the primary action button receives focus, and Back returns to the grid with the poster focus restored.
 9. Confirm missing detail metadata is hidden and missing artwork uses the neutral fallback.
 
