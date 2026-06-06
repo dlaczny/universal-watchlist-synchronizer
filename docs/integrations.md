@@ -18,6 +18,19 @@ Imported source trace fields:
 - `imdb_id` is stored on the MongoDB document for later TMDB/Plex matching.
 - `clean_title` is stored on the MongoDB document as the Letterboxd path.
 
+## Export Endpoints
+
+Purpose: provide cached watchlist lists to external import tools without making those tools call Letterboxd, TMDB, Plex, or MongoDB directly.
+
+Implemented endpoints:
+
+- `GET /api/export/radarr/movies`: returns Radarr/Letterboxd-style movie JSON for Letterboxd watchlist movies that are not already available on subscribed VOD services.
+- `GET /api/export/sonarr/tv`: returns an empty array in v1 and reserves the TV export contract for later TMDB TV watchlist work.
+
+The movie export endpoint uses cached MongoDB fields only. It excludes a movie when TMDB enrichment has stored at least one `OwnedServiceAvailability` value. If TMDB enrichment has not run or provider data is missing, the movie remains in the export because the backend has no cached evidence that the movie is available on a subscribed VOD service.
+
+Plex availability does not filter the Radarr export endpoint.
+
 ## TMDB
 
 Purpose: source of truth for TV watchlist and metadata provider for movies and TV.
@@ -123,4 +136,4 @@ If MongoDB is unavailable, the backend returns `503 Service Unavailable` rather 
 
 ## Later Extension: Streaming Services
 
-TMDB watch-provider data is now cached for movies, but Android provider/VOD badges and provider-ID refinement are still later work.
+TMDB watch-provider data is cached for movies. Android consumes `vodReleaseKnown` plus `releasedOnVod` to distinguish non-Plex movies that have confirmed no Poland or US stream/rent/buy release yet. Provider-specific badges and provider-ID refinement are still later work.

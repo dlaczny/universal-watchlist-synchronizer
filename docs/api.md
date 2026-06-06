@@ -62,6 +62,9 @@ Response:
     "backdropUrl": "/api/images/tmdb/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
     "releaseStatus": "released",
     "availabilityStatus": "available_on_plex",
+    "vodReleaseKnown": true,
+    "releasedOnVod": true,
+    "vodRegions": ["PL", "US"],
     "addedAt": "2026-05-20T10:00:00+02:00",
     "updatedAt": "2026-05-25T10:00:00+02:00"
   }
@@ -96,9 +99,54 @@ Response:
   "backdropUrl": "/api/images/tmdb/w1280/xOMo8BRK7PfcJv9JCnx7s5hj0PX.jpg",
   "releaseStatus": "released",
   "availabilityStatus": "available_on_plex",
+  "vodReleaseKnown": true,
+  "releasedOnVod": true,
+  "vodRegions": ["PL", "US"],
   "addedAt": "2026-05-20T10:00:00+02:00",
   "updatedAt": "2026-05-25T10:00:00+02:00"
 }
+```
+
+`vodReleaseKnown` is `true` after successful TMDB metadata enrichment. `releasedOnVod` is `true` when TMDB watch-provider data shows at least one stream, rent, or buy option in Poland or the US. Android uses `vodReleaseKnown=true` plus `releasedOnVod=false` on non-Plex items to show a `Not released` badge instead of a generic `Unavailable` badge.
+
+## GET /api/export/radarr/movies
+
+Returns a Radarr/Letterboxd-compatible movie list containing Letterboxd watchlist movies that are not already available on the user's subscribed VOD services.
+
+This endpoint uses cached MongoDB data only. It does not call Letterboxd or TMDB while handling the request.
+
+Response:
+
+```json
+[
+  {
+    "id": 1297842,
+    "imdb_id": "tt27613895",
+    "title": "GOAT",
+    "release_year": "2026",
+    "clean_title": "/film/goat-2026/",
+    "adult": false
+  }
+]
+```
+
+Filtering:
+
+- Includes Letterboxd movie watchlist items with no cached subscribed-service availability.
+- Excludes movies whose cached TMDB enrichment has `OwnedServiceAvailability` entries.
+- Missing TMDB enrichment does not exclude a movie.
+- Plex availability does not affect this endpoint.
+
+## GET /api/export/sonarr/tv
+
+Returns TV shows that are not already available on subscribed VOD services.
+
+Version 1 reserves the endpoint and returns an empty array until TMDB TV watchlist sync and a Sonarr-compatible TV export shape are implemented.
+
+Response:
+
+```json
+[]
 ```
 
 ## GET /api/images/tmdb/{size}/{fileName}
