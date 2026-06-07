@@ -133,7 +133,11 @@ public sealed class PlexLibraryClient(
             video.Attribute("guid")?.Value,
             imdbId,
             tmdbId,
-            tvdbId);
+            tvdbId,
+            default,
+            video.Attribute("summary")?.Value,
+            video.Attribute("thumb")?.Value,
+            video.Attribute("art")?.Value);
     }
 
     private static string RequiredAttribute(XElement element, string name)

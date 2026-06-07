@@ -17,6 +17,12 @@ public sealed class MongoPlexLibraryItemDocument
 
     public int? Year { get; init; }
 
+    public string? Summary { get; init; }
+
+    public string? PosterPath { get; init; }
+
+    public string? BackdropPath { get; init; }
+
     public string LibrarySectionKey { get; init; } = string.Empty;
 
     public string LibrarySectionTitle { get; init; } = string.Empty;
@@ -42,7 +48,11 @@ public sealed class MongoPlexLibraryItemDocument
             PlexGuid,
             ImdbId,
             TmdbId,
-            TvdbId);
+            TvdbId,
+            LastSeenAt,
+            Summary,
+            PosterPath,
+            BackdropPath);
     }
 
     public static MongoPlexLibraryItemDocument FromDto(PlexMovieDto movie, DateTimeOffset lastSeenAt)
@@ -54,6 +64,9 @@ public sealed class MongoPlexLibraryItemDocument
             MediaType = MediaType.Movie,
             Title = movie.Title,
             Year = movie.Year,
+            Summary = movie.Summary,
+            PosterPath = movie.PosterPath,
+            BackdropPath = movie.BackdropPath,
             LibrarySectionKey = movie.LibrarySectionKey,
             LibrarySectionTitle = movie.LibrarySectionTitle,
             PlexGuid = movie.PlexGuid,

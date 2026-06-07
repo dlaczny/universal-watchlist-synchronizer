@@ -27,6 +27,7 @@ public sealed class SeededApiFactory(
             services.RemoveAll<ILetterboxdMovieSyncService>();
             services.RemoveAll<ITmdbMovieEnrichmentService>();
             services.RemoveAll<IPlexMovieSyncService>();
+            services.RemoveAll<IPlexMovieInventoryRepository>();
             services.RemoveAll<ICombinedSyncService>();
             services.RemoveAll<ITmdbTvWatchlistSyncService>();
             services.RemoveAll<IAvailabilityRefreshService>();
@@ -43,6 +44,7 @@ public sealed class SeededApiFactory(
                     tmdbSingleMovieSyncException));
             services.AddSingleton<IPlexMovieSyncService>(
                 _ => new SeededPlexMovieSyncService(plexMovieSyncException));
+            services.AddSingleton<IPlexMovieInventoryRepository, SeededPlexMovieInventoryRepository>();
             services.AddSingleton<ICombinedSyncService>(
                 _ => new SeededCombinedSyncService(combinedSyncException));
             services.AddSingleton<ITmdbTvWatchlistSyncService>(
@@ -167,6 +169,65 @@ public sealed class SeededApiFactory(
                 3);
 
             return Task.FromResult(result);
+        }
+    }
+
+    private sealed class SeededPlexMovieInventoryRepository : IPlexMovieInventoryRepository
+    {
+        private static readonly IReadOnlyList<PlexMovieDto> UnmatchedMovies =
+        [
+            new PlexMovieDto(
+                "bond-1",
+                "Dr. No",
+                1962,
+                "1",
+                "Filmy",
+                "plex://movie/bond-1",
+                "tt0055928",
+                646,
+                null,
+                DateTimeOffset.Parse("2026-06-06T10:00:00Z"),
+                "James Bond is sent to Jamaica to investigate the disappearance of a fellow agent.",
+                "/library/metadata/bond-1/thumb/1",
+                "/library/metadata/bond-1/art/1")
+        ];
+
+        public Task<PlexInventoryApplyResult> ApplyMovieInventoryAsync(
+            IReadOnlyList<PlexMovieDto> movies,
+            IReadOnlySet<string> scannedSectionKeys,
+            DateTimeOffset syncTime,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new PlexInventoryApplyResult(movies.Count, 0));
+        }
+
+        public Task<IReadOnlyList<PlexMovieDto>> GetMoviesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(UnmatchedMovies);
+        }
+
+        public Task<IReadOnlyList<PlexMovieDto>> GetUnmatchedMoviesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(UnmatchedMovies);
+        }
+
+        public Task<PlexMovieDto?> GetMovieAsync(string ratingKey, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(UnmatchedMovies.FirstOrDefault(movie => movie.RatingKey == ratingKey));
+        }
+
+        public Task<IReadOnlyList<WatchlistItemWriteModel>> GetWatchlistMoviesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<WatchlistItemWriteModel>>([]);
+        }
+
+        public Task ApplyMatchUpdatesAsync(
+            IReadOnlyList<PlexMovieMatchUpdate> updates,
+            string completedStatus,
+            DateTimeOffset completedAt,
+            CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 

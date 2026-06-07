@@ -25,7 +25,9 @@ import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -36,6 +38,7 @@ public final class MainActivity extends Activity {
     private static final String PREF_SORT_MODE = "sort_mode";
     private static final String PREF_INCLUDE_UNAVAILABLE = "include_unavailable";
     private static final String PREF_FOCUSED_ITEM_ID = "focused_item_id";
+    private static final String PREF_SELECTED_SERVICES = "selected_services";
     private int gridColumns;
 
     private final ExecutorService apiExecutor = Executors.newSingleThreadExecutor();
@@ -55,8 +58,12 @@ public final class MainActivity extends Activity {
     private Button tvButton;
     private Button dateAddedButton;
     private Button alphabeticalButton;
-    private Button onPlexButton;
-    private Button unavailableButton;
+    private TextView onPlexCheckbox;
+    private TextView primeCheckbox;
+    private TextView hboCheckbox;
+    private TextView skyShowtimeCheckbox;
+    private TextView crunchyrollCheckbox;
+    private TextView unavailableCheckbox;
     private TextView contentTitleView;
     private TextView contentCountView;
     private View lastRailFocus;
@@ -172,13 +179,29 @@ public final class MainActivity extends Activity {
 
         rail.addView(spacer(1, dp(18)));
 
-        onPlexButton = railButton(getString(R.string.rail_on_plex));
-        onPlexButton.setEnabled(false);
-        rail.addView(onPlexButton);
+        onPlexCheckbox = railCheckbox(getString(R.string.rail_on_plex));
+        onPlexCheckbox.setOnClickListener(view -> toggleAvailabilityService(BrowsingState.SERVICE_PLEX));
+        rail.addView(onPlexCheckbox);
 
-        unavailableButton = railButton(getString(R.string.rail_unavailable));
-        unavailableButton.setOnClickListener(view -> toggleUnavailable());
-        rail.addView(unavailableButton);
+        primeCheckbox = railCheckbox(getString(R.string.rail_prime));
+        primeCheckbox.setOnClickListener(view -> toggleAvailabilityService(BrowsingState.SERVICE_PRIME));
+        rail.addView(primeCheckbox);
+
+        hboCheckbox = railCheckbox(getString(R.string.rail_hbo));
+        hboCheckbox.setOnClickListener(view -> toggleAvailabilityService(BrowsingState.SERVICE_HBO));
+        rail.addView(hboCheckbox);
+
+        skyShowtimeCheckbox = railCheckbox(getString(R.string.rail_skyshowtime));
+        skyShowtimeCheckbox.setOnClickListener(view -> toggleAvailabilityService(BrowsingState.SERVICE_SKYSHOWTIME));
+        rail.addView(skyShowtimeCheckbox);
+
+        crunchyrollCheckbox = railCheckbox(getString(R.string.rail_crunchyroll));
+        crunchyrollCheckbox.setOnClickListener(view -> toggleAvailabilityService(BrowsingState.SERVICE_CRUNCHYROLL));
+        rail.addView(crunchyrollCheckbox);
+
+        unavailableCheckbox = railCheckbox(getString(R.string.rail_unavailable));
+        unavailableCheckbox.setOnClickListener(view -> toggleUnavailable());
+        rail.addView(unavailableCheckbox);
 
         rail.addView(spacer(1, 0), new LinearLayout.LayoutParams(1, 0, 1));
 
@@ -229,12 +252,20 @@ public final class MainActivity extends Activity {
         moviesButton.setNextFocusUpId(allButton.getId());
         moviesButton.setNextFocusDownId(tvButton.getId());
         tvButton.setNextFocusUpId(moviesButton.getId());
-        tvButton.setNextFocusDownId(onPlexButton.getId());
-        onPlexButton.setNextFocusUpId(tvButton.getId());
-        onPlexButton.setNextFocusDownId(unavailableButton.getId());
-        unavailableButton.setNextFocusUpId(onPlexButton.getId());
-        unavailableButton.setNextFocusDownId(searchButton.getId());
-        searchButton.setNextFocusUpId(unavailableButton.getId());
+        tvButton.setNextFocusDownId(onPlexCheckbox.getId());
+        onPlexCheckbox.setNextFocusUpId(tvButton.getId());
+        onPlexCheckbox.setNextFocusDownId(primeCheckbox.getId());
+        primeCheckbox.setNextFocusUpId(onPlexCheckbox.getId());
+        primeCheckbox.setNextFocusDownId(hboCheckbox.getId());
+        hboCheckbox.setNextFocusUpId(primeCheckbox.getId());
+        hboCheckbox.setNextFocusDownId(skyShowtimeCheckbox.getId());
+        skyShowtimeCheckbox.setNextFocusUpId(hboCheckbox.getId());
+        skyShowtimeCheckbox.setNextFocusDownId(crunchyrollCheckbox.getId());
+        crunchyrollCheckbox.setNextFocusUpId(skyShowtimeCheckbox.getId());
+        crunchyrollCheckbox.setNextFocusDownId(unavailableCheckbox.getId());
+        unavailableCheckbox.setNextFocusUpId(crunchyrollCheckbox.getId());
+        unavailableCheckbox.setNextFocusDownId(searchButton.getId());
+        searchButton.setNextFocusUpId(unavailableCheckbox.getId());
     }
 
     private void selectMediaType(String mediaType) {
@@ -253,6 +284,15 @@ public final class MainActivity extends Activity {
         Intent intent = new Intent(this, DetailsActivity.class);
         intent.putExtra(DetailsActivity.EXTRA_ITEM, item);
         startActivity(intent);
+    }
+
+    private void toggleAvailabilityService(String service) {
+        browsingState = browsingState
+                .withAvailabilityServiceSelection(service, !browsingState.isAvailabilityServiceSelected(service))
+                .withFocusedItemId(null);
+        persistBrowsingState();
+        updateControlStyles();
+        renderItems(loadedItems, false);
     }
 
     private void toggleUnavailable() {
@@ -354,7 +394,11 @@ public final class MainActivity extends Activity {
         clearPosterGrid();
         updateHeaderText();
 
-        List<WatchlistItem> visibleItems = items;
+        List<WatchlistItem> visibleItems = WatchlistFilters.applyAvailabilityFilters(
+                items,
+                browsingState.mediaType(),
+                browsingState.selectedAvailabilityServices(),
+                browsingState.includeUnavailable());
         if (visibleItems.isEmpty()) {
             messageView.setText(R.string.message_empty);
             return;
@@ -509,8 +553,12 @@ public final class MainActivity extends Activity {
             allButton.setNextFocusRightId(gridTarget.getId());
             moviesButton.setNextFocusRightId(gridTarget.getId());
             tvButton.setNextFocusRightId(gridTarget.getId());
-            onPlexButton.setNextFocusRightId(gridTarget.getId());
-            unavailableButton.setNextFocusRightId(gridTarget.getId());
+            onPlexCheckbox.setNextFocusRightId(gridTarget.getId());
+            primeCheckbox.setNextFocusRightId(gridTarget.getId());
+            hboCheckbox.setNextFocusRightId(gridTarget.getId());
+            skyShowtimeCheckbox.setNextFocusRightId(gridTarget.getId());
+            crunchyrollCheckbox.setNextFocusRightId(gridTarget.getId());
+            unavailableCheckbox.setNextFocusRightId(gridTarget.getId());
 
             dateAddedButton.setNextFocusDownId(posterTiles.get(0).getId());
             alphabeticalButton.setNextFocusDownId(posterTiles.get(Math.min(gridColumns - 1, posterTiles.size() - 1)).getId());
@@ -570,8 +618,39 @@ public final class MainActivity extends Activity {
         allButton.setNextFocusRightId(View.NO_ID);
         moviesButton.setNextFocusRightId(View.NO_ID);
         tvButton.setNextFocusRightId(View.NO_ID);
-        onPlexButton.setNextFocusRightId(View.NO_ID);
-        unavailableButton.setNextFocusRightId(View.NO_ID);
+        onPlexCheckbox.setNextFocusRightId(View.NO_ID);
+        primeCheckbox.setNextFocusRightId(View.NO_ID);
+        hboCheckbox.setNextFocusRightId(View.NO_ID);
+        skyShowtimeCheckbox.setNextFocusRightId(View.NO_ID);
+        crunchyrollCheckbox.setNextFocusRightId(View.NO_ID);
+        unavailableCheckbox.setNextFocusRightId(View.NO_ID);
+    }
+
+    private Set<String> restoreSelectedServices(BrowsingState defaults) {
+        String encoded = preferences.getString(PREF_SELECTED_SERVICES, null);
+        if (encoded == null || encoded.isEmpty()) {
+            return defaults.selectedAvailabilityServices();
+        }
+
+        Set<String> selected = new LinkedHashSet<>();
+        for (String service : encoded.split(",")) {
+            if (isKnownAvailabilityService(service)) {
+                selected.add(service);
+            }
+        }
+        return selected;
+    }
+
+    private static boolean isKnownAvailabilityService(String service) {
+        return BrowsingState.SERVICE_PLEX.equals(service)
+                || BrowsingState.SERVICE_PRIME.equals(service)
+                || BrowsingState.SERVICE_HBO.equals(service)
+                || BrowsingState.SERVICE_SKYSHOWTIME.equals(service)
+                || BrowsingState.SERVICE_CRUNCHYROLL.equals(service);
+    }
+
+    private static String encodeSelectedServices(Set<String> selectedServices) {
+        return TextUtils.join(",", selectedServices);
     }
 
     private BrowsingState restoreBrowsingState() {
@@ -600,6 +679,7 @@ public final class MainActivity extends Activity {
                 .withIncludeUnavailable(preferences.getBoolean(
                         PREF_INCLUDE_UNAVAILABLE,
                         defaults.includeUnavailable()))
+                .withSelectedAvailabilityServices(restoreSelectedServices(defaults))
                 .withFocusedItemId(focusedItemId);
     }
 
@@ -607,7 +687,8 @@ public final class MainActivity extends Activity {
         SharedPreferences.Editor editor = preferences.edit()
                 .putString(PREF_MEDIA_TYPE, browsingState.mediaType())
                 .putString(PREF_SORT_MODE, browsingState.sortMode())
-                .putBoolean(PREF_INCLUDE_UNAVAILABLE, browsingState.includeUnavailable());
+                .putBoolean(PREF_INCLUDE_UNAVAILABLE, browsingState.includeUnavailable())
+                .putString(PREF_SELECTED_SERVICES, encodeSelectedServices(browsingState.selectedAvailabilityServices()));
         if (browsingState.focusedItemId() == null) {
             editor.remove(PREF_FOCUSED_ITEM_ID);
         } else {
@@ -620,8 +701,12 @@ public final class MainActivity extends Activity {
         styleTextButton(allButton, BrowsingState.MEDIA_ALL.equals(browsingState.mediaType()));
         styleTextButton(moviesButton, BrowsingState.MEDIA_MOVIES.equals(browsingState.mediaType()));
         styleTextButton(tvButton, BrowsingState.MEDIA_TV.equals(browsingState.mediaType()));
-        styleTextButton(onPlexButton, true);
-        styleTextButton(unavailableButton, browsingState.includeUnavailable());
+        styleCheckbox(onPlexCheckbox, browsingState.isAvailabilityServiceSelected(BrowsingState.SERVICE_PLEX));
+        styleCheckbox(primeCheckbox, browsingState.isAvailabilityServiceSelected(BrowsingState.SERVICE_PRIME));
+        styleCheckbox(hboCheckbox, browsingState.isAvailabilityServiceSelected(BrowsingState.SERVICE_HBO));
+        styleCheckbox(skyShowtimeCheckbox, browsingState.isAvailabilityServiceSelected(BrowsingState.SERVICE_SKYSHOWTIME));
+        styleCheckbox(crunchyrollCheckbox, browsingState.isAvailabilityServiceSelected(BrowsingState.SERVICE_CRUNCHYROLL));
+        styleCheckbox(unavailableCheckbox, browsingState.includeUnavailable());
         styleTextButton(dateAddedButton, CollectionOrganizer.SORT_DATE_ADDED.equals(browsingState.sortMode()));
         styleTextButton(alphabeticalButton, CollectionOrganizer.SORT_ALPHABETICAL.equals(browsingState.sortMode()));
         updateHeaderText();
@@ -640,7 +725,12 @@ public final class MainActivity extends Activity {
             contentTitleView.setText(R.string.content_title_all);
         }
 
-        contentCountView.setText(getString(R.string.content_count, loadedItems.size()));
+        int visibleCount = WatchlistFilters.applyAvailabilityFilters(
+                loadedItems,
+                browsingState.mediaType(),
+                browsingState.selectedAvailabilityServices(),
+                browsingState.includeUnavailable()).size();
+        contentCountView.setText(getString(R.string.content_count, visibleCount));
     }
 
     private Button railButton(String text) {
@@ -655,6 +745,32 @@ public final class MainActivity extends Activity {
             updateControlStyles();
         });
         return button;
+    }
+
+    private TextView railCheckbox(String text) {
+        TextView checkbox = new TextView(this);
+        checkbox.setId(View.generateViewId());
+        checkbox.setText(text);
+        checkbox.setTextColor(Color.WHITE);
+        checkbox.setTextSize(16);
+        checkbox.setGravity(Gravity.CENTER_VERTICAL);
+        checkbox.setFocusable(true);
+        checkbox.setClickable(true);
+        checkbox.setMinHeight(dp(42));
+        checkbox.setPadding(dp(10), 0, dp(10), 0);
+        checkbox.setBackground(controlBackground(false, false));
+        checkbox.setOnFocusChangeListener((view, hasFocus) -> {
+            if (hasFocus) {
+                lastRailFocus = view;
+            }
+            updateControlStyles();
+        });
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(42));
+        params.setMargins(0, 0, 0, dp(6));
+        checkbox.setLayoutParams(params);
+        return checkbox;
     }
 
     private Button textButton(String text) {
@@ -696,6 +812,21 @@ public final class MainActivity extends Activity {
     private void styleTextButton(Button button, boolean selected) {
         button.setTextColor(selected ? Color.rgb(15, 20, 25) : Color.WHITE);
         button.setBackground(controlBackground(selected, button.hasFocus()));
+    }
+
+    private void styleCheckbox(TextView checkbox, boolean checked) {
+        checkbox.setText((checked ? "[x] " : "[ ] ") + checkboxLabel(checkbox));
+        checkbox.setTextColor(Color.WHITE);
+        checkbox.setBackground(controlBackground(checked, checkbox.hasFocus()));
+    }
+
+    private String checkboxLabel(TextView checkbox) {
+        CharSequence text = checkbox.getText();
+        String value = text == null ? "" : text.toString();
+        if (value.startsWith("[x] ") || value.startsWith("[ ] ")) {
+            return value.substring(4);
+        }
+        return value;
     }
 
     private GradientDrawable controlBackground(boolean selected, boolean focused) {

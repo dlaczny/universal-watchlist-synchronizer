@@ -6,6 +6,10 @@ import java.util.Collections;
 import java.util.List;
 
 public final class WatchlistItem implements Serializable {
+    public static final String MEMBERSHIP_WATCHLIST = "watchlist";
+    public static final String MEMBERSHIP_WATCHLIST_AND_PLEX = "watchlist_and_plex";
+    public static final String MEMBERSHIP_PLEX_ONLY = "plex_only";
+
     private static final long serialVersionUID = 1L;
     private final String id;
     private final String mediaType;
@@ -18,6 +22,7 @@ public final class WatchlistItem implements Serializable {
     private final String backdropUrl;
     private final String releaseStatus;
     private final String availabilityStatus;
+    private final String libraryMembership;
     private final boolean vodReleaseKnown;
     private final boolean releasedOnVod;
     private final List<String> vodRegions;
@@ -51,6 +56,7 @@ public final class WatchlistItem implements Serializable {
                 backdropUrl,
                 releaseStatus,
                 availabilityStatus,
+                MEMBERSHIP_WATCHLIST,
                 false,
                 false,
                 List.of(),
@@ -77,6 +83,46 @@ public final class WatchlistItem implements Serializable {
             List<String> ownedServiceAvailability,
             String addedAt,
             String updatedAt) {
+        this(
+                id,
+                mediaType,
+                source,
+                sourceId,
+                title,
+                year,
+                overview,
+                posterUrl,
+                backdropUrl,
+                releaseStatus,
+                availabilityStatus,
+                MEMBERSHIP_WATCHLIST,
+                vodReleaseKnown,
+                releasedOnVod,
+                vodRegions,
+                ownedServiceAvailability,
+                addedAt,
+                updatedAt);
+    }
+
+    public WatchlistItem(
+            String id,
+            String mediaType,
+            String source,
+            String sourceId,
+            String title,
+            Integer year,
+            String overview,
+            String posterUrl,
+            String backdropUrl,
+            String releaseStatus,
+            String availabilityStatus,
+            String libraryMembership,
+            boolean vodReleaseKnown,
+            boolean releasedOnVod,
+            List<String> vodRegions,
+            List<String> ownedServiceAvailability,
+            String addedAt,
+            String updatedAt) {
         this.id = id;
         this.mediaType = mediaType;
         this.source = source;
@@ -88,6 +134,7 @@ public final class WatchlistItem implements Serializable {
         this.backdropUrl = backdropUrl;
         this.releaseStatus = releaseStatus;
         this.availabilityStatus = availabilityStatus;
+        this.libraryMembership = libraryMembership;
         this.vodReleaseKnown = vodReleaseKnown;
         this.releasedOnVod = releasedOnVod;
         this.vodRegions = Collections.unmodifiableList(new ArrayList<>(vodRegions));
@@ -138,6 +185,10 @@ public final class WatchlistItem implements Serializable {
 
     public String availabilityStatus() {
         return availabilityStatus;
+    }
+
+    public String libraryMembership() {
+        return libraryMembership;
     }
 
     public boolean vodReleaseKnown() {

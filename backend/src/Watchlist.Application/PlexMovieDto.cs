@@ -9,4 +9,8 @@ public sealed record PlexMovieDto(
     string? PlexGuid,
     string? ImdbId,
     int? TmdbId,
-    int? TvdbId);
+    int? TvdbId,
+    DateTimeOffset LastSeenAt = default,
+    string? Summary = null,
+    string? PosterPath = null,
+    string? BackdropPath = null);

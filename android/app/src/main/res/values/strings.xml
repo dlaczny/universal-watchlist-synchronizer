@@ -15,7 +15,12 @@
     <string name="message_backend_error">Could not load watchlist from %1$s. %2$s</string>
     <string name="message_detail_backend_error">Could not refresh details. %1$s</string>
     <string name="message_no_description">No description available.</string>
+    <string name="message_plex_only_detail">In Plex library. Not on your watchlist.</string>
     <string name="rail_on_plex">On Plex</string>
+    <string name="rail_prime">Prime</string>
+    <string name="rail_hbo">Hbo</string>
+    <string name="rail_skyshowtime">SkyShowtime</string>
+    <string name="rail_crunchyroll">Crunchyroll</string>
     <string name="rail_unavailable">Unavailable</string>
     <string name="content_title_all">All Watchlist</string>
     <string name="content_title_movies">Movies</string>

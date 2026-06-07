@@ -76,6 +76,46 @@ public sealed class WatchlistApiTests
             item.GetProperty("availabilityStatus").GetString() == "available_on_plex");
     }
 
+    [Fact]
+    public async Task GetWatchlist_WhenAvailabilityPlex_IncludesPlexOnlyMovies()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync(
+            "/api/watchlist?collection=movie&availability=plex&sort=title_asc");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        JsonElement plexOnly = document.RootElement.EnumerateArray()
+            .Single(item => item.GetProperty("id").GetString() == "plex-movie-bond-1");
+        plexOnly.GetProperty("title").GetString().Should().Be("Dr. No");
+        plexOnly.GetProperty("source").GetString().Should().Be("plex");
+        plexOnly.GetProperty("libraryMembership").GetString().Should().Be("plex_only");
+        plexOnly.GetProperty("overview").GetString().Should().Contain("James Bond");
+        plexOnly.GetProperty("posterUrl").GetString().Should().Be("/api/images/plex/bond-1/poster");
+        plexOnly.GetProperty("backdropUrl").GetString().Should().Be("/api/images/plex/bond-1/backdrop");
+    }
+
+    [Fact]
+    public async Task GetWatchlistItem_WhenPlexOnlyMovieExists_ReturnsPlexOnlyDetails()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/watchlist/plex-movie-bond-1");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("title").GetString().Should().Be("Dr. No");
+        document.RootElement.GetProperty("overview").GetString().Should().Contain("James Bond");
+        document.RootElement.GetProperty("posterUrl").GetString().Should().Be("/api/images/plex/bond-1/poster");
+        document.RootElement.GetProperty("backdropUrl").GetString().Should().Be("/api/images/plex/bond-1/backdrop");
+        document.RootElement.GetProperty("source").GetString().Should().Be("plex");
+        document.RootElement.GetProperty("libraryMembership").GetString().Should().Be("plex_only");
+        document.RootElement.GetProperty("primaryActionEnabled").GetBoolean().Should().BeFalse();
+    }
+
     [Theory]
     [InlineData("/api/watchlist?collection=music", "Invalid collection.")]
     [InlineData("/api/watchlist?availability=plex,bad", "Invalid availability.")]

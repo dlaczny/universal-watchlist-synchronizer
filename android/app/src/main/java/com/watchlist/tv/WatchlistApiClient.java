@@ -40,9 +40,7 @@ public final class WatchlistApiClient {
         String sort = CollectionOrganizer.SORT_ALPHABETICAL.equals(sortMode)
                 ? "title_asc"
                 : "added_desc";
-        String availability = includeUnavailable
-                ? "plex,not_on_plex,unreleased,unknown_match"
-                : "plex";
+        String availability = "plex,not_on_plex,unreleased,unknown_match";
         return "/api/watchlist?collection=" + collection
                 + "&availability=" + availability
                 + "&sort=" + sort;
@@ -86,6 +84,7 @@ public final class WatchlistApiClient {
                     resolveImageUrl(baseUrl, nullableString(item, "backdropUrl")),
                     item.getString("releaseStatus"),
                     item.getString("availabilityStatus"),
+                    item.optString("libraryMembership", WatchlistItem.MEMBERSHIP_WATCHLIST),
                     item.has("vodReleaseKnown") && !item.isNull("vodReleaseKnown")
                             && item.getBoolean("vodReleaseKnown"),
                     item.has("releasedOnVod") && !item.isNull("releasedOnVod")
@@ -117,6 +116,7 @@ public final class WatchlistApiClient {
                 resolveImageUrl(baseUrl, nullableString(item, "backdropUrl")),
                 item.getString("releaseStatus"),
                 item.getString("availabilityStatus"),
+                item.optString("libraryMembership", WatchlistItem.MEMBERSHIP_WATCHLIST),
                 item.has("vodReleaseKnown") && !item.isNull("vodReleaseKnown")
                         && item.getBoolean("vodReleaseKnown"),
                 item.has("releasedOnVod") && !item.isNull("releasedOnVod")

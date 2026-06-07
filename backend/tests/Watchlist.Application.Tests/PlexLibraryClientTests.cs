@@ -41,7 +41,7 @@ public sealed class PlexLibraryClientTests
             """,
             ["/library/metadata/8058"] = """
             <MediaContainer size="1">
-              <Video ratingKey="8058" title="10 Things I Hate About You" year="1999" guid="plex://movie/local">
+              <Video ratingKey="8058" title="10 Things I Hate About You" year="1999" guid="plex://movie/local" summary="A test summary." thumb="/library/metadata/8058/thumb/1" art="/library/metadata/8058/art/1">
                 <Guid id="imdb://tt0147800" />
                 <Guid id="tmdb://4951" />
                 <Guid id="tvdb://836" />
@@ -61,7 +61,11 @@ public sealed class PlexLibraryClientTests
             "plex://movie/local",
             "tt0147800",
             4951,
-            836));
+            836,
+            default,
+            "A test summary.",
+            "/library/metadata/8058/thumb/1",
+            "/library/metadata/8058/art/1"));
     }
 
     [Fact]

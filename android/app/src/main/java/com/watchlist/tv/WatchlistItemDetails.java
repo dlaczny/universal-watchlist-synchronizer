@@ -17,6 +17,7 @@ public final class WatchlistItemDetails {
     private final String backdropUrl;
     private final String releaseStatus;
     private final String availabilityStatus;
+    private final String libraryMembership;
     private final boolean vodReleaseKnown;
     private final boolean releasedOnVod;
     private final List<String> vodRegions;
@@ -44,6 +45,34 @@ public final class WatchlistItemDetails {
             String originalLanguage, Double tmdbVoteAverage, Integer tmdbVoteCount,
             String primaryActionLabel, boolean primaryActionEnabled,
             String primaryActionTarget) {
+        this(
+                id, mediaType, source, sourceId,
+                title, year, overview,
+                posterUrl, backdropUrl,
+                releaseStatus, availabilityStatus,
+                WatchlistItem.MEMBERSHIP_WATCHLIST,
+                vodReleaseKnown, releasedOnVod,
+                vodRegions, ownedServiceAvailability,
+                addedAt, updatedAt,
+                genres, runtimeMinutes,
+                originalLanguage, tmdbVoteAverage, tmdbVoteCount,
+                primaryActionLabel, primaryActionEnabled,
+                primaryActionTarget);
+    }
+
+    public WatchlistItemDetails(
+            String id, String mediaType, String source, String sourceId,
+            String title, Integer year, String overview,
+            String posterUrl, String backdropUrl,
+            String releaseStatus, String availabilityStatus,
+            String libraryMembership,
+            boolean vodReleaseKnown, boolean releasedOnVod,
+            List<String> vodRegions, List<String> ownedServiceAvailability,
+            String addedAt, String updatedAt,
+            List<String> genres, Integer runtimeMinutes,
+            String originalLanguage, Double tmdbVoteAverage, Integer tmdbVoteCount,
+            String primaryActionLabel, boolean primaryActionEnabled,
+            String primaryActionTarget) {
         this.id = id;
         this.mediaType = mediaType;
         this.source = source;
@@ -55,6 +84,7 @@ public final class WatchlistItemDetails {
         this.backdropUrl = backdropUrl;
         this.releaseStatus = releaseStatus;
         this.availabilityStatus = availabilityStatus;
+        this.libraryMembership = libraryMembership;
         this.vodReleaseKnown = vodReleaseKnown;
         this.releasedOnVod = releasedOnVod;
         this.vodRegions = Collections.unmodifiableList(new ArrayList<>(vodRegions));
@@ -77,6 +107,7 @@ public final class WatchlistItemDetails {
                 item.title(), item.year(), item.overview(),
                 item.posterUrl(), item.backdropUrl(),
                 item.releaseStatus(), item.availabilityStatus(),
+                item.libraryMembership(),
                 item.vodReleaseKnown(), item.releasedOnVod(),
                 item.vodRegions(), item.ownedServiceAvailability(),
                 item.addedAt(), item.updatedAt(),
@@ -106,6 +137,10 @@ public final class WatchlistItemDetails {
         return String.join(" \u2022 ", parts);
     }
 
+    public boolean isPlexOnly() {
+        return WatchlistItem.MEMBERSHIP_PLEX_ONLY.equals(libraryMembership);
+    }
+
     private static String formatRuntime(int minutes) {
         int hours = minutes / 60;
         int remainingMinutes = minutes % 60;
@@ -129,6 +164,7 @@ public final class WatchlistItemDetails {
     public String backdropUrl() { return backdropUrl; }
     public String releaseStatus() { return releaseStatus; }
     public String availabilityStatus() { return availabilityStatus; }
+    public String libraryMembership() { return libraryMembership; }
     public boolean vodReleaseKnown() { return vodReleaseKnown; }
     public boolean releasedOnVod() { return releasedOnVod; }
     public List<String> vodRegions() { return vodRegions; }

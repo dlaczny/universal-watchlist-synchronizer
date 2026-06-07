@@ -5,6 +5,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+import java.util.Set;
 import org.junit.Test;
 
 public class BrowsingStateTest {
@@ -38,6 +39,44 @@ public class BrowsingStateTest {
         assertEquals(CollectionOrganizer.SORT_ALPHABETICAL, updated.sortMode());
         assertTrue(updated.includeUnavailable());
         assertEquals("tv-42", updated.focusedItemId());
+    }
+
+    @Test
+    public void defaults_startWithPlexSelectedAndOtherServiceFiltersCleared() {
+        BrowsingState state = BrowsingState.defaults();
+
+        assertTrue(state.selectedAvailabilityServices().contains(BrowsingState.SERVICE_PLEX));
+        assertEquals(1, state.selectedAvailabilityServices().size());
+        assertFalse(state.isAvailabilityServiceSelected(BrowsingState.SERVICE_PRIME));
+        assertFalse(state.includeUnavailable());
+    }
+
+    @Test
+    public void withSelectedAvailabilityServices_copiesInputAndKeepsStateImmutable() {
+        java.util.Set<String> selected = new java.util.LinkedHashSet<>();
+        selected.add(BrowsingState.SERVICE_PRIME);
+        selected.add(BrowsingState.SERVICE_HBO);
+
+        BrowsingState original = BrowsingState.defaults();
+        BrowsingState updated = original.withSelectedAvailabilityServices(selected);
+        selected.add(BrowsingState.SERVICE_CRUNCHYROLL);
+
+        assertTrue(updated.isAvailabilityServiceSelected(BrowsingState.SERVICE_PRIME));
+        assertTrue(updated.isAvailabilityServiceSelected(BrowsingState.SERVICE_HBO));
+        assertFalse(updated.isAvailabilityServiceSelected(BrowsingState.SERVICE_CRUNCHYROLL));
+        assertTrue(original.isAvailabilityServiceSelected(BrowsingState.SERVICE_PLEX));
+        assertFalse(original.isAvailabilityServiceSelected(BrowsingState.SERVICE_PRIME));
+    }
+
+    @Test
+    public void withAvailabilityServiceSelection_togglesOneServiceWithoutChangingOthers() {
+        BrowsingState state = BrowsingState.defaults()
+                .withAvailabilityServiceSelection(BrowsingState.SERVICE_PRIME, true)
+                .withAvailabilityServiceSelection(BrowsingState.SERVICE_PLEX, false);
+
+        assertFalse(state.isAvailabilityServiceSelected(BrowsingState.SERVICE_PLEX));
+        assertTrue(state.isAvailabilityServiceSelected(BrowsingState.SERVICE_PRIME));
+        assertFalse(state.includeUnavailable());
     }
 
     @Test

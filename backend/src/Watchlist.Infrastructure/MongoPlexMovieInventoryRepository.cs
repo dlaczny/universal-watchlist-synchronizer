@@ -56,6 +56,35 @@ public sealed class MongoPlexMovieInventoryRepository(
         return documents.Select(document => document.ToDto()).ToList();
     }
 
+    public async Task<IReadOnlyList<PlexMovieDto>> GetUnmatchedMoviesAsync(CancellationToken cancellationToken)
+    {
+        List<MongoWatchlistItemDocument> matchedWatchlistItems = await watchlistItems
+            .Find(item => item.AvailabilityStatus == AvailabilityStatus.AvailableOnPlex
+                && item.PlexRatingKey != null
+                && item.PlexRatingKey != string.Empty)
+            .ToListAsync(cancellationToken);
+
+        HashSet<string> matchedRatingKeys = matchedWatchlistItems
+            .Select(item => item.PlexRatingKey!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        List<MongoPlexLibraryItemDocument> documents = await plexItems
+            .Find(item => item.MediaType == MediaType.Movie
+                && !matchedRatingKeys.Contains(item.RatingKey))
+            .ToListAsync(cancellationToken);
+
+        return documents.Select(document => document.ToDto()).ToList();
+    }
+
+    public async Task<PlexMovieDto?> GetMovieAsync(string ratingKey, CancellationToken cancellationToken)
+    {
+        MongoPlexLibraryItemDocument? document = await plexItems
+            .Find(item => item.MediaType == MediaType.Movie && item.RatingKey == ratingKey)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return document?.ToDto();
+    }
+
     public async Task<IReadOnlyList<WatchlistItemWriteModel>> GetWatchlistMoviesAsync(CancellationToken cancellationToken)
     {
         List<MongoWatchlistItemDocument> documents = await watchlistItems

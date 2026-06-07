@@ -278,11 +278,168 @@ public sealed class WatchlistQueryServiceTests
         };
     }
 
+    [Fact]
+    public async Task GetItemsAsync_WhenAvailabilityPlex_IncludesUnmatchedPlexMovies()
+    {
+        IReadOnlyList<WatchlistItem> items =
+        [
+            CreateItem("available-watchlist", MediaType.Movie, "Available Watchlist", AvailabilityStatus.AvailableOnPlex),
+            CreateItem("missing-watchlist", MediaType.Movie, "Missing Watchlist", AvailabilityStatus.NotOnPlex)
+        ];
+        StubPlexMovieInventoryRepository plexRepository = new(
+            unmatchedMovies:
+            [
+                new PlexMovieDto(
+                    "bond-1",
+                    "Dr. No",
+                    1962,
+                    "1",
+                    "Filmy",
+                    "plex://movie/bond-1",
+                    "tt0055928",
+                646,
+                null,
+                DateTimeOffset.Parse("2026-06-06T10:00:00Z"),
+                "Bond summary.",
+                "/library/metadata/bond-1/thumb/1",
+                "/library/metadata/bond-1/art/1")
+            ]);
+        WatchlistQueryService service = new(new StubWatchlistReadRepository(items), plexRepository);
+        WatchlistQuery query = new(
+            WatchlistCollection.Movie,
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex },
+            WatchlistSort.TitleAscending);
+
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
+
+        result.Select(item => item.Title).Should().Equal("Available Watchlist", "Dr. No");
+        WatchlistItemDto plexOnly = result.Single(item => item.Id == "plex-movie-bond-1");
+        plexOnly.Source.Should().Be("plex");
+        plexOnly.SourceId.Should().Be("bond-1");
+        plexOnly.AvailabilityStatus.Should().Be("available_on_plex");
+        plexOnly.LibraryMembership.Should().Be("plex_only");
+        plexOnly.Overview.Should().Be("Bond summary.");
+        plexOnly.PosterUrl.Should().Be("/api/images/plex/bond-1/poster");
+        plexOnly.BackdropUrl.Should().Be("/api/images/plex/bond-1/backdrop");
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_WhenAvailabilityDoesNotIncludePlex_ExcludesUnmatchedPlexMovies()
+    {
+        StubPlexMovieInventoryRepository plexRepository = new(
+            unmatchedMovies:
+            [
+                new PlexMovieDto(
+                    "bond-1",
+                    "Dr. No",
+                    1962,
+                    "1",
+                    "Filmy",
+                    "plex://movie/bond-1",
+                    "tt0055928",
+                646,
+                null,
+                DateTimeOffset.Parse("2026-06-06T10:00:00Z"),
+                "Bond summary.",
+                "/library/metadata/bond-1/thumb/1",
+                "/library/metadata/bond-1/art/1")
+            ]);
+        WatchlistQueryService service = new(new StubWatchlistReadRepository([]), plexRepository);
+        WatchlistQuery query = new(
+            WatchlistCollection.Movie,
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.NotOnPlex },
+            WatchlistSort.TitleAscending);
+
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetItemDetailsAsync_WhenPlexOnlyMovieExists_ReturnsPlexOnlyDetails()
+    {
+        StubPlexMovieInventoryRepository plexRepository = new(
+            unmatchedMovies:
+            [
+                new PlexMovieDto(
+                    "bond-1",
+                    "Dr. No",
+                    1962,
+                    "1",
+                    "Filmy",
+                    "plex://movie/bond-1",
+                    "tt0055928",
+                646,
+                null,
+                DateTimeOffset.Parse("2026-06-06T10:00:00Z"),
+                "Bond summary.",
+                "/library/metadata/bond-1/thumb/1",
+                "/library/metadata/bond-1/art/1")
+            ]);
+        WatchlistQueryService service = new(new StubWatchlistReadRepository([]), plexRepository);
+
+        WatchlistItemDetailsDto? result = await service.GetItemDetailsAsync("plex-movie-bond-1", CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.Title.Should().Be("Dr. No");
+        result.Overview.Should().Be("Bond summary.");
+        result.PosterUrl.Should().Be("/api/images/plex/bond-1/poster");
+        result.BackdropUrl.Should().Be("/api/images/plex/bond-1/backdrop");
+        result.Source.Should().Be("plex");
+        result.LibraryMembership.Should().Be("plex_only");
+        result.PrimaryActionLabel.Should().Be("Unavailable");
+        result.PrimaryActionEnabled.Should().BeFalse();
+    }
+
     private sealed class StubWatchlistReadRepository(IReadOnlyList<WatchlistItem> items) : IWatchlistReadRepository
     {
         public Task<IReadOnlyList<WatchlistItem>> GetItemsAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(items);
+        }
+    }
+
+    private sealed class StubPlexMovieInventoryRepository(
+        IReadOnlyList<PlexMovieDto>? unmatchedMovies = null) : IPlexMovieInventoryRepository
+    {
+        private readonly IReadOnlyList<PlexMovieDto> unmatchedMovies = unmatchedMovies ?? [];
+
+        public Task<PlexInventoryApplyResult> ApplyMovieInventoryAsync(
+            IReadOnlyList<PlexMovieDto> movies,
+            IReadOnlySet<string> scannedSectionKeys,
+            DateTimeOffset syncTime,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new PlexInventoryApplyResult(0, 0));
+        }
+
+        public Task<IReadOnlyList<PlexMovieDto>> GetMoviesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<PlexMovieDto>>([]);
+        }
+
+        public Task<IReadOnlyList<PlexMovieDto>> GetUnmatchedMoviesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(unmatchedMovies);
+        }
+
+        public Task<PlexMovieDto?> GetMovieAsync(string ratingKey, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(unmatchedMovies.FirstOrDefault(movie => movie.RatingKey == ratingKey));
+        }
+
+        public Task<IReadOnlyList<WatchlistItemWriteModel>> GetWatchlistMoviesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<WatchlistItemWriteModel>>([]);
+        }
+
+        public Task ApplyMatchUpdatesAsync(
+            IReadOnlyList<PlexMovieMatchUpdate> updates,
+            string completedStatus,
+            DateTimeOffset completedAt,
+            CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 }

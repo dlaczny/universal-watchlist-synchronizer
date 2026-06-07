@@ -122,6 +122,66 @@ app.MapGet("/api/images/tmdb/{size}/{fileName}", async (
     }
 });
 
+app.MapGet("/api/images/plex/{ratingKey}/{kind}", async (
+    string ratingKey,
+    string kind,
+    IPlexMovieInventoryRepository repository,
+    IHttpClientFactory httpClientFactory,
+    IOptions<PlexOptions> options,
+    CancellationToken cancellationToken) =>
+{
+    if (kind is not ("poster" or "backdrop"))
+    {
+        return Results.BadRequest();
+    }
+
+    PlexMovieDto? movie = await repository.GetMovieAsync(ratingKey, cancellationToken);
+    string? plexPath = kind == "poster" ? movie?.PosterPath : movie?.BackdropPath;
+    if (string.IsNullOrWhiteSpace(plexPath))
+    {
+        return Results.NotFound();
+    }
+
+    PlexOptions plexOptions = options.Value;
+    if (string.IsNullOrWhiteSpace(plexOptions.BaseUrl)
+        || string.IsNullOrWhiteSpace(plexOptions.Token))
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+
+    HttpClient httpClient = httpClientFactory.CreateClient();
+    string separator = plexPath.Contains('?', StringComparison.Ordinal) ? "&" : "?";
+    Uri imageUri = new(
+        $"{plexOptions.BaseUrl.TrimEnd('/')}{plexPath}{separator}X-Plex-Token={Uri.EscapeDataString(plexOptions.Token)}");
+
+    HttpResponseMessage response;
+    try
+    {
+        response = await httpClient.GetAsync(imageUri, cancellationToken);
+    }
+    catch (HttpRequestException)
+    {
+        return Results.StatusCode(StatusCodes.Status502BadGateway);
+    }
+
+    using (response)
+    {
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return Results.NotFound();
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            return Results.StatusCode(StatusCodes.Status502BadGateway);
+        }
+
+        byte[] bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+        string contentType = response.Content.Headers.ContentType?.ToString() ?? "image/jpeg";
+        return Results.File(bytes, contentType);
+    }
+});
+
 app.MapGet("/api/sync/status", async (
     ISyncStatusReadRepository repository,
     CancellationToken cancellationToken) =>

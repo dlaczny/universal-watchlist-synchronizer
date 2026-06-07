@@ -10,6 +10,10 @@ public interface IPlexMovieInventoryRepository
 
     Task<IReadOnlyList<PlexMovieDto>> GetMoviesAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<PlexMovieDto>> GetUnmatchedMoviesAsync(CancellationToken cancellationToken);
+
+    Task<PlexMovieDto?> GetMovieAsync(string ratingKey, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<WatchlistItemWriteModel>> GetWatchlistMoviesAsync(CancellationToken cancellationToken);
 
     Task ApplyMatchUpdatesAsync(

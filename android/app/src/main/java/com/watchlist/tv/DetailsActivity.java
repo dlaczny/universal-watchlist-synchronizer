@@ -38,6 +38,7 @@ public final class DetailsActivity extends Activity {
     private TextView missingPosterView;
     private TextView titleView;
     private TextView metadataView;
+    private TextView membershipView;
     private TextView overviewView;
     private TextView errorView;
     private Button primaryActionButton;
@@ -135,6 +136,12 @@ public final class DetailsActivity extends Activity {
         metadataView.setPadding(0, dp(12), 0, 0);
         details.addView(metadataView);
 
+        membershipView = new TextView(this);
+        membershipView.setTextColor(Color.rgb(203, 213, 225));
+        membershipView.setTextSize(17);
+        membershipView.setPadding(0, dp(14), 0, 0);
+        details.addView(membershipView);
+
         primaryActionButton = new Button(this);
         primaryActionButton.setAllCaps(false);
         primaryActionButton.setTextSize(18);
@@ -190,6 +197,8 @@ public final class DetailsActivity extends Activity {
         String metadata = details.metadataSummary();
         metadataView.setText(metadata);
         metadataView.setVisibility(metadata.isEmpty() ? View.GONE : View.VISIBLE);
+        membershipView.setText(details.isPlexOnly() ? getString(R.string.message_plex_only_detail) : "");
+        membershipView.setVisibility(details.isPlexOnly() ? View.VISIBLE : View.GONE);
         overviewView.setText(details.overview() == null || details.overview().isEmpty()
                 ? getString(R.string.message_no_description)
                 : details.overview());

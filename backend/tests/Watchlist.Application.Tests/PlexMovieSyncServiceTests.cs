@@ -114,6 +114,16 @@ public sealed class PlexMovieSyncServiceTests
             return Task.FromResult(movies);
         }
 
+        public Task<IReadOnlyList<PlexMovieDto>> GetUnmatchedMoviesAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<IReadOnlyList<PlexMovieDto>>([]);
+        }
+
+        public Task<PlexMovieDto?> GetMovieAsync(string ratingKey, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<PlexMovieDto?>(movies.FirstOrDefault(movie => movie.RatingKey == ratingKey));
+        }
+
         public Task<IReadOnlyList<WatchlistItemWriteModel>> GetWatchlistMoviesAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(WatchlistMovies);

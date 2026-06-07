@@ -7,13 +7,15 @@ import org.junit.Test;
 
 public class WatchlistApiClientTest {
     @Test
-    public void buildWatchlistPath_whenAllPlexOnlyDateAdded_usesCollectionApiContract() {
+    public void buildWatchlistPath_whenAllPlexOnlyDateAdded_requestsAllAvailabilityForLocalServiceFilters() {
         String path = WatchlistApiClient.buildWatchlistPath(
                 BrowsingState.MEDIA_ALL,
                 CollectionOrganizer.SORT_DATE_ADDED,
                 false);
 
-        assertEquals("/api/watchlist?collection=all&availability=plex&sort=added_desc", path);
+        assertEquals(
+                "/api/watchlist?collection=all&availability=plex,not_on_plex,unreleased,unknown_match&sort=added_desc",
+                path);
     }
 
     @Test
@@ -64,6 +66,34 @@ public class WatchlistApiClientTest {
         assertEquals("US", item.vodRegions().get(1));
         assertEquals("Amazon Prime Video", item.ownedServiceAvailability().get(0));
         assertEquals("Max", item.ownedServiceAvailability().get(1));
+    }
+
+    @Test
+    public void parseItems_parsesLibraryMembership() throws Exception {
+        String json = "[{"
+                + "\"id\":\"plex-movie-8132\","
+                + "\"mediaType\":\"movie\","
+                + "\"source\":\"plex\","
+                + "\"sourceId\":\"8132\","
+                + "\"title\":\"Dr. No\","
+                + "\"year\":1962,"
+                + "\"overview\":null,"
+                + "\"posterUrl\":null,"
+                + "\"backdropUrl\":null,"
+                + "\"releaseStatus\":\"unknown\","
+                + "\"availabilityStatus\":\"available_on_plex\","
+                + "\"libraryMembership\":\"plex_only\","
+                + "\"vodReleaseKnown\":false,"
+                + "\"releasedOnVod\":false,"
+                + "\"vodRegions\":[],"
+                + "\"ownedServiceAvailability\":[\"plex\"],"
+                + "\"addedAt\":\"2026-06-06T10:00:00Z\","
+                + "\"updatedAt\":\"2026-06-06T10:00:00Z\""
+                + "}]";
+
+        WatchlistItem item = WatchlistApiClient.parseItems(json).get(0);
+
+        assertEquals("plex_only", item.libraryMembership());
     }
 
     @Test
@@ -303,6 +333,7 @@ public class WatchlistApiClientTest {
                 + "\"backdropUrl\":\"/api/images/tmdb/w1280/backdrop.jpg\","
                 + "\"releaseStatus\":\"released\","
                 + "\"availabilityStatus\":\"available_on_plex\","
+                + "\"libraryMembership\":\"watchlist_and_plex\","
                 + "\"vodReleaseKnown\":true,"
                 + "\"releasedOnVod\":true,"
                 + "\"vodRegions\":[\"PL\"],"
@@ -331,6 +362,7 @@ public class WatchlistApiClientTest {
         assertEquals("Open in Plex", details.primaryActionLabel());
         assertEquals(true, details.primaryActionEnabled());
         assertEquals(null, details.primaryActionTarget());
+        assertEquals("watchlist_and_plex", details.libraryMembership());
     }
 
     @Test
