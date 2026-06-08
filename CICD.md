@@ -4,9 +4,9 @@
 
 **Goal:** Automatically deploy the personal Watchlist backend and update the Android TV app on the owner's TV without Play Store publishing or manual APK copy/install.
 
-**Architecture:** Use GitHub Actions for public, non-secret CI validation. Use one Proxmox VM as the trusted local CD host for backend Docker Compose deployment, backend health checks, Android debug APK builds, and ADB install to the TV. Do not put backend secrets, Plex tokens, TMDB tokens, Letterboxd credentials, MongoDB credentials, keystores, or signing passwords in the repository or in a public APK.
+**Architecture:** Use GitHub Actions for public, non-secret CI validation. Use one Proxmox VM as the trusted local CD host for backend Docker Compose deployment, backend health checks, Android debug APK builds, and ADB install to the TV. Use MongoDB Atlas Free Tier for persistence because the Proxmox VM CPU does not expose AVX required by modern MongoDB containers. Do not put backend secrets, Plex tokens, TMDB tokens, Letterboxd credentials, MongoDB credentials, keystores, or signing passwords in the repository or in a public APK.
 
-**Tech Stack:** GitHub Actions, .NET 10, Docker Compose, MongoDB, Android Gradle Plugin, Java 17, ADB over LAN, Proxmox VM/systemd, optional Portainer later.
+**Tech Stack:** GitHub Actions, .NET 10, Docker Compose, MongoDB Atlas, Android Gradle Plugin, Java 17, ADB over LAN, Proxmox VM/systemd, optional Portainer later.
 
 ---
 
@@ -17,6 +17,7 @@
 - Backend API project: `backend/src/Watchlist.Api/Watchlist.Api.csproj`
 - Backend target framework: `net10.0`
 - Local development MongoDB compose file: `compose.yaml`
+- Deployment MongoDB target: MongoDB Atlas Free Tier
 - Android package name: `com.watchlist.tv`
 - Main launch package for ADB: `com.watchlist.tv`
 - Gradle build file: `android/app/build.gradle`
@@ -622,7 +623,7 @@ Create `deploy/backend/watchlist-backend.env.example`:
 ```bash
 ASPNETCORE_ENVIRONMENT=Production
 ASPNETCORE_URLS=http://+:8080
-MongoDb__ConnectionString=mongodb://watchlist-mongo:27017
+MongoDb__ConnectionString=mongodb+srv://watchlist:replace-on-proxmox-vm@replace-on-atlas.mongodb.net/watchlist?retryWrites=true&w=majority
 MongoDb__DatabaseName=watchlist
 MongoDb__WatchlistItemsCollectionName=watchlist_items
 MongoDb__SyncRunsCollectionName=sync_runs
@@ -643,18 +644,6 @@ Create `deploy/backend/compose.yaml`:
 
 ```yaml
 services:
-  watchlist-mongo:
-    image: mongo:8.0
-    container_name: watchlist-mongo
-    restart: unless-stopped
-    volumes:
-      - watchlist-mongo-data:/data/db
-    healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-
   watchlist-api:
     build:
       context: ../..
@@ -665,11 +654,6 @@ services:
       - ./watchlist-backend.env
     ports:
       - "5000:8080"
-    depends_on:
-      watchlist-mongo:
-        condition: service_healthy
-volumes:
-  watchlist-mongo-data:
 ```
 
 - [ ] **Step 5: Install real env file manually on Proxmox VM**
@@ -936,7 +920,7 @@ After the VM/systemd path works, migrate only the backend runtime to Portainer f
 ```text
 Portainer manages:
   watchlist-api
-  watchlist-mongo
+  no MongoDB container; persistence is MongoDB Atlas
 
 systemd still manages:
   git pull
