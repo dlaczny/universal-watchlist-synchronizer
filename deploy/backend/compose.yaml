@@ -1,0 +1,29 @@
+services:
+  watchlist-mongo:
+    image: mongo:8.0
+    container_name: watchlist-mongo
+    restart: unless-stopped
+    volumes:
+      - watchlist-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  watchlist-api:
+    build:
+      context: ../..
+      dockerfile: backend/src/Watchlist.Api/Dockerfile
+    container_name: watchlist-api
+    restart: unless-stopped
+    env_file:
+      - ./watchlist-backend.env
+    ports:
+      - "5000:8080"
+    depends_on:
+      watchlist-mongo:
+        condition: service_healthy
+
+volumes:
+  watchlist-mongo-data:

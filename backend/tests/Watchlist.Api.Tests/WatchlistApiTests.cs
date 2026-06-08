@@ -9,6 +9,17 @@ namespace Watchlist.Api.Tests;
 public sealed class WatchlistApiTests
 {
     [Fact]
+    public async Task GetHealthz_ReturnsOk()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/healthz");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task GetWatchlist_WhenDefaultQuery_ReturnsAllItemsWithAddedAt()
     {
         using SeededApiFactory factory = new();

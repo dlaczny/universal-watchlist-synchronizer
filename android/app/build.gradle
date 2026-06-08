@@ -2,6 +2,11 @@ plugins {
     id "com.android.application"
 }
 
+def watchlistApiBaseUrl = providers
+        .gradleProperty("watchlistApiBaseUrl")
+        .orElse(providers.environmentVariable("WATCHLIST_API_BASE_URL"))
+        .orElse("http://10.0.2.2:5000")
+
 android {
     namespace "com.watchlist.tv"
     compileSdk 36
@@ -17,7 +22,7 @@ android {
         versionCode 1
         versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField "String", "WATCHLIST_API_BASE_URL", "\"http://10.0.2.2:5000\""
+        buildConfigField "String", "WATCHLIST_API_BASE_URL", "\"${watchlistApiBaseUrl.get()}\""
         buildConfigField "int", "WATCHLIST_GRID_COLUMNS", "7"
     }
 

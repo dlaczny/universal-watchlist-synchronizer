@@ -1,0 +1,10 @@
+[Unit]
+Description=Poll and deploy Watchlist backend and Android TV app
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Unit=watchlist-deploy.service
+
+[Install]
+WantedBy=timers.target

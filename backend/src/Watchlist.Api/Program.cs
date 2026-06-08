@@ -22,6 +22,8 @@ WebApplication app = builder.Build();
 
 app.UseExceptionHandler();
 
+app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+
 app.MapGet("/api/watchlist", async (
     string? collection,
     string? availability,

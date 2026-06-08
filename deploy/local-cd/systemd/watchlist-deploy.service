@@ -1,0 +1,10 @@
+[Unit]
+Description=Deploy Watchlist backend and Android TV app
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/opt/watchlist-app/deploy/local-cd/watchlist-deploy.env
+ExecStart=/bin/bash /opt/watchlist-app/scripts/deploy-watchlist-local.sh
+WorkingDirectory=/opt/watchlist-app

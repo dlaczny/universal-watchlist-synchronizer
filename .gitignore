@@ -15,8 +15,11 @@ opencode.json
 
 # Android
 local.properties
+android/keystore.properties
 *.apk
 *.aab
+*.keystore
+*.jks
 
 # .NET
 TestResults/
@@ -28,6 +31,8 @@ coverage/
 .env.*
 appsettings.*.Local.json
 secrets.json
+deploy/backend/watchlist-backend.env
+deploy/local-cd/watchlist-deploy.env
 
 # Logs and temp files
 *.log
