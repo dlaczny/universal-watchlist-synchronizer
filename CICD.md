@@ -26,7 +26,22 @@
 - `10.0.2.2` is emulator-only and will not work from a real Android TV.
 - Observed Android TV wireless debugging screen: `192.168.50.100:34763`
 - Treat the observed TV port as temporary until verified from the Proxmox VM. Android wireless debugging can expose separate pairing and connection ports.
-- No GitHub Actions workflows exist yet.
+- GitHub Actions workflows exist for backend and Android CI.
+
+## Current Working Homelab Setup
+
+- Deployer VM: Ubuntu Server on Proxmox.
+- Deployer VM LAN IP observed during setup: `192.168.50.163`.
+- Backend URL for Android TV: `http://192.168.50.163:5000`.
+- Backend deploy compose path: `deploy/backend/compose.yaml`.
+- Do not run deployment from the repository root with `docker compose up`; the root `compose.yaml` is for local development.
+- Runtime database: MongoDB Atlas Free Tier.
+- Local MongoDB container was abandoned because the VM CPU did not expose AVX required by MongoDB 5.0+ containers.
+- Android TV wireless debugging address observed during setup: `192.168.50.100:34763`.
+- Android TV pairing used modern Google platform-tools because Ubuntu's `adb` package was too old for `adb pair`.
+- Android SDK path on VM: `/opt/android-sdk`.
+- Android SDK required packages: `platform-tools`, `platforms;android-36`, `build-tools;35.0.0`, and `build-tools;36.0.0`.
+- Android SDK licenses must be accepted after making `/opt/android-sdk` writable by the `watchlist` user.
 
 ## Recommended Design
 
@@ -192,6 +207,62 @@ You must do manually:
 
 **Files:**
 - No repository file changes.
+
+- [ ] **Step 0: Install deployer VM prerequisites**
+
+Run on the Proxmox VM:
+
+```bash
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg git unzip openjdk-17-jdk
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl enable --now docker
+sudo usermod -aG docker "$USER"
+```
+
+Install modern Android platform-tools because Ubuntu 22.04's `adb` package does not support `adb pair`:
+
+```bash
+cd /tmp
+curl -LO https://dl.google.com/android/repository/platform-tools-latest-linux.zip
+unzip -o platform-tools-latest-linux.zip
+sudo mkdir -p /opt/android-sdk
+sudo rm -rf /opt/android-sdk/platform-tools
+sudo mv platform-tools /opt/android-sdk/platform-tools
+echo 'export PATH=/opt/android-sdk/platform-tools:$PATH' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Install Android command-line tools and SDK packages after cloning the repository to `/opt/watchlist-app`:
+
+```bash
+sudo mkdir -p /opt/android-sdk/cmdline-tools
+cd /tmp
+curl -LO https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip
+unzip -o commandlinetools-linux-13114758_latest.zip
+sudo rm -rf /opt/android-sdk/cmdline-tools/latest
+sudo mkdir -p /opt/android-sdk/cmdline-tools/latest
+sudo mv cmdline-tools/* /opt/android-sdk/cmdline-tools/latest/
+cat <<'EOF' >> ~/.bashrc
+export ANDROID_HOME=/opt/android-sdk
+export ANDROID_SDK_ROOT=/opt/android-sdk
+export PATH=/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools:$PATH
+EOF
+source ~/.bashrc
+sudo chown -R "$USER:$USER" /opt/android-sdk
+yes | sdkmanager --licenses
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0"
+cat > /opt/watchlist-app/android/local.properties <<'EOF'
+sdk.dir=/opt/android-sdk
+EOF
+```
 
 - [ ] **Step 1: Reserve backend LAN address**
 
