@@ -39,6 +39,9 @@ public final class MainActivity extends Activity {
     private static final String PREF_INCLUDE_UNAVAILABLE = "include_unavailable";
     private static final String PREF_FOCUSED_ITEM_ID = "focused_item_id";
     private static final String PREF_SELECTED_SERVICES = "selected_services";
+    private static final int POSTER_TILE_WIDTH_DP = 128;
+    private static final int POSTER_TILE_RIGHT_MARGIN_DP = 10;
+    private static final int GRID_RIGHT_GUTTER_DP = 18;
     private int gridColumns;
 
     private final ExecutorService apiExecutor = Executors.newSingleThreadExecutor();
@@ -138,7 +141,9 @@ public final class MainActivity extends Activity {
         posterGrid = new GridLayout(this);
         posterGrid.setColumnCount(gridColumns);
         posterGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
-        posterGrid.setPadding(0, dp(8), 0, dp(18));
+        posterGrid.setPadding(0, dp(8), dp(GRID_RIGHT_GUTTER_DP), dp(18));
+        posterGrid.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+                updateGridColumnsForAvailableWidth());
         gridScrollView.addView(posterGrid, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT,
                 ScrollView.LayoutParams.WRAP_CONTENT));
@@ -391,6 +396,7 @@ public final class MainActivity extends Activity {
             return;
         }
         progressBar.setVisibility(View.GONE);
+        updateGridColumnsForAvailableWidth();
         clearPosterGrid();
         updateHeaderText();
 
@@ -492,11 +498,39 @@ public final class MainActivity extends Activity {
         tile.addView(badge, new LinearLayout.LayoutParams(dp(118), dp(24)));
 
         GridLayout.LayoutParams layoutParams = new GridLayout.LayoutParams();
-        layoutParams.width = dp(128);
+        layoutParams.width = dp(POSTER_TILE_WIDTH_DP);
         layoutParams.height = dp(236);
-        layoutParams.setMargins(0, 0, dp(10), dp(10));
+        layoutParams.setMargins(0, 0, dp(POSTER_TILE_RIGHT_MARGIN_DP), dp(10));
         tile.setLayoutParams(layoutParams);
         return tile;
+    }
+
+    private void updateGridColumnsForAvailableWidth() {
+        if (posterGrid == null) {
+            return;
+        }
+
+        int availableWidth = posterGrid.getWidth()
+                - posterGrid.getPaddingLeft()
+                - posterGrid.getPaddingRight();
+        if (availableWidth <= 0) {
+            return;
+        }
+
+        int effectiveColumns = WatchlistConfig.effectiveGridColumns(
+                WatchlistConfig.gridColumns(),
+                availableWidth,
+                dp(POSTER_TILE_WIDTH_DP + POSTER_TILE_RIGHT_MARGIN_DP));
+        if (effectiveColumns == gridColumns) {
+            return;
+        }
+
+        gridColumns = effectiveColumns;
+        posterGrid.setColumnCount(gridColumns);
+        posterGrid.requestLayout();
+        if (!posterTiles.isEmpty()) {
+            wirePosterFocusLinks();
+        }
     }
 
     private void wirePosterFocusLinks() {

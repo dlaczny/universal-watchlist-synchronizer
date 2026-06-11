@@ -23,6 +23,7 @@ android {
         versionName "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField "String", "WATCHLIST_API_BASE_URL", "\"${watchlistApiBaseUrl.get()}\""
+        // Preferred poster columns. WatchlistConfig clamps this to 5-9 and the TV UI reduces it when needed to avoid clipping.
         buildConfigField "int", "WATCHLIST_GRID_COLUMNS", "7"
     }
 

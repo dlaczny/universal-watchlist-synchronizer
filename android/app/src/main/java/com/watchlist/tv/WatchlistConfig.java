@@ -1,7 +1,7 @@
 package com.watchlist.tv;
 
 public final class WatchlistConfig {
-    private static final int MIN_GRID_COLUMNS = 4;
+    private static final int MIN_GRID_COLUMNS = 5;
     private static final int MAX_GRID_COLUMNS = 9;
 
     private WatchlistConfig() {
@@ -31,5 +31,14 @@ public final class WatchlistConfig {
             return MAX_GRID_COLUMNS;
         }
         return value;
+    }
+
+    static int effectiveGridColumns(int preferredColumns, int availableWidth, int tileStride) {
+        if (tileStride <= 0) {
+            return clampGridColumns(preferredColumns);
+        }
+
+        int fittingColumns = Math.max(1, availableWidth / tileStride);
+        return Math.min(clampGridColumns(preferredColumns), fittingColumns);
     }
 }
