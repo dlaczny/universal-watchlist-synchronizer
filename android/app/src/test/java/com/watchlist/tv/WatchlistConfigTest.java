@@ -35,6 +35,13 @@ public class WatchlistConfigTest {
     }
 
     @Test
+    public void effectiveGridColumns_subtractsReservedGutterBeforeFittingColumns() {
+        int columns = WatchlistConfig.effectiveGridColumns(7, 980, 138, 18);
+
+        assertEquals(6, columns);
+    }
+
+    @Test
     public void effectiveGridColumns_keepsAtLeastOneColumnWhenViewportIsVeryNarrow() {
         int columns = WatchlistConfig.effectiveGridColumns(5, 100, 138);
 

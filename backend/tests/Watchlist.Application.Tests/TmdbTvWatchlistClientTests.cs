@@ -178,7 +178,7 @@ public sealed class TmdbTvWatchlistClientTests
             BaseAddress = new Uri("https://api.themoviedb.org/3")
         };
         TmdbOptions options = CreateOptions("token", 123, "session");
-        TmdbTvWatchlistClient client = new(httpClient, Options.Create(options));
+        TmdbTvWatchlistClient client = new(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
 
         Func<Task> action = () => client.GetWatchlistAsync(CancellationToken.None);
 
@@ -193,7 +193,7 @@ public sealed class TmdbTvWatchlistClientTests
             BaseAddress = new Uri("https://api.themoviedb.org/3")
         };
         TmdbOptions options = CreateOptions("token", 123, "session");
-        TmdbTvWatchlistClient client = new(httpClient, Options.Create(options));
+        TmdbTvWatchlistClient client = new(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
 
         Func<Task> action = () => client.GetWatchlistAsync(CancellationToken.None);
 
@@ -212,7 +212,7 @@ public sealed class TmdbTvWatchlistClientTests
         };
         TmdbOptions options = CreateOptions(accessToken, accountId, sessionId);
 
-        return new TmdbTvWatchlistClient(httpClient, Options.Create(options));
+        return new TmdbTvWatchlistClient(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
     }
 
     private static TmdbTvWatchlistClient CreateClient(StaticTmdbHandler handler)
@@ -223,7 +223,7 @@ public sealed class TmdbTvWatchlistClientTests
         };
         TmdbOptions options = CreateOptions("token", 123, "session");
 
-        return new TmdbTvWatchlistClient(httpClient, Options.Create(options));
+        return new TmdbTvWatchlistClient(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
     }
 
     private static TmdbOptions CreateOptions(string accessToken, int? accountId, string sessionId)
@@ -237,5 +237,13 @@ public sealed class TmdbTvWatchlistClientTests
             SessionId = sessionId,
             Language = "en-US"
         };
+    }
+
+    private sealed class ImmediateHttpRetryDelay : IHttpRetryDelay
+    {
+        public Task DelayAsync(int attempt, HttpResponseMessage? response, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

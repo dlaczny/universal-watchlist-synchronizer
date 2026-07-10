@@ -34,11 +34,16 @@ public final class WatchlistConfig {
     }
 
     static int effectiveGridColumns(int preferredColumns, int availableWidth, int tileStride) {
+        return effectiveGridColumns(preferredColumns, availableWidth, tileStride, 0);
+    }
+
+    static int effectiveGridColumns(int preferredColumns, int availableWidth, int tileStride, int reservedGutter) {
         if (tileStride <= 0) {
             return clampGridColumns(preferredColumns);
         }
 
-        int fittingColumns = Math.max(1, availableWidth / tileStride);
+        int fittingWidth = Math.max(0, availableWidth - Math.max(0, reservedGutter));
+        int fittingColumns = Math.max(1, fittingWidth / tileStride);
         return Math.min(clampGridColumns(preferredColumns), fittingColumns);
     }
 }

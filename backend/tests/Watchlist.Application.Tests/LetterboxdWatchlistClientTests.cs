@@ -75,6 +75,47 @@ public sealed class LetterboxdWatchlistClientTests
     }
 
     [Fact]
+    public async Task GetMoviesAsync_WhenProxyInitiallyUnavailable_RetriesAndParsesMovies()
+    {
+        const string json = """
+        [
+          {
+            "id": 1418998,
+            "imdb_id": "tt35450621",
+            "title": "Karma",
+            "release_year": "2026",
+            "clean_title": "/film/karma-2026/",
+            "adult": false
+          }
+        ]
+        """;
+        SequenceHttpMessageHandler handler = new(new Queue<HttpResponseMessage>([
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+            {
+                Content = new StringContent("wake up")
+            },
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(json)
+            }
+        ]));
+        HttpClient httpClient = new(handler);
+        LetterboxdOptions options = new()
+        {
+            WatchlistUrl = "https://example.test/example-user/watchlist"
+        };
+        LetterboxdWatchlistClient client = new(
+            httpClient,
+            Options.Create(options),
+            new ImmediateHttpRetryDelay());
+
+        IReadOnlyList<LetterboxdMovieDto> movies = await client.GetMoviesAsync(CancellationToken.None);
+
+        movies.Should().Equal(new LetterboxdMovieDto("1418998", "tt35450621", "Karma", 2026, "/film/karma-2026/"));
+        handler.RequestCount.Should().Be(2);
+    }
+
+    [Fact]
     public async Task GetMoviesAsync_WhenProxyCannotBeReached_ThrowsLetterboxdUnavailableException()
     {
         HttpClient httpClient = new(new ThrowingHttpMessageHandler(new HttpRequestException("network down")));
@@ -82,7 +123,7 @@ public sealed class LetterboxdWatchlistClientTests
         {
             WatchlistUrl = "https://example.test/example-user/watchlist"
         };
-        LetterboxdWatchlistClient client = new(httpClient, Options.Create(options));
+        LetterboxdWatchlistClient client = new(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
 
         Func<Task> action = () => client.GetMoviesAsync(CancellationToken.None);
 
@@ -146,7 +187,7 @@ public sealed class LetterboxdWatchlistClientTests
             WatchlistUrl = "https://example.test/example-user/watchlist"
         };
 
-        return new LetterboxdWatchlistClient(httpClient, Options.Create(options));
+        return new LetterboxdWatchlistClient(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
     }
 
     private sealed class StaticHttpMessageHandler(HttpStatusCode statusCode, string content) : HttpMessageHandler
@@ -171,6 +212,27 @@ public sealed class LetterboxdWatchlistClientTests
             CancellationToken cancellationToken)
         {
             return Task.FromException<HttpResponseMessage>(exception);
+        }
+    }
+
+    private sealed class SequenceHttpMessageHandler(Queue<HttpResponseMessage> responses) : HttpMessageHandler
+    {
+        public int RequestCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            return Task.FromResult(responses.Dequeue());
+        }
+    }
+
+    private sealed class ImmediateHttpRetryDelay : IHttpRetryDelay
+    {
+        public Task DelayAsync(int attempt, HttpResponseMessage? response, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
         }
     }
 }

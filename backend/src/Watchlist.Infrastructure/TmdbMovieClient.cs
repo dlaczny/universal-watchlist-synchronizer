@@ -9,7 +9,8 @@ namespace Watchlist.Infrastructure;
 
 public sealed class TmdbMovieClient(
     HttpClient httpClient,
-    IOptions<TmdbOptions> options) : ITmdbMovieClient
+    IOptions<TmdbOptions> options,
+    IHttpRetryDelay? retryDelay = null) : ITmdbMovieClient
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -200,12 +201,19 @@ public sealed class TmdbMovieClient(
         CancellationToken cancellationToken)
     {
         Uri uri = BuildRequestUri(requestUri);
-        using HttpRequestMessage request = new(HttpMethod.Get, uri);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
         try
         {
-            return await httpClient.SendAsync(request, cancellationToken);
+            return await HttpRetryPolicy.SendAsync(
+                httpClient,
+                () =>
+                {
+                    HttpRequestMessage request = new(HttpMethod.Get, uri);
+                    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+                    return request;
+                },
+                retryDelay ?? new DefaultHttpRetryDelay(TimeProvider.System),
+                cancellationToken);
         }
         catch (HttpRequestException exception)
         {

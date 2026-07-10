@@ -224,6 +224,68 @@ public sealed class TmdbMovieClientTests
     }
 
     [Fact]
+    public async Task GetMovieMetadataAsync_WhenTmdbInitiallyReturnsServerError_RetriesAndParsesMetadata()
+    {
+        Dictionary<string, Queue<string>> responses = new()
+        {
+            ["/3/movie/1297842"] = new Queue<string>([
+                "__500__",
+                """
+                {
+                  "id": 1297842,
+                  "imdb_id": "tt27613895",
+                  "title": "GOAT",
+                  "original_title": "GOAT",
+                  "overview": "A promising athlete story.",
+                  "release_date": "2026-02-13",
+                  "poster_path": "/poster.jpg",
+                  "backdrop_path": "/backdrop.jpg",
+                  "genres": []
+                }
+                """,
+                """
+                {
+                  "id": 1297842,
+                  "imdb_id": "tt27613895",
+                  "title": "GOAT",
+                  "original_title": "GOAT",
+                  "overview": "A promising athlete story.",
+                  "release_date": "2026-02-13",
+                  "poster_path": "/poster.jpg",
+                  "backdrop_path": "/backdrop.jpg",
+                  "genres": []
+                }
+                """
+            ]),
+            ["/3/movie/1297842/watch/providers"] = new Queue<string>([
+                """{ "results": {} }"""
+            ])
+        };
+        SequenceTmdbHandler handler = new(responses);
+        HttpClient httpClient = new(handler)
+        {
+            BaseAddress = new Uri("https://api.themoviedb.org/3")
+        };
+        TmdbOptions options = CreateOptions("token");
+        TmdbMovieClient client = new(
+            httpClient,
+            Options.Create(options),
+            new ImmediateHttpRetryDelay());
+
+        TmdbMovieMetadataDto metadata = await client.GetMovieMetadataAsync(
+            1297842,
+            "tt27613895",
+            CancellationToken.None);
+
+        metadata.Details.Title.Should().Be("GOAT");
+        handler.RequestedPathAndQueries.Should().Equal(
+            "/3/movie/1297842",
+            "/3/movie/1297842",
+            "/3/movie/1297842",
+            "/3/movie/1297842/watch/providers");
+    }
+
+    [Fact]
     public async Task GetMovieMetadataAsync_WhenAccessTokenMissing_ThrowsTmdbUnavailableException()
     {
         TmdbMovieClient client = CreateClient(
@@ -280,7 +342,7 @@ public sealed class TmdbMovieClientTests
             BaseAddress = new Uri("https://api.themoviedb.org/3")
         };
         TmdbOptions options = CreateOptions("token");
-        TmdbMovieClient client = new(httpClient, Options.Create(options));
+        TmdbMovieClient client = new(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
 
         Func<Task> action = () => client.GetMovieMetadataAsync(
             1297842,
@@ -298,7 +360,7 @@ public sealed class TmdbMovieClientTests
             BaseAddress = new Uri("https://api.themoviedb.org/3")
         };
         TmdbOptions options = CreateOptions("token");
-        TmdbMovieClient client = new(httpClient, Options.Create(options));
+        TmdbMovieClient client = new(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
 
         Func<Task> action = () => client.GetMovieMetadataAsync(
             1297842,
@@ -318,7 +380,7 @@ public sealed class TmdbMovieClientTests
         };
         TmdbOptions options = CreateOptions(accessToken);
 
-        return new TmdbMovieClient(httpClient, Options.Create(options));
+        return new TmdbMovieClient(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
     }
 
     private static TmdbMovieClient CreateClient(StaticTmdbHandler handler)
@@ -329,7 +391,7 @@ public sealed class TmdbMovieClientTests
         };
         TmdbOptions options = CreateOptions("token");
 
-        return new TmdbMovieClient(httpClient, Options.Create(options));
+        return new TmdbMovieClient(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
     }
 
     private static TmdbOptions CreateOptions(string accessToken)
@@ -342,4 +404,37 @@ public sealed class TmdbMovieClientTests
         };
     }
 
+    private sealed class SequenceTmdbHandler(IReadOnlyDictionary<string, Queue<string>> responses) : HttpMessageHandler
+    {
+        public List<string> RequestedPathAndQueries { get; } = [];
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            request.Headers.Authorization.Should().NotBeNull();
+            string key = request.RequestUri!.PathAndQuery;
+            RequestedPathAndQueries.Add(key);
+            key.Should().BeOneOf(responses.Keys);
+            string content = responses[key].Dequeue();
+
+            if (content == "__500__")
+            {
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError));
+            }
+
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(content)
+            });
+        }
+    }
+
+    private sealed class ImmediateHttpRetryDelay : IHttpRetryDelay
+    {
+        public Task DelayAsync(int attempt, HttpResponseMessage? response, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+    }
 }

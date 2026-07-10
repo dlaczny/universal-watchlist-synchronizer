@@ -54,6 +54,7 @@ public final class MainActivity extends Activity {
     private SharedPreferences preferences;
     private BrowsingState browsingState;
     private GridLayout posterGrid;
+    private ScrollView posterScrollView;
     private TextView messageView;
     private ProgressBar progressBar;
     private Button allButton;
@@ -133,21 +134,21 @@ public final class MainActivity extends Activity {
         progressBar.setVisibility(View.GONE);
         main.addView(progressBar);
 
-        ScrollView gridScrollView = new ScrollView(this);
-        gridScrollView.setFillViewport(true);
-        gridScrollView.setClipToPadding(false);
-        gridScrollView.setFocusable(false);
+        posterScrollView = new ScrollView(this);
+        posterScrollView.setFillViewport(true);
+        posterScrollView.setClipToPadding(false);
+        posterScrollView.setFocusable(false);
+        posterScrollView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+                updateGridColumnsForAvailableWidth());
 
         posterGrid = new GridLayout(this);
         posterGrid.setColumnCount(gridColumns);
         posterGrid.setAlignmentMode(GridLayout.ALIGN_BOUNDS);
-        posterGrid.setPadding(0, dp(8), dp(GRID_RIGHT_GUTTER_DP), dp(18));
-        posterGrid.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
-                updateGridColumnsForAvailableWidth());
-        gridScrollView.addView(posterGrid, new ScrollView.LayoutParams(
+        posterGrid.setPadding(0, dp(8), 0, dp(18));
+        posterScrollView.addView(posterGrid, new ScrollView.LayoutParams(
                 ScrollView.LayoutParams.MATCH_PARENT,
                 ScrollView.LayoutParams.WRAP_CONTENT));
-        main.addView(gridScrollView, new LinearLayout.LayoutParams(
+        main.addView(posterScrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 0,
                 1));
@@ -506,11 +507,13 @@ public final class MainActivity extends Activity {
     }
 
     private void updateGridColumnsForAvailableWidth() {
-        if (posterGrid == null) {
+        if (posterGrid == null || posterScrollView == null) {
             return;
         }
 
-        int availableWidth = posterGrid.getWidth()
+        int availableWidth = posterScrollView.getWidth()
+                - posterScrollView.getPaddingLeft()
+                - posterScrollView.getPaddingRight()
                 - posterGrid.getPaddingLeft()
                 - posterGrid.getPaddingRight();
         if (availableWidth <= 0) {
@@ -520,7 +523,8 @@ public final class MainActivity extends Activity {
         int effectiveColumns = WatchlistConfig.effectiveGridColumns(
                 WatchlistConfig.gridColumns(),
                 availableWidth,
-                dp(POSTER_TILE_WIDTH_DP + POSTER_TILE_RIGHT_MARGIN_DP));
+                dp(POSTER_TILE_WIDTH_DP + POSTER_TILE_RIGHT_MARGIN_DP),
+                dp(GRID_RIGHT_GUTTER_DP));
         if (effectiveColumns == gridColumns) {
             return;
         }

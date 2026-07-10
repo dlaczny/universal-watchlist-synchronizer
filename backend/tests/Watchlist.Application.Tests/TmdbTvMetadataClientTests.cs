@@ -121,7 +121,7 @@ public sealed class TmdbTvMetadataClientTests
             BaseAddress = new Uri("https://api.themoviedb.org/3")
         };
         TmdbOptions options = CreateOptions("token");
-        TmdbTvMetadataClient client = new(httpClient, Options.Create(options));
+        TmdbTvMetadataClient client = new(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
 
         Func<Task> action = () => client.GetTvMetadataAsync(1399, CancellationToken.None);
 
@@ -136,7 +136,7 @@ public sealed class TmdbTvMetadataClientTests
             BaseAddress = new Uri("https://api.themoviedb.org/3")
         };
         TmdbOptions options = CreateOptions("token");
-        TmdbTvMetadataClient client = new(httpClient, Options.Create(options));
+        TmdbTvMetadataClient client = new(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
 
         Func<Task> action = () => client.GetTvMetadataAsync(1399, CancellationToken.None);
 
@@ -195,7 +195,7 @@ public sealed class TmdbTvMetadataClientTests
         };
         TmdbOptions options = CreateOptions(accessToken);
 
-        return new TmdbTvMetadataClient(httpClient, Options.Create(options));
+        return new TmdbTvMetadataClient(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
     }
 
     private static TmdbTvMetadataClient CreateClient(StaticTmdbHandler handler)
@@ -206,7 +206,7 @@ public sealed class TmdbTvMetadataClientTests
         };
         TmdbOptions options = CreateOptions("token");
 
-        return new TmdbTvMetadataClient(httpClient, Options.Create(options));
+        return new TmdbTvMetadataClient(httpClient, Options.Create(options), new ImmediateHttpRetryDelay());
     }
 
     private static TmdbOptions CreateOptions(string accessToken)
@@ -220,5 +220,13 @@ public sealed class TmdbTvMetadataClientTests
             SessionId = "session",
             Language = "en-US"
         };
+    }
+
+    private sealed class ImmediateHttpRetryDelay : IHttpRetryDelay
+    {
+        public Task DelayAsync(int attempt, HttpResponseMessage? response, CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
     }
 }

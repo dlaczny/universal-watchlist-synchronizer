@@ -1,4 +1,5 @@
 .git
+.codex-remote-attachments
 .github
 .gradle
 .idea
@@ -19,3 +20,10 @@ deploy/backend/watchlist-backend.env
 deploy/local-cd/watchlist-deploy.env
 TestResults
 coverage
+workers/vod-filter/data
+workers/vod-filter/venv
+workers/vod-filter/.venv
+workers/vod-filter/.pytest_cache
+workers/vod-filter/**/__pycache__
+workers/vod-filter/dist
+workers/vod-filter/build

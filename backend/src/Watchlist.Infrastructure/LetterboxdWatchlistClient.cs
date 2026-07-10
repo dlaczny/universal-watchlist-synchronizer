@@ -34,7 +34,8 @@ public sealed class LetterboxdParseException : Exception
 
 public sealed class LetterboxdWatchlistClient(
     HttpClient httpClient,
-    IOptions<LetterboxdOptions> options) : ILetterboxdWatchlistClient
+    IOptions<LetterboxdOptions> options,
+    IHttpRetryDelay? retryDelay = null) : ILetterboxdWatchlistClient
 {
     public async Task<IReadOnlyList<LetterboxdMovieDto>> GetMoviesAsync(CancellationToken cancellationToken)
     {
@@ -77,7 +78,11 @@ public sealed class LetterboxdWatchlistClient(
     {
         try
         {
-            return await httpClient.GetAsync(options.Value.WatchlistUrl, cancellationToken);
+            return await HttpRetryPolicy.SendAsync(
+                httpClient,
+                () => new HttpRequestMessage(HttpMethod.Get, options.Value.WatchlistUrl),
+                retryDelay ?? new DefaultHttpRetryDelay(TimeProvider.System),
+                cancellationToken);
         }
         catch (HttpRequestException exception)
         {
