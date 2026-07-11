@@ -182,7 +182,7 @@ Return the complete Letterboxd movie set and use the latest
 Run all API tests and non-Mongo application tests. Then start local MongoDB and
 run the full Application test project.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add backend/src backend/tests
@@ -197,7 +197,7 @@ git commit -m "feat: expose complete movie sync snapshot"
 - Modify: `workers/vod-filter/tests/vod_filter/test_sync_reconciliation.py`
 - Create: `workers/vod-filter/tests/vod_filter/test_movie_sync_policy.py`
 
-- [ ] **Step 1: Write planner tests for desired state and ownership**
+- [x] **Step 1: Write planner tests for desired state and ownership**
 
 Cover Radarr add/keep/adopt/remove, downloaded-file removal skip, unrelated
 Radarr preservation, Plex add/keep/remove, unrelated Plex preservation,
@@ -208,19 +208,19 @@ assert decision.action == "skip"
 assert decision.reason == "downloaded_file_requires_manual_review"
 ```
 
-- [ ] **Step 2: Run planner tests and confirm RED**
+- [x] **Step 2: Run planner tests and confirm RED**
 
 Run: `python -m pytest tests/vod_filter/test_sync_reconciliation.py tests/vod_filter/test_movie_sync_policy.py -q`
 
 Expected: failures for ownership and policy behavior not yet implemented.
 
-- [ ] **Step 3: Extend the planner without side effects**
+- [x] **Step 3: Extend the planner without side effects**
 
 Add explicit `managed` and `execution_status` fields. Planner inputs distinguish
 complete backend movies, Radarr eligibility, live destination state, and worker
 ownership. Never emit `remove` for unmanaged destination rows.
 
-- [ ] **Step 4: Implement policy evaluation**
+- [x] **Step 4: Implement policy evaluation**
 
 ```python
 @dataclass(frozen=True)
@@ -236,7 +236,7 @@ def evaluate_plan(report: SyncReconciliationReport, policy: SyncPolicy) -> list[
 
 Block stale/empty/incomplete/ambiguous snapshots and excess removal volume.
 
-- [ ] **Step 5: Verify planner and policy tests pass**
+- [x] **Step 5: Verify planner and policy tests pass**
 
 Run the two focused test files and then the full worker suite.
 

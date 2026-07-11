@@ -47,6 +47,48 @@ class WatchlistAppClient:
         logger.info("watchlist_app_export_fetched", count=len(movies))
         return movies
 
+    def fetch_movie_watchlist(
+        self,
+        sync_first: bool = False,
+        include_plex_only: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Fetch backend movie watchlist rows for reconciliation."""
+        if sync_first:
+            self._sync_all()
+
+        response = self.http_client.get(
+            f"{self.base_url}/api/watchlist",
+            params={
+                "collection": "movie",
+                "availability": "plex,not_on_plex,unreleased,unknown_match",
+                "sort": "title_asc",
+            },
+        )
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise WatchlistAppError(
+                f"watchlist-app movie watchlist failed: HTTP {response.status_code}"
+            ) from e
+
+        payload = response.json()
+        if not isinstance(payload, list):
+            raise WatchlistAppError("watchlist-app movie watchlist returned non-list JSON")
+
+        movies = []
+        for item in payload:
+            mapped = self._map_watchlist_item(item)
+            if (
+                not include_plex_only
+                and mapped["source"] == "plex"
+                and mapped["library_membership"] == "plex_only"
+            ):
+                continue
+            movies.append(mapped)
+
+        logger.info("watchlist_app_movie_watchlist_fetched", count=len(movies))
+        return movies
+
     def _sync_all(self) -> None:
         response = self.http_client.post(f"{self.base_url}/api/sync/all")
         try:
@@ -95,4 +137,56 @@ class WatchlistAppClient:
             "imdb_id": item.get("imdb_id") or None,
             "letterboxd_id": item.get("clean_title") or None,
             "watchlist_app_id": watchlist_app_id,
+        }
+
+    @staticmethod
+    def _map_watchlist_item(item: Any) -> dict[str, Any]:
+        if not isinstance(item, dict):
+            raise WatchlistAppError("watchlist-app watchlist item is not an object")
+
+        title = item.get("title")
+        watchlist_app_id = item.get("id")
+        source = item.get("source")
+        source_id = item.get("sourceId")
+
+        if not title or watchlist_app_id is None or not source:
+            raise WatchlistAppError("watchlist-app watchlist item missing id/title/source")
+
+        tmdb_id = None
+        if source != "plex" and source_id not in (None, ""):
+            try:
+                parsed_source_id = int(source_id)
+            except (TypeError, ValueError):
+                parsed_source_id = None
+            if parsed_source_id and parsed_source_id > 0:
+                tmdb_id = parsed_source_id
+
+        year = None
+        release_year = item.get("year")
+        if release_year not in (None, ""):
+            try:
+                year = int(release_year)
+            except (TypeError, ValueError) as e:
+                raise WatchlistAppError(
+                    f"watchlist-app watchlist item has invalid year: {release_year}"
+                ) from e
+
+        owned_service_availability = item.get("ownedServiceAvailability") or []
+        if not isinstance(owned_service_availability, list):
+            raise WatchlistAppError(
+                "watchlist-app watchlist item has invalid ownedServiceAvailability"
+            )
+
+        return {
+            "title": title,
+            "year": year,
+            "tmdb_id": tmdb_id,
+            "imdb_id": item.get("imdb_id") or item.get("imdbId") or None,
+            "letterboxd_id": watchlist_app_id,
+            "watchlist_app_id": watchlist_app_id,
+            "source": source,
+            "source_id": source_id,
+            "availability_status": item.get("availabilityStatus") or None,
+            "library_membership": item.get("libraryMembership") or None,
+            "owned_service_availability": owned_service_availability,
         }
