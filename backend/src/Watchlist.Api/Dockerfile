@@ -15,6 +15,12 @@ RUN dotnet publish backend/src/Watchlist.Api/Watchlist.Api.csproj --configuratio
 
 FROM runtime AS final
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/publish .
 ENV ASPNETCORE_URLS=http://+:8080
+USER app
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl --fail --silent --show-error http://127.0.0.1:8080/healthz || exit 1
 ENTRYPOINT ["dotnet", "Watchlist.Api.dll"]

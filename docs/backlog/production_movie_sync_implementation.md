@@ -103,7 +103,7 @@ dotnet test backend\tests\Watchlist.Api.Tests\Watchlist.Api.Tests.csproj
 
 Expected: all selected tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add backend/src backend/tests
@@ -380,24 +380,24 @@ git commit -m "feat: apply and monitor movie sync plans"
 - Modify: `.dockerignore`
 - Modify: `.gitignore`
 
-- [ ] **Step 1: Add container contract tests/checks**
+- [x] **Step 1: Add container contract tests/checks**
 
 Make backend health available to Compose, copy only production worker entry
 points, run both containers as non-root users, and persist worker `/app/data`.
 
-- [ ] **Step 2: Implement unified production Compose**
+- [x] **Step 2: Implement unified production Compose**
 
 Use `${WATCHLIST_RELEASE}` image tags, server-local `${WATCHLIST_CONFIG_DIR}`
 env files, backend health dependency, JSON log rotation, read-only root
 filesystems where compatible, and `no-new-privileges`.
 
-- [ ] **Step 3: Validate and build locally**
+- [x] **Step 3: Validate and build locally**
 
 Create temporary non-secret test env files outside Git, run `docker compose
 config --quiet`, build both images, start with test configuration, and inspect
 container health.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```powershell
 git add backend/src/Watchlist.Api/Dockerfile workers/vod-filter/Dockerfile deploy/production .dockerignore .gitignore

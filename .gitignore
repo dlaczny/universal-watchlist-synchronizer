@@ -33,6 +33,8 @@ appsettings.*.Local.json
 secrets.json
 deploy/backend/watchlist-backend.env
 deploy/local-cd/watchlist-deploy.env
+deploy/production/backend.env
+deploy/production/worker.env
 
 # Logs and temp files
 *.log

@@ -18,6 +18,8 @@
 .env.*
 deploy/backend/watchlist-backend.env
 deploy/local-cd/watchlist-deploy.env
+deploy/production/backend.env
+deploy/production/worker.env
 TestResults
 coverage
 workers/vod-filter/data

@@ -1,0 +1,57 @@
+name: watchlist-production
+
+services:
+  watchlist-api:
+    image: watchlist-api:${WATCHLIST_RELEASE:-local}
+    build:
+      context: ../..
+      dockerfile: backend/src/Watchlist.Api/Dockerfile
+    container_name: watchlist-prod-api
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ${WATCHLIST_CONFIG_DIR:?WATCHLIST_CONFIG_DIR is required}/backend.env
+    ports:
+      - "${WATCHLIST_BIND_ADDRESS:-0.0.0.0}:${WATCHLIST_API_PORT:-5000}:8080"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  movie-sync-worker:
+    image: watchlist-worker:${WATCHLIST_RELEASE:-local}
+    build:
+      context: ../../workers/vod-filter
+      dockerfile: Dockerfile
+    container_name: watchlist-prod-worker
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ${WATCHLIST_CONFIG_DIR:?WATCHLIST_CONFIG_DIR is required}/worker.env
+    environment:
+      WATCHLIST_SOURCE: watchlist_app
+      WATCHLIST_APP_URL: http://watchlist-api:8080
+      DATABASE_PATH: /app/data/vod-filter.db
+      WORKER_HEARTBEAT_PATH: /app/data/last-run.json
+    volumes:
+      - ${WATCHLIST_DATA_DIR:?WATCHLIST_DATA_DIR is required}/worker:/app/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      watchlist-api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+

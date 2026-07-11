@@ -35,11 +35,24 @@ class Config:
         else:
             load_dotenv()
 
+        self.watchlist_source: str = os.getenv(
+            "WATCHLIST_SOURCE", "letterboxd"
+        ).lower()
+        uses_direct_source = self.watchlist_source == "letterboxd"
+
         # Letterboxd Configuration
-        self.letterboxd_username: str = self._require("LETTERBOXD_USERNAME")
+        self.letterboxd_username: str = (
+            self._require("LETTERBOXD_USERNAME")
+            if uses_direct_source
+            else os.getenv("LETTERBOXD_USERNAME", "")
+        )
 
         # TMDB Configuration
-        self.tmdb_api_key: str = self._require("TMDB_API_KEY")
+        self.tmdb_api_key: str = (
+            self._require("TMDB_API_KEY")
+            if uses_direct_source
+            else os.getenv("TMDB_API_KEY", "")
+        )
         self.tmdb_region: str = os.getenv("TMDB_REGION", os.getenv("VOD_REGION", "PL")).upper()
 
         # Radarr Configuration
@@ -83,7 +96,6 @@ class Config:
         self.force_refresh: bool = os.getenv("FORCE_REFRESH", "false").lower() == "true"
 
         # Watchlist Source Integration
-        self.watchlist_source: str = os.getenv("WATCHLIST_SOURCE", "letterboxd").lower()
         self.watchlist_app_url: Optional[str] = (
             os.getenv("WATCHLIST_APP_URL", "").rstrip("/") or None
         )

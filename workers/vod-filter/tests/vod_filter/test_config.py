@@ -128,6 +128,22 @@ def test_watchlist_app_source_requires_sync_key(monkeypatch: pytest.MonkeyPatch)
         Config().validate()
 
 
+def test_watchlist_app_source_does_not_require_legacy_source_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("WATCHLIST_SOURCE", "watchlist_app")
+    monkeypatch.setenv("WATCHLIST_APP_URL", "http://watchlist.local:5000")
+    monkeypatch.setenv("WATCHLIST_APP_SYNC_KEY", "sync-secret")
+    monkeypatch.setenv("LETTERBOXD_USERNAME", "")
+    monkeypatch.setenv("TMDB_API_KEY", "")
+
+    config = Config()
+    config.validate()
+
+    assert config.letterboxd_username == ""
+    assert config.tmdb_api_key == ""
+
+
 @pytest.mark.parametrize(
     ("key", "value"),
     [

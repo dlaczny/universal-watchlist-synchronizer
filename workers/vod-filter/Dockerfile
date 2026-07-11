@@ -1,44 +1,37 @@
-# Multi-stage build for minimal production image
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
+
+ENV VIRTUAL_ENV=/opt/venv
+RUN python -m venv "$VIRTUAL_ENV"
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+WORKDIR /build
+COPY requirements-production.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements-production.txt
+
+FROM python:3.11-slim AS final
+
+ENV VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    DATABASE_PATH=/app/data/vod-filter.db \
+    WORKER_HEARTBEAT_PATH=/app/data/last-run.json
+
+RUN groupadd --gid 10001 watchlist \
+    && useradd --uid 10001 --gid watchlist --no-log-init --create-home watchlist \
+    && mkdir -p /app/data \
+    && chown -R watchlist:watchlist /app
 
 WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=watchlist:watchlist src/ ./src/
+COPY --chown=watchlist:watchlist continuous_sync.py sync_movies.py reconcile_sync.py healthcheck.py ./
 
-# Install build dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc && \
-    rm -rf /var/lib/apt/lists/*
+USER watchlist
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+HEALTHCHECK --interval=60s --timeout=10s --start-period=90s --retries=3 \
+    CMD ["python", "healthcheck.py"]
 
-# Production stage
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# Copy Python dependencies from builder
-COPY --from=builder /root/.local /root/.local
-
-# Copy application code
-COPY src/ ./src/
-COPY continuous_sync.py .
-COPY run_all_syncs.py .
-COPY cleanup_removed_movies.py .
-COPY sync_library_to_watchlist.py .
-COPY validate_providers.py .
-COPY cache_inspect.py .
-COPY compare_watchlist_sources.py .
-
-# Create data directory for persistence
-RUN mkdir -p /app/data
-
-# Update PATH to include local Python packages
-ENV PATH=/root/.local/bin:$PATH
-
-# Set Python to run in unbuffered mode (better for Docker logs)
-ENV PYTHONUNBUFFERED=1
-
-# Default to running the combined sync loop. The interval comes from SYNC_INTERVAL.
 ENTRYPOINT ["python", "continuous_sync.py"]
 CMD ["--continuous"]
