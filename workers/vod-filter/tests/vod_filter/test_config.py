@@ -37,6 +37,11 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "WATCHLIST_SOURCE",
         "WATCHLIST_APP_URL",
         "WATCHLIST_APP_SYNC_FIRST",
+        "WATCHLIST_APP_SYNC_KEY",
+        "MOVIE_SYNC_APPLY",
+        "MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES",
+        "MOVIE_SYNC_MAX_REMOVAL_COUNT",
+        "MOVIE_SYNC_MAX_REMOVAL_PERCENT",
     }
     for key in keys:
         monkeypatch.delenv(key, raising=False)
@@ -72,7 +77,7 @@ def test_sync_interval_seconds_falls_back_to_legacy_hours(
 def test_cleanup_deletion_defaults_match_safety_policy() -> None:
     config = Config()
 
-    assert config.radarr_delete_files_on_removal is True
+    assert config.radarr_delete_files_on_removal is False
     assert config.radarr_remove_when_vod_available is True
     assert config.radarr_delete_files_when_vod_available is False
 
@@ -96,6 +101,11 @@ def test_watchlist_app_source_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WATCHLIST_SOURCE", "watchlist_app")
     monkeypatch.setenv("WATCHLIST_APP_URL", "http://watchlist.local:5000/")
     monkeypatch.setenv("WATCHLIST_APP_SYNC_FIRST", "true")
+    monkeypatch.setenv("WATCHLIST_APP_SYNC_KEY", "sync-secret")
+    monkeypatch.setenv("MOVIE_SYNC_APPLY", "true")
+    monkeypatch.setenv("MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES", "90")
+    monkeypatch.setenv("MOVIE_SYNC_MAX_REMOVAL_COUNT", "4")
+    monkeypatch.setenv("MOVIE_SYNC_MAX_REMOVAL_PERCENT", "15.5")
 
     config = Config()
     config.validate()
@@ -103,6 +113,38 @@ def test_watchlist_app_source_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.watchlist_source == "watchlist_app"
     assert config.watchlist_app_url == "http://watchlist.local:5000"
     assert config.watchlist_app_sync_first is True
+    assert config.watchlist_app_sync_key == "sync-secret"
+    assert config.movie_sync_apply is True
+    assert config.movie_sync_max_source_age_minutes == 90
+    assert config.movie_sync_max_removal_count == 4
+    assert config.movie_sync_max_removal_percent == 15.5
+
+
+def test_watchlist_app_source_requires_sync_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("WATCHLIST_SOURCE", "watchlist_app")
+    monkeypatch.setenv("WATCHLIST_APP_URL", "http://watchlist.local:5000")
+
+    with pytest.raises(ConfigurationError, match="WATCHLIST_APP_SYNC_KEY"):
+        Config().validate()
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES", "0"),
+        ("MOVIE_SYNC_MAX_REMOVAL_COUNT", "-1"),
+        ("MOVIE_SYNC_MAX_REMOVAL_PERCENT", "101"),
+    ],
+)
+def test_invalid_movie_sync_limits_raise_configuration_error(
+    monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    value: str,
+) -> None:
+    monkeypatch.setenv(key, value)
+
+    with pytest.raises(ConfigurationError):
+        Config()
 
 
 def test_default_pl_provider_ids_match_current_tmdb_catalog(

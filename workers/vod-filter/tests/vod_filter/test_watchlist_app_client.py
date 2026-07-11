@@ -57,7 +57,8 @@ def test_watchlist_app_client_can_sync_first():
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append((request.method, request.url.path))
-        if request.url.path == "/api/sync/all":
+        if request.url.path == "/api/sync/movies":
+            assert request.headers["X-Watchlist-Sync-Key"] == "sync-secret"
             return httpx.Response(200, json={"status": "completed"})
         if request.url.path == "/api/export/radarr/movies":
             return httpx.Response(200, json=[])
@@ -66,13 +67,95 @@ def test_watchlist_app_client_can_sync_first():
     client = WatchlistAppClient(
         base_url="http://watchlist.local",
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sync_key="sync-secret",
     )
 
     assert client.fetch_radarr_movie_export(sync_first=True) == []
     assert requests == [
-        ("POST", "/api/sync/all"),
+        ("POST", "/api/sync/movies"),
         ("GET", "/api/export/radarr/movies"),
     ]
+
+
+def test_watchlist_app_client_fetches_complete_movie_sync_snapshot():
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.method, request.url.path))
+        if request.url.path == "/api/sync/movies":
+            assert request.headers["X-Watchlist-Sync-Key"] == "sync-secret"
+            return httpx.Response(200, json={"status": "completed"})
+        if request.url.path == "/api/export/movies/sync-state":
+            return httpx.Response(
+                200,
+                json={
+                    "generatedAt": "2026-07-11T08:00:00+00:00",
+                    "lastSuccessfulMovieSyncAt": "2026-07-11T07:55:00+00:00",
+                    "movies": [
+                        {
+                            "tmdbId": 1297842,
+                            "imdbId": "tt27613895",
+                            "title": "GOAT",
+                            "year": 2026,
+                            "sourceId": "1297842",
+                            "metadataStatus": "enriched",
+                            "availabilityStatus": "not_on_plex",
+                            "ownedServiceAvailability": [],
+                            "radarrEligible": True,
+                            "radarrEligibilityReason": "no_owned_service",
+                        }
+                    ],
+                },
+            )
+        return httpx.Response(404)
+
+    client = WatchlistAppClient(
+        base_url="http://watchlist.local",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sync_key="sync-secret",
+    )
+
+    snapshot = client.fetch_movie_sync_snapshot(sync_first=True)
+
+    assert snapshot["generated_at"].isoformat() == "2026-07-11T08:00:00+00:00"
+    assert snapshot["last_successful_movie_sync_at"].isoformat() == (
+        "2026-07-11T07:55:00+00:00"
+    )
+    assert snapshot["movies"] == [
+        {
+            "tmdb_id": 1297842,
+            "imdb_id": "tt27613895",
+            "title": "GOAT",
+            "year": 2026,
+            "source_id": "1297842",
+            "metadata_status": "enriched",
+            "availability_status": "not_on_plex",
+            "owned_service_availability": [],
+            "radarr_eligible": True,
+            "radarr_eligibility_reason": "no_owned_service",
+        }
+    ]
+    assert requests == [
+        ("POST", "/api/sync/movies"),
+        ("GET", "/api/export/movies/sync-state"),
+    ]
+
+
+def test_watchlist_app_client_rejects_malformed_movie_sync_snapshot():
+    client = WatchlistAppClient(
+        base_url="http://watchlist.local",
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={"generatedAt": "bad", "movies": "not-a-list"},
+                )
+            )
+        ),
+    )
+
+    with pytest.raises(WatchlistAppError):
+        client.fetch_movie_sync_snapshot()
 
 
 def test_watchlist_app_client_fetches_movie_watchlist_without_plex_only_items():

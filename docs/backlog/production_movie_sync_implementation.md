@@ -240,7 +240,7 @@ Block stale/empty/incomplete/ambiguous snapshots and excess removal volume.
 
 Run the two focused test files and then the full worker suite.
 
-- [ ] **Step 6: Commit existing reconciliation work with the planner**
+- [x] **Step 6: Commit existing reconciliation work with the planner**
 
 Stage the pre-existing reconciliation CLI/client/tests together with this task
 after reviewing their diff; do not stage unrelated documentation.
@@ -262,19 +262,19 @@ git commit -m "feat: plan safe movie synchronization"
 - Create: `workers/vod-filter/tests/vod_filter/test_movie_sync_collector.py`
 - Create: `workers/vod-filter/tests/vod_filter/test_managed_destinations.py`
 
-- [ ] **Step 1: Write failing client and collector tests**
+- [x] **Step 1: Write failing client and collector tests**
 
 Require `X-Watchlist-Sync-Key`, call `/api/sync/movies`, parse the complete
 snapshot strictly, and preserve backend eligibility reasons. A failed source,
 Radarr, Plex watchlist, or Plex library read must be represented as a blocking
 collection error.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run the three focused files. Expected: failures for missing snapshot and
 ownership APIs.
 
-- [ ] **Step 3: Implement config and backend client**
+- [x] **Step 3: Implement config and backend client**
 
 Add validated settings:
 
@@ -289,13 +289,13 @@ MOVIE_SYNC_MAX_REMOVAL_PERCENT
 Production `WATCHLIST_SOURCE=watchlist_app` requires the sync key. Do not log
 its value.
 
-- [ ] **Step 4: Add managed-destination persistence**
+- [x] **Step 4: Add managed-destination persistence**
 
 Create a migration-safe `managed_destinations` table keyed by
 `(destination, tmdb_id)`, with first/last managed timestamps and last action.
 Expose `get_managed_destinations`, `mark_managed`, and `release_managed`.
 
-- [ ] **Step 5: Implement the collector and verify GREEN**
+- [x] **Step 5: Implement the collector and verify GREEN**
 
 Use the existing Radarr/Plex clients only for reads. Return one immutable
 snapshot object plus collection errors. Run focused and full worker tests.

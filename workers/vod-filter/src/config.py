@@ -90,10 +90,32 @@ class Config:
         self.watchlist_app_sync_first: bool = (
             os.getenv("WATCHLIST_APP_SYNC_FIRST", "false").lower() == "true"
         )
+        self.watchlist_app_sync_key: Optional[str] = (
+            os.getenv("WATCHLIST_APP_SYNC_KEY", "").strip() or None
+        )
+        self.movie_sync_apply: bool = (
+            os.getenv("MOVIE_SYNC_APPLY", "false").lower() == "true"
+        )
+        self.movie_sync_max_source_age_minutes: int = self._parse_int(
+            "MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES",
+            default="120",
+            minimum=1,
+        )
+        self.movie_sync_max_removal_count: int = self._parse_int(
+            "MOVIE_SYNC_MAX_REMOVAL_COUNT",
+            default="10",
+            minimum=0,
+        )
+        self.movie_sync_max_removal_percent: float = self._parse_float(
+            "MOVIE_SYNC_MAX_REMOVAL_PERCENT",
+            default="25",
+            minimum=0,
+            maximum=100,
+        )
 
         # Radarr Removal Settings
         self.radarr_delete_files_on_removal: bool = (
-            os.getenv("RADARR_DELETE_FILES_ON_REMOVAL", "true").lower() == "true"
+            os.getenv("RADARR_DELETE_FILES_ON_REMOVAL", "false").lower() == "true"
         )
         self.radarr_remove_when_vod_available: bool = (
             os.getenv("RADARR_REMOVE_WHEN_VOD_AVAILABLE", "true").lower() == "true"
@@ -189,6 +211,25 @@ class Config:
 
         return parsed
 
+    def _parse_float(
+        self,
+        key: str,
+        default: str,
+        minimum: Optional[float] = None,
+        maximum: Optional[float] = None,
+    ) -> float:
+        value = os.getenv(key, default)
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError) as e:
+            raise ConfigurationError(f"{key} must be a number, got: {value}") from e
+
+        if minimum is not None and parsed < minimum:
+            raise ConfigurationError(f"{key} must be >= {minimum}, got: {parsed}")
+        if maximum is not None and parsed > maximum:
+            raise ConfigurationError(f"{key} must be <= {maximum}, got: {parsed}")
+        return parsed
+
     def validate(self) -> None:
         """Validate configuration and connectivity.
 
@@ -226,6 +267,11 @@ class Config:
         if self.watchlist_source == "watchlist_app" and not self.watchlist_app_url:
             raise ConfigurationError(
                 "WATCHLIST_APP_URL is required when WATCHLIST_SOURCE=watchlist_app"
+            )
+
+        if self.watchlist_source == "watchlist_app" and not self.watchlist_app_sync_key:
+            raise ConfigurationError(
+                "WATCHLIST_APP_SYNC_KEY is required when WATCHLIST_SOURCE=watchlist_app"
             )
 
     def __repr__(self) -> str:

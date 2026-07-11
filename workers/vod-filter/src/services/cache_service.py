@@ -629,6 +629,50 @@ class CacheService:
             )
             return [dict(row) for row in cursor.fetchall()]
 
+    def get_managed_destinations(self) -> List[Dict[str, Any]]:
+        """Return destination rows owned by the production movie worker."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                SELECT destination, tmdb_id, last_action
+                FROM managed_destinations
+                ORDER BY destination ASC, tmdb_id ASC
+                """
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def mark_managed(self, destination: str, tmdb_id: int, action: str) -> None:
+        """Record that one destination movie is managed by this worker."""
+        if destination not in {"radarr", "plex_watchlist"}:
+            raise ValueError(f"Unsupported managed destination: {destination}")
+        if tmdb_id <= 0:
+            raise ValueError("tmdb_id must be positive")
+        if not action.strip():
+            raise ValueError("action is required")
+
+        with self.get_connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO managed_destinations
+                    (destination, tmdb_id, first_managed_at, last_managed_at, last_action)
+                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)
+                ON CONFLICT(destination, tmdb_id) DO UPDATE SET
+                    last_managed_at = CURRENT_TIMESTAMP,
+                    last_action = excluded.last_action
+                """,
+                (destination, tmdb_id, action),
+            )
+            conn.commit()
+
+    def release_managed(self, destination: str, tmdb_id: int) -> None:
+        """Release worker ownership after a successful destination removal."""
+        with self.get_connection() as conn:
+            conn.execute(
+                "DELETE FROM managed_destinations WHERE destination = ? AND tmdb_id = ?",
+                (destination, tmdb_id),
+            )
+            conn.commit()
+
     def get_cache_metadata(self) -> List[Dict[str, Any]]:
         """Return cache metadata rows."""
         with self.get_connection() as conn:

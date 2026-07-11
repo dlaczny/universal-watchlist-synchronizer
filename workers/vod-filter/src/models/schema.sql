@@ -108,6 +108,20 @@ CREATE TABLE IF NOT EXISTS run_history (
     CHECK (status IN ('running', 'success', 'failed', 'error', 'interrupted'))
 );
 
+-- Destination rows explicitly managed by the plan-and-apply movie worker.
+CREATE TABLE IF NOT EXISTS managed_destinations (
+    destination TEXT NOT NULL,
+    tmdb_id INTEGER NOT NULL,
+    first_managed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_managed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_action TEXT NOT NULL,
+
+    PRIMARY KEY (destination, tmdb_id),
+    CHECK (destination IN ('radarr', 'plex_watchlist')),
+    CHECK (tmdb_id > 0),
+    CHECK (length(last_action) > 0)
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_vod_availability_checked_at ON vod_availability(checked_at);
 CREATE INDEX IF NOT EXISTS idx_sync_state_last_synced ON sync_state(last_synced);
@@ -118,3 +132,5 @@ CREATE INDEX IF NOT EXISTS idx_plex_watchlist_cache_cached_at ON plex_watchlist_
 CREATE INDEX IF NOT EXISTS idx_plex_library_cache_cached_at ON plex_library_cache(cached_at);
 CREATE INDEX IF NOT EXISTS idx_run_history_started_at ON run_history(started_at);
 CREATE INDEX IF NOT EXISTS idx_run_history_workflow ON run_history(workflow);
+CREATE INDEX IF NOT EXISTS idx_managed_destinations_tmdb_id
+    ON managed_destinations(tmdb_id);
