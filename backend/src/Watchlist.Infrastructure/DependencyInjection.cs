@@ -53,6 +53,7 @@ public static class DependencyInjection
         });
         services.AddSingleton<IPlexMovieInventoryRepository, MongoPlexMovieInventoryRepository>();
         services.AddScoped<IPlexMovieSyncService, PlexMovieSyncService>();
+        services.AddScoped<IMovieSyncService, MovieSyncService>();
         services.AddScoped<IAvailabilityRefreshService, AvailabilityRefreshService>();
         services.AddScoped<ICombinedSyncService, CombinedSyncService>();
         services.AddSingleton(TimeProvider.System);

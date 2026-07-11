@@ -393,6 +393,54 @@ public sealed class WatchlistApiTests
     }
 
     [Fact]
+    public async Task PostMovieSync_ReturnsMovieOnlyResult()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/movies", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        document.RootElement.GetProperty("letterboxd").GetProperty("itemsFetched").GetInt32().Should().Be(2);
+        document.RootElement.GetProperty("tmdbMovies").GetProperty("itemsEnriched").GetInt32().Should().Be(2);
+        document.RootElement.GetProperty("plexMovies").GetProperty("watchlistItemsMatched").GetInt32().Should().Be(40);
+        document.RootElement.TryGetProperty("tmdbTv", out _).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("wrong-key")]
+    public async Task PostMovieSync_WhenSyncKeyInvalid_ReturnsUnauthorized(string? suppliedKey)
+    {
+        using SeededApiFactory factory = new(syncApiKey: "test-sync-key");
+        HttpClient client = factory.CreateClient();
+        using HttpRequestMessage request = new(HttpMethod.Post, "/api/sync/movies");
+        if (suppliedKey is not null)
+        {
+            request.Headers.Add("X-Watchlist-Sync-Key", suppliedKey);
+        }
+
+        HttpResponseMessage response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task PostMovieSync_WhenSyncKeyMatches_ReturnsOk()
+    {
+        using SeededApiFactory factory = new(syncApiKey: "test-sync-key");
+        HttpClient client = factory.CreateClient();
+        using HttpRequestMessage request = new(HttpMethod.Post, "/api/sync/movies");
+        request.Headers.Add("X-Watchlist-Sync-Key", "test-sync-key");
+
+        HttpResponseMessage response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
     public async Task SyncTmdbTv_ReturnsTvSyncResult()
     {
         using SeededApiFactory factory = new();

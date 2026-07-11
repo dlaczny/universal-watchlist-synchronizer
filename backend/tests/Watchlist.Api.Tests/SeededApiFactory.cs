@@ -16,10 +16,16 @@ public sealed class SeededApiFactory(
     Exception? plexMovieSyncException = null,
     Exception? combinedSyncException = null,
     Exception? availabilityRefreshException = null,
-    Exception? tmdbTvSyncException = null) : WebApplicationFactory<Program>
+    Exception? tmdbTvSyncException = null,
+    string? syncApiKey = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        if (syncApiKey is not null)
+        {
+            builder.UseSetting("Sync:ApiKey", syncApiKey);
+        }
+
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IWatchlistReadRepository>();

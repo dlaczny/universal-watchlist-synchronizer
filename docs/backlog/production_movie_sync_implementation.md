@@ -35,7 +35,7 @@ version: 0.1.0
 - Test: `backend/tests/Watchlist.Application.Tests/MovieSyncServiceTests.cs`
 - Test: `backend/tests/Watchlist.Api.Tests/WatchlistApiTests.cs`
 
-- [ ] **Step 1: Write failing service tests**
+- [x] **Step 1: Write failing service tests**
 
 Add tests proving the movie service calls Letterboxd, TMDB movies, and Plex
 movies in order, excludes TMDB TV, and returns `partial` when TMDB enrichment
@@ -55,13 +55,13 @@ public async Task SyncAsync_RunsOnlyMovieStagesInOrder()
 }
 ```
 
-- [ ] **Step 2: Verify the service test fails**
+- [x] **Step 2: Verify the service test fails**
 
 Run: `dotnet test backend/tests/Watchlist.Application.Tests/Watchlist.Application.Tests.csproj --filter MovieSyncServiceTests`
 
 Expected: compile failure because `MovieSyncService` does not exist.
 
-- [ ] **Step 3: Implement the movie-only orchestrator**
+- [x] **Step 3: Implement the movie-only orchestrator**
 
 Use this public contract:
 
@@ -80,19 +80,19 @@ public sealed record MovieSyncResultDto(
     PlexMovieSyncResultDto PlexMovies);
 ```
 
-- [ ] **Step 4: Write failing API-key tests**
+- [x] **Step 4: Write failing API-key tests**
 
 Test `POST /api/sync/movies` with a configured key: missing/wrong keys return
 `401`; the correct `X-Watchlist-Sync-Key` returns `200`. Preserve current test
 behavior when no key is configured outside Production.
 
-- [ ] **Step 5: Implement constant-time sync-key validation and endpoint**
+- [x] **Step 5: Implement constant-time sync-key validation and endpoint**
 
 Register `IMovieSyncService`, map `POST /api/sync/movies`, and apply the same
 filter to all mutation endpoints under `/api/sync`. Production startup must fail
 when `Sync:ApiKey` is empty.
 
-- [ ] **Step 6: Verify focused and existing backend tests**
+- [x] **Step 6: Verify focused and existing backend tests**
 
 Run:
 

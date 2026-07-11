@@ -12,11 +12,18 @@ builder.Configuration.AddJsonFile(
     optional: true,
     reloadOnChange: true);
 
+if (builder.Environment.IsProduction()
+    && string.IsNullOrWhiteSpace(builder.Configuration["Sync:ApiKey"]))
+{
+    throw new InvalidOperationException("Sync:ApiKey is required in Production.");
+}
+
 builder.Services.AddWatchlistInfrastructure(builder.Configuration);
 builder.Services.AddScoped<WatchlistQueryService>();
 builder.Services.AddScoped<WatchlistExportService>();
 builder.Services.AddExceptionHandler<MongoUnavailableExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.AddSingleton<SyncApiKeyFilter>();
 
 WebApplication app = builder.Build();
 
@@ -193,7 +200,10 @@ app.MapGet("/api/sync/status", async (
     return status is null ? Results.NotFound() : Results.Ok(status);
 });
 
-app.MapPost("/api/sync/letterboxd", async (
+RouteGroupBuilder syncApi = app.MapGroup("/api/sync")
+    .AddEndpointFilter<SyncApiKeyFilter>();
+
+syncApi.MapPost("/letterboxd", async (
     ILetterboxdMovieSyncService syncService,
     CancellationToken cancellationToken) =>
 {
@@ -202,7 +212,7 @@ app.MapPost("/api/sync/letterboxd", async (
     return Results.Ok(result);
 });
 
-app.MapPost("/api/sync/tmdb/movies", async (
+syncApi.MapPost("/tmdb/movies", async (
     ITmdbMovieEnrichmentService enrichmentService,
     CancellationToken cancellationToken) =>
 {
@@ -211,7 +221,7 @@ app.MapPost("/api/sync/tmdb/movies", async (
     return Results.Ok(result);
 });
 
-app.MapPost("/api/sync/tmdb/movies/{id}", async (
+syncApi.MapPost("/tmdb/movies/{id}", async (
     string id,
     ITmdbMovieEnrichmentService enrichmentService,
     CancellationToken cancellationToken) =>
@@ -221,7 +231,7 @@ app.MapPost("/api/sync/tmdb/movies/{id}", async (
     return result is null ? Results.NotFound() : Results.Ok(result);
 });
 
-app.MapPost("/api/sync/plex/movies", async (
+syncApi.MapPost("/plex/movies", async (
     IPlexMovieSyncService syncService,
     CancellationToken cancellationToken) =>
 {
@@ -230,7 +240,7 @@ app.MapPost("/api/sync/plex/movies", async (
     return Results.Ok(result);
 });
 
-app.MapPost("/api/sync/tmdb/tv", async (
+syncApi.MapPost("/tmdb/tv", async (
     ITmdbTvWatchlistSyncService syncService,
     CancellationToken cancellationToken) =>
 {
@@ -239,7 +249,7 @@ app.MapPost("/api/sync/tmdb/tv", async (
     return Results.Ok(result);
 });
 
-app.MapPost("/api/sync/availability/refresh", async (
+syncApi.MapPost("/availability/refresh", async (
     IAvailabilityRefreshService refreshService,
     CancellationToken cancellationToken) =>
 {
@@ -248,11 +258,20 @@ app.MapPost("/api/sync/availability/refresh", async (
     return Results.Ok(result);
 });
 
-app.MapPost("/api/sync/all", async (
+syncApi.MapPost("/all", async (
     ICombinedSyncService syncService,
     CancellationToken cancellationToken) =>
 {
     CombinedSyncResultDto result = await syncService.SyncAllAsync(cancellationToken);
+
+    return Results.Ok(result);
+});
+
+syncApi.MapPost("/movies", async (
+    IMovieSyncService syncService,
+    CancellationToken cancellationToken) =>
+{
+    MovieSyncResultDto result = await syncService.SyncAsync(cancellationToken);
 
     return Results.Ok(result);
 });
