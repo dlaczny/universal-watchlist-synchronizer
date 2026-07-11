@@ -36,6 +36,9 @@ public sealed class MongoWatchlistExportRepository(
             document.Title,
             document.Year,
             document.LetterboxdPath,
-            document.OwnedServiceAvailability);
+            document.OwnedServiceAvailability,
+            document.TmdbId,
+            document.TmdbMetadataStatus,
+            document.AvailabilityStatus);
     }
 }

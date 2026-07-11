@@ -124,7 +124,7 @@ git commit -m "feat: add authenticated movie-only sync"
 - Test: `backend/tests/Watchlist.Application.Tests/MongoWatchlistExportRepositoryTests.cs`
 - Test: `backend/tests/Watchlist.Api.Tests/WatchlistApiTests.cs`
 
-- [ ] **Step 1: Write failing snapshot mapping tests**
+- [x] **Step 1: Write failing snapshot mapping tests**
 
 Cover enriched/no-owned-service, enriched/owned-service, failed enrichment,
 duplicate-free TMDB identity, and latest successful Plex-movie sync time.
@@ -139,19 +139,19 @@ result.Movies.Should().ContainEquivalentOf(new
 });
 ```
 
-- [ ] **Step 2: Verify snapshot tests fail**
+- [x] **Step 2: Verify snapshot tests fail**
 
 Run: `dotnet test backend/tests/Watchlist.Application.Tests/Watchlist.Application.Tests.csproj --filter "WatchlistExportServiceTests|MongoWatchlistExportRepositoryTests"`
 
 Expected: compile/assertion failure for the missing snapshot API.
 
-- [ ] **Step 3: Implement the snapshot DTO and mapping**
+- [x] **Step 3: Implement the snapshot DTO and mapping**
 
 Use this shape:
 
 ```csharp
 public sealed record WorkerMovieDto(
-    int TmdbId,
+    int? TmdbId,
     string? ImdbId,
     string Title,
     int? Year,
@@ -172,12 +172,12 @@ Only `metadataStatus == "enriched"` with no owned service is Radarr-eligible.
 Malformed or absent TMDB IDs remain visible as invalid rows rather than being
 silently turned into candidates.
 
-- [ ] **Step 4: Map `GET /api/export/movies/sync-state`**
+- [x] **Step 4: Map `GET /api/export/movies/sync-state`**
 
 Return the complete Letterboxd movie set and use the latest
 `plex_movies_completed` run as snapshot freshness evidence.
 
-- [ ] **Step 5: Verify backend contracts**
+- [x] **Step 5: Verify backend contracts**
 
 Run all API tests and non-Mongo application tests. Then start local MongoDB and
 run the full Application test project.
@@ -362,7 +362,7 @@ heartbeat age and accepted last status.
 
 Run all worker tests and `python -m compileall -q src *.py` from the worker root.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add workers/vod-filter

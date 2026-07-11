@@ -305,14 +305,20 @@ public sealed class SeededApiFactory(
                     "GOAT",
                     2026,
                     "/film/goat-2026/",
-                    []),
+                    [],
+                    1297842,
+                    "enriched",
+                    Watchlist.Domain.AvailabilityStatus.NotOnPlex),
                 new WatchlistExportMovieModel(
                     "4951",
                     "tt0147800",
                     "10 Things I Hate About You",
                     1999,
                     "/film/10-things-i-hate-about-you/",
-                    ["Amazon Prime Video"])
+                    ["Amazon Prime Video"],
+                    4951,
+                    "enriched",
+                    Watchlist.Domain.AvailabilityStatus.AvailableOnPlex)
             ];
 
             return Task.FromResult(movies);

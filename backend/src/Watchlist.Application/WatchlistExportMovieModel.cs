@@ -1,3 +1,5 @@
+using Watchlist.Domain;
+
 namespace Watchlist.Application;
 
 public sealed record WatchlistExportMovieModel(
@@ -6,4 +8,7 @@ public sealed record WatchlistExportMovieModel(
     string Title,
     int? Year,
     string? LetterboxdPath,
-    IReadOnlyList<string> OwnedServiceAvailability);
+    IReadOnlyList<string> OwnedServiceAvailability,
+    int? TmdbId = null,
+    string MetadataStatus = "not_synced",
+    AvailabilityStatus AvailabilityStatus = Watchlist.Domain.AvailabilityStatus.Unspecified);

@@ -503,6 +503,29 @@ public sealed class WatchlistApiTests
     }
 
     [Fact]
+    public async Task GetMovieSyncState_ReturnsCompleteWorkerSnapshot()
+    {
+        using SeededApiFactory factory = new();
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/export/movies/sync-state");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("lastSuccessfulMovieSyncAt").GetString()
+            .Should().Be("2026-06-05T12:00:00+00:00");
+        JsonElement movies = document.RootElement.GetProperty("movies");
+        movies.GetArrayLength().Should().Be(2);
+        movies.EnumerateArray().Should().Contain(item =>
+            item.GetProperty("tmdbId").GetInt32() == 1297842
+            && item.GetProperty("radarrEligible").GetBoolean());
+        movies.EnumerateArray().Should().Contain(item =>
+            item.GetProperty("tmdbId").GetInt32() == 4951
+            && item.GetProperty("radarrEligibilityReason").GetString()
+                == "owned_service_available");
+    }
+
+    [Fact]
     public async Task GetSonarrTvExport_ForV1_ReturnsEmptyArray()
     {
         using SeededApiFactory factory = new();

@@ -15,6 +15,8 @@ public sealed class MongoWatchlistExportRepositoryTests
             MediaType = MediaType.Movie,
             Source = WatchlistSource.Letterboxd,
             SourceId = "1297842",
+            TmdbId = 1297842,
+            TmdbMetadataStatus = "enriched",
             ImdbId = "tt27613895",
             Title = "GOAT",
             Year = 2026,
@@ -28,6 +30,9 @@ public sealed class MongoWatchlistExportRepositoryTests
         WatchlistExportMovieModel result = MongoWatchlistExportRepository.ToExportModel(document);
 
         result.SourceId.Should().Be("1297842");
+        result.TmdbId.Should().Be(1297842);
+        result.MetadataStatus.Should().Be("enriched");
+        result.AvailabilityStatus.Should().Be(AvailabilityStatus.NotOnPlex);
         result.ImdbId.Should().Be("tt27613895");
         result.Title.Should().Be("GOAT");
         result.Year.Should().Be(2026);

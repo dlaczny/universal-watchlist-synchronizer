@@ -79,6 +79,16 @@ app.MapGet("/api/export/radarr/movies", async (
     return Results.Ok(items);
 });
 
+app.MapGet("/api/export/movies/sync-state", async (
+    WatchlistExportService exportService,
+    CancellationToken cancellationToken) =>
+{
+    WorkerMovieSnapshotDto snapshot =
+        await exportService.GetMovieSyncSnapshotAsync(cancellationToken);
+
+    return Results.Ok(snapshot);
+});
+
 app.MapGet("/api/export/sonarr/tv", async (
     WatchlistExportService exportService,
     CancellationToken cancellationToken) =>
