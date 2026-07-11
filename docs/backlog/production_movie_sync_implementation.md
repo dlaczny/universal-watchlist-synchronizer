@@ -412,24 +412,24 @@ git commit -m "build: package production movie services"
 - Delete: `.github/workflows/validate-okf.yml`
 - Modify: `.github/workflows/android-ci.yml`
 
-- [ ] **Step 1: Implement one required movie workflow**
+- [x] **Step 1: Implement one required movie workflow**
 
 Jobs: `okf`, `backend`, `worker`, `secret-scan`, and `containers`. Give
 `backend` a MongoDB 8 service with health checks. Pin third-party actions to
 immutable commit revisions and keep `permissions: contents: read`.
 
-- [ ] **Step 2: Match local and CI commands**
+- [x] **Step 2: Match local and CI commands**
 
 Backend runs Release restore/build/full test. Worker runs Python 3.11 dependency
 install, pytest, and compileall. Containers build only after code tests pass.
 Secret scanning covers history and working tree with redacted output.
 
-- [ ] **Step 3: Validate workflow syntax and local equivalents**
+- [x] **Step 3: Validate workflow syntax and local equivalents**
 
 Parse YAML, execute every local test command, run the redacted secret scanner,
 and build both Docker images.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```powershell
 git add .github/workflows
