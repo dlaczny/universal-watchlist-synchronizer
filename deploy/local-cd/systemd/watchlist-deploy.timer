@@ -1,9 +1,11 @@
 [Unit]
-Description=Poll and deploy Watchlist backend and Android TV app
+Description=Poll for CI-validated Watchlist movie releases
 
 [Timer]
 OnBootSec=2min
 OnUnitActiveSec=5min
+RandomizedDelaySec=60s
+Persistent=true
 Unit=watchlist-deploy.service
 
 [Install]

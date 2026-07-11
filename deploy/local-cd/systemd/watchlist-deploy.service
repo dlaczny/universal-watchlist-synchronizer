@@ -1,10 +1,20 @@
 [Unit]
-Description=Deploy Watchlist backend and Android TV app
+Description=Deploy CI-validated Watchlist movie services
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=oneshot
-EnvironmentFile=/opt/watchlist-app/deploy/local-cd/watchlist-deploy.env
-ExecStart=/bin/bash /opt/watchlist-app/scripts/deploy-watchlist-local.sh
-WorkingDirectory=/opt/watchlist-app
+User=watchlist
+Group=watchlist
+UMask=0077
+EnvironmentFile=/opt/watchlist-prod/config/deploy.env
+Environment=HOME=/opt/watchlist-prod
+Environment=DOCKER_CONFIG=/opt/watchlist-prod/.docker
+ExecStart=/bin/bash /opt/watchlist-prod/deployer/deploy-movie-sync.sh
+WorkingDirectory=/opt/watchlist-prod
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/watchlist-prod

@@ -447,26 +447,26 @@ git commit -m "ci: validate complete movie deployment"
 - Test: `tests/deployment/test_check_movie_ci.py`
 - Test: `tests/deployment/test_deploy_script.py`
 
-- [ ] **Step 1: Write failing CI-gate and shell-contract tests**
+- [x] **Step 1: Write failing CI-gate and shell-contract tests**
 
 Test successful, pending, failed, and missing `Movie CI` API responses. Shell
 tests assert use of `flock`, detached validated checkout, commit-tagged images,
 health checks, last-successful release, rollback, and no environment-value
 logging.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run: `python -m pytest tests/deployment -q`
 
 Expected: missing module/script failures.
 
-- [ ] **Step 3: Implement public GitHub Actions gate**
+- [x] **Step 3: Implement public GitHub Actions gate**
 
 `check-movie-ci.py` accepts repository, workflow filename, and commit SHA. Exit
 `0` only for a completed successful push run for the exact SHA; use distinct
 nonzero codes for pending and failed/missing runs.
 
-- [ ] **Step 4: Implement deployment and rollback**
+- [x] **Step 4: Implement deployment and rollback**
 
 Use `/opt/watchlist-prod/repository`, `/opt/watchlist-prod/config`, and
 `/opt/watchlist-prod/data`. Preserve `/opt/watchlist-app`. Build and start the
@@ -474,18 +474,18 @@ validated release, run smoke checks, atomically record the SHA, and restart the
 previous release on failure. Retain two release image sets and prune stale
 builder cache.
 
-- [ ] **Step 5: Run systemd as the deployment user**
+- [x] **Step 5: Run systemd as the deployment user**
 
 Set `User=watchlist`, `Group=watchlist`, restrictive umask, and explicit write
 paths. Keep the five-minute timer and add randomized delay to avoid fixed-time
 API bursts.
 
-- [ ] **Step 6: Verify tests and shell syntax**
+- [x] **Step 6: Verify tests and shell syntax**
 
 Run deployment pytest, `bash -n`, and a local dry-run using fake Docker/GitHub
 command fixtures.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add scripts deploy/local-cd tests/deployment
