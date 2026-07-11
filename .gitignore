@@ -38,6 +38,8 @@ deploy/production/worker.env
 
 # Logs and temp files
 *.log
+__pycache__/
+*.py[cod]
 tmp/
 temp/
 
