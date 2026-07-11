@@ -300,7 +300,7 @@ Expose `get_managed_destinations`, `mark_managed`, and `release_managed`.
 Use the existing Radarr/Plex clients only for reads. Return one immutable
 snapshot object plus collection errors. Run focused and full worker tests.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add workers/vod-filter/src workers/vod-filter/tests/vod_filter
@@ -320,24 +320,24 @@ git commit -m "feat: collect authoritative movie sync state"
 - Create: `workers/vod-filter/tests/vod_filter/test_sync_movies_cli.py`
 - Create: `workers/vod-filter/tests/vod_filter/test_worker_healthcheck.py`
 
-- [ ] **Step 1: Write failing executor tests**
+- [x] **Step 1: Write failing executor tests**
 
 Prove dry-run calls no mutating client method; policy blockers call nothing;
 adds/removals call only the intended endpoint; downloaded files and Plex library
 are never deleted; successful actions update ownership; partial failures are
 recorded and do not execute a stale retry plan.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run the three new test files. Expected: import failure for missing executor/CLI.
 
-- [ ] **Step 3: Implement executor and report formats**
+- [x] **Step 3: Implement executor and report formats**
 
 Write `data/reports/movie-sync-<run-id>.json` and `.md`. JSON contains the full
 machine-readable plan and outcomes; Markdown groups the shared decision
 vocabulary for operator review. Never serialize config or request headers.
 
-- [ ] **Step 4: Implement `sync_movies.py`**
+- [x] **Step 4: Implement `sync_movies.py`**
 
 CLI flags:
 
@@ -352,13 +352,13 @@ CLI flags:
 Exit codes are `0` completed/no changes, `2` partial execution, `3` safety
 blocked, and `1` configuration/collection failure.
 
-- [ ] **Step 5: Switch continuous production execution**
+- [x] **Step 5: Switch continuous production execution**
 
 `continuous_sync.py` invokes `sync_movies.main([])` once per interval. It writes
 `data/last-run.json` atomically after every run. `healthcheck.py` validates the
 heartbeat age and accepted last status.
 
-- [ ] **Step 6: Verify focused and full worker tests**
+- [x] **Step 6: Verify focused and full worker tests**
 
 Run all worker tests and `python -m compileall -q src *.py` from the worker root.
 

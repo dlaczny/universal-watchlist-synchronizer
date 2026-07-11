@@ -28,6 +28,7 @@ def test_reconcile_sync_cli_writes_read_only_report(
     class FakeConfig:
         watchlist_app_url = "http://watchlist.local"
         watchlist_app_sync_first = True
+        watchlist_app_sync_key = "sync-secret"
         database_path = tmp_path / "vod-filter.db"
         radarr_url = "http://radarr.local"
         radarr_api_key = "radarr-key"
@@ -37,34 +38,33 @@ def test_reconcile_sync_cli_writes_read_only_report(
         plex_token = "plex-token"
 
     class FakeWatchlistAppClient:
-        def __init__(self, base_url):
+        def __init__(self, base_url, sync_key=None):
             self.base_url = base_url
+            assert sync_key == "sync-secret"
 
-        def fetch_movie_watchlist(self, sync_first=False):
-            calls.append(("backend_watchlist", sync_first))
-            return [
-                {
-                    "title": "Backend Movie",
-                    "year": 2024,
-                    "tmdb_id": 101,
-                    "availability_status": "not_on_plex",
-                }
-            ]
-
-        def fetch_radarr_movie_export(self, sync_first=False):
-            calls.append(("backend_radarr_export", sync_first))
-            return [{"title": "Backend Movie", "year": 2024, "tmdb_id": 101}]
+        def fetch_movie_sync_snapshot(self, sync_first=False):
+            calls.append(("backend_snapshot", sync_first))
+            return {
+                "generated_at": None,
+                "last_successful_movie_sync_at": None,
+                "movies": [
+                    {
+                        "title": "Backend Movie",
+                        "year": 2024,
+                        "tmdb_id": 101,
+                        "metadata_status": "enriched",
+                        "radarr_eligible": True,
+                        "availability_status": "not_on_plex",
+                    }
+                ],
+            }
 
     class FakeCacheService:
         def __init__(self, database_path):
             self.database_path = database_path
 
-        def get_movies_for_radarr(self):
-            calls.append(("cache_radarr", None))
-            return []
-
-        def get_all_sync_states(self):
-            calls.append(("cache_sync", None))
+        def get_managed_destinations(self):
+            calls.append(("managed_destinations", None))
             return []
 
     class FakeRadarrClient:
@@ -98,7 +98,7 @@ def test_reconcile_sync_cli_writes_read_only_report(
 
     assert exit_code == 0
     assert report_path.exists()
-    assert "- backend_radarr_export: 1" in report_path.read_text(encoding="utf-8")
-    assert ("backend_watchlist", True) in calls
-    assert ("backend_radarr_export", False) in calls
+    assert "- backend_snapshot: 1" in report_path.read_text(encoding="utf-8")
+    assert ("backend_snapshot", True) in calls
+    assert ("managed_destinations", None) in calls
     assert ("plex_library", "Movies") in calls

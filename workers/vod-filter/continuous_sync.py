@@ -77,10 +77,10 @@ def parse_args():
 
 def run_sync():
     """Execute a single sync run."""
-    from run_all_syncs import main as run_all_main
+    from sync_movies import main as sync_movies_main
 
     logger.info("starting_sync_run")
-    exit_code = run_all_main([])
+    exit_code = sync_movies_main([])
 
     if exit_code == 0:
         logger.info("sync_run_completed_successfully")
@@ -160,6 +160,7 @@ def main():
     # Set dry-run in environment if specified
     if args.dry_run:
         os.environ["DRY_RUN"] = "true"
+        os.environ["MOVIE_SYNC_APPLY"] = "false"
 
     # Print startup banner
     print("\n" + "=" * 80)

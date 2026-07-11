@@ -650,7 +650,14 @@ def _none_or_str(value: Any) -> str | None:
     return str(value)
 
 
-def _decision_sort_key(decision: ReconciliationDecision) -> tuple[str, int, str, str]:
+def _decision_sort_key(decision: ReconciliationDecision) -> tuple[int, int, str, str]:
+    area_order = {
+        "radarr": 0,
+        "plex_watchlist": 1,
+        "source_identity": 2,
+        "worker_cache": 3,
+        "collection": 4,
+    }
     action_order = {
         "add": 0,
         "keep": 1,
@@ -660,7 +667,7 @@ def _decision_sort_key(decision: ReconciliationDecision) -> tuple[str, int, str,
         "error": 5,
     }
     return (
-        decision.area,
+        area_order.get(decision.area, 99),
         action_order.get(decision.action, 99),
         decision.movie.title.lower(),
         decision.reason,

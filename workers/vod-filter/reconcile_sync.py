@@ -39,7 +39,7 @@ def parse_args(argv=None):
     parser.add_argument(
         "--skip-watchlist-app-sync",
         action="store_true",
-        help="Do not call watchlist-app POST /api/sync/all before reading backend state",
+        help="Do not call watchlist-app POST /api/sync/movies before reading backend state",
     )
     parser.add_argument(
         "--library-name",
@@ -80,7 +80,10 @@ def main(argv=None) -> int:
 
     errors: list[str] = []
 
-    backend_client = WatchlistAppClient(config.watchlist_app_url)
+    backend_client = WatchlistAppClient(
+        config.watchlist_app_url,
+        sync_key=config.watchlist_app_sync_key,
+    )
     cache_service = CacheService(database_path=str(config.database_path))
     radarr_client = RadarrClient(
         url=config.radarr_url,
@@ -91,24 +94,20 @@ def main(argv=None) -> int:
     plex_client = PlexClient(url=config.plex_url, token=config.plex_token)
 
     sync_first = config.watchlist_app_sync_first and not args.skip_watchlist_app_sync
-    backend_watchlist = _collect(
-        "backend movie watchlist",
-        lambda: backend_client.fetch_movie_watchlist(sync_first=sync_first),
-        errors,
-    )
-    backend_radarr_export = _collect(
-        "backend Radarr export",
-        lambda: backend_client.fetch_radarr_movie_export(sync_first=False),
-        errors,
-    )
-    cache_radarr = _collect(
-        "worker cache Radarr candidates",
-        cache_service.get_movies_for_radarr,
-        errors,
-    )
-    cache_sync = _collect(
-        "worker cache sync states",
-        cache_service.get_all_sync_states,
+    try:
+        backend_snapshot = backend_client.fetch_movie_sync_snapshot(
+            sync_first=sync_first
+        )
+    except Exception as error:
+        errors.append(f"backend movie snapshot: {error}")
+        backend_snapshot = {
+            "movies": [],
+            "generated_at": None,
+            "last_successful_movie_sync_at": None,
+        }
+    managed_destinations = _collect(
+        "worker managed destinations",
+        cache_service.get_managed_destinations,
         errors,
     )
     radarr_movies = _collect("Radarr movies", radarr_client.get_all_movies, errors)
@@ -120,14 +119,16 @@ def main(argv=None) -> int:
     )
 
     report = reconcile_sync_state(
-        backend_watchlist_movies=backend_watchlist,
-        backend_radarr_export_movies=backend_radarr_export,
-        cache_radarr_movies=cache_radarr,
-        cache_sync_states=cache_sync,
+        backend_snapshot_movies=backend_snapshot["movies"],
         radarr_movies=radarr_movies,
         plex_watchlist_movies=plex_watchlist,
         plex_library_movies=plex_library,
+        managed_destinations=managed_destinations,
         collection_errors=errors,
+        source_snapshot_at=backend_snapshot["generated_at"],
+        source_last_successful_sync_at=backend_snapshot[
+            "last_successful_movie_sync_at"
+        ],
     )
 
     report_path = (
