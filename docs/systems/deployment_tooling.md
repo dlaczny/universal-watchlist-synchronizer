@@ -6,8 +6,8 @@ tags:
   - deployment
   - ci
   - homelab
-timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+timestamp: 2026-07-12T00:00:00Z
+version: 0.3.0
 ---
 
 # GitHub Validation
@@ -59,6 +59,12 @@ successful `Movie CI` push run for that exact SHA, checks it out detached,
 validates Compose, prunes stale build cache, and builds SHA-tagged images. It
 then stops the legacy backend when present, starts the new Compose project, and
 requires both backend HTTP health and a healthy worker heartbeat.
+
+At cutover, the deployer stops the previous worker and removes its persisted
+heartbeat. A release is accepted only after the new worker writes a nonempty
+heartbeat and its container reports healthy. Rollback performs the same reset,
+so neither a new release nor a restored release can inherit health from another
+image.
 
 Failure after cutover restores the previous production SHA or, on first
 cutover, the legacy backend. Success atomically records the SHA, updates the

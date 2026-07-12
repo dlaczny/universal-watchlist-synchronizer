@@ -28,6 +28,7 @@ COMPOSE_RELATIVE_PATH="deploy/production/compose.yaml"
 BACKEND_ENV_FILE="$CONFIG_DIR/backend.env"
 WORKER_ENV_FILE="$CONFIG_DIR/worker.env"
 WORKER_CONTAINER="watchlist-prod-worker"
+WORKER_HEARTBEAT_FILE="${WORKER_HEARTBEAT_FILE:-$DATA_DIR/worker/last-run.json}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CI_CHECKER_PATH="${CI_CHECKER_PATH:-$DEPLOYER_DIR/check-movie-ci.py}"
 if [[ ! -f "$CI_CHECKER_PATH" ]]; then
@@ -84,6 +85,11 @@ wait_for_backend() {
   return 1
 }
 
+reset_worker_heartbeat() {
+  docker stop "$WORKER_CONTAINER" >/dev/null 2>&1 || true
+  rm -f "$WORKER_HEARTBEAT_FILE"
+}
+
 wait_for_release() {
   local attempt worker_health
   for ((attempt = 1; attempt <= HEALTH_ATTEMPTS; attempt++)); do
@@ -92,7 +98,8 @@ wait_for_release() {
         "$WORKER_CONTAINER" 2>/dev/null || true
     )"
     if curl -fsS --max-time 5 "$BACKEND_HEALTH_URL" >/dev/null \
-      && [[ "$worker_health" == "healthy" ]]; then
+      && [[ "$worker_health" == "healthy" ]] \
+      && [[ -s "$WORKER_HEARTBEAT_FILE" ]]; then
       return 0
     fi
     sleep "$HEALTH_SLEEP_SECONDS"
@@ -121,6 +128,7 @@ rollback_release() {
     previous_compose="$(compose_file)"
     export WATCHLIST_RELEASE="$previous_sha"
     docker compose -f "$previous_compose" config --quiet
+    reset_worker_heartbeat
     docker compose -f "$previous_compose" up -d --no-build --remove-orphans
     wait_for_release || fail "Previous production release did not recover."
     log "Restored production release $previous_sha."
@@ -246,6 +254,7 @@ if [[ "$legacy_was_running" == "true" ]]; then
   docker compose -f "$LEGACY_COMPOSE_FILE" down
 fi
 
+reset_worker_heartbeat
 docker compose -f "$COMPOSE_FILE" up -d --no-build --remove-orphans
 wait_for_release || fail "New backend or movie worker did not become healthy."
 

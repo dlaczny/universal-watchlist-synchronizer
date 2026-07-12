@@ -7,7 +7,7 @@ tags:
   - homelab
   - rollback
 timestamp: 2026-07-12T00:00:00Z
-version: 0.2.1
+version: 0.3.0
 ---
 
 # Boundary
@@ -60,6 +60,10 @@ The default deploy health gate waits up to 240 five-second attempts. This
 20-minute window is deliberately longer than the 15-minute full-sync timeout;
 ordinary backend reads still fail after 30 seconds by default.
 
+Cutover stops the old worker and removes `data/worker/last-run.json`. The state
+SHA is recorded only after the replacement worker writes a fresh heartbeat;
+recent health from the previous image is never reusable.
+
 # First Reconciliation Deployment
 
 ```bash
@@ -108,7 +112,8 @@ service failed without changing the running release.
 Build failure occurs before cutover and leaves the current service running.
 Failure after cutover automatically starts the previous SHA-tagged production
 images. On the first cutover, it instead restarts the legacy backend Compose
-project. The state file changes only after both new containers are healthy.
+project. The state file changes only after the backend is healthy and the new
+worker has written its own accepted heartbeat.
 
 Do not reset or clean `/opt/watchlist-app`. Remove the legacy deployment only
 after the production path has completed an agreed rollback-observation period.
