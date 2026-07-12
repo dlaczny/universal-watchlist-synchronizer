@@ -6,7 +6,7 @@ tags:
   - backlog
   - roadmap
 timestamp: 2026-07-12T00:00:00Z
-version: 0.3.0
+version: 0.4.0
 ---
 
 # Completed Movie Foundation
@@ -28,6 +28,10 @@ version: 0.3.0
 
 # Operations Next
 
+- Implement the approved [Watched Movie Lifecycle Design](watched_movie_lifecycle_design.md):
+  persist Letterboxd `active`/`watched` transitions, delete exact watched
+  Radarr matches with files behind an explicit feature gate, and remove Plex
+  watchlist rows after watched or manually observed Radarr removals.
 - Resolve the `Resurrection` (2025) Radarr folder collision: desired TMDB
   `878608` conflicts with existing TMDB `1279580`; automatic add remains
   skipped.
@@ -36,8 +40,6 @@ version: 0.3.0
 - Expose the existing Plex watchlist rows `Manifesto` (2017) and `Always`
   (2011), which have no TMDB GUID, as explicit report decisions instead of log
   warnings only.
-- Add an operator workflow for managed Radarr rows with downloaded files that
-  are no longer desired.
 - Add notification/alerting for repeated blocked, partial, or unhealthy runs.
 - Add host disk alerts and a build-cache retention threshold; the first stable
   rollout left about 2.1 GB free at 86% filesystem use before final cache prune.

@@ -2,6 +2,10 @@
 
 ## 2026-07-12
 
+- Approved an implementation design that records non-empty successful
+  Letterboxd disappearances as durable watched lifecycle events. The future
+  guarded cleanup removes exact watched Radarr matches with files and removes
+  Plex watchlist rows after watched or manually observed Radarr removals.
 - Deployed backend and movie worker to the homelab from exact Movie-CI-passing
   SHAs while keeping all runtime credentials host-local and mode `0600`.
 - Added separate long backend-refresh timeouts and a deployment window that
