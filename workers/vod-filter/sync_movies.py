@@ -65,6 +65,7 @@ def execute_movie_sync(
             collection_errors=state.collection_errors,
             source_snapshot_at=state.source_snapshot_at,
             source_last_successful_sync_at=state.source_last_successful_sync_at,
+            radarr_exclusions=state.radarr_exclusions,
         )
         blockers = evaluate_plan(report, policy, now=current_time)
         execution = executor.execute(report, blockers, apply)

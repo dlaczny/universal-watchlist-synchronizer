@@ -4,6 +4,7 @@ Uses pyarr library for Radarr API interactions.
 """
 
 from typing import Optional, List, Dict, Any
+import httpx
 import structlog
 from pyarr import RadarrAPI
 from pyarr.exceptions import PyarrError
@@ -35,6 +36,11 @@ class RadarrClient:
         self.api_key = api_key
         self.root_folder = root_folder
         self.quality_profile_id = quality_profile_id
+        self.http_client = httpx.Client(
+            base_url=f"{self.url}/",
+            headers={"X-Api-Key": self.api_key},
+            timeout=30,
+        )
 
         # Initialize pyarr client
         self.client = RadarrAPI(url, api_key)
@@ -119,13 +125,7 @@ class RadarrClient:
         logger.debug("radarr_get_exclusions")
 
         try:
-            # Use the correct Radarr API endpoint for exclusions
-            import httpx
-            response = httpx.get(
-                f"{self.url}/api/v3/exclusions",
-                headers={"X-Api-Key": self.api_key},
-                timeout=30,
-            )
+            response = self.http_client.get("api/v3/exclusions")
             response.raise_for_status()
             exclusions = response.json()
 
@@ -161,7 +161,55 @@ class RadarrClient:
 
         except RadarrError as e:
             logger.error("radarr_exclusion_check_error", tmdb_id=tmdb_id, error=str(e))
+            raise
+
+    @retry_on_api_error(max_attempts=3)
+    def remove_exclusion(self, tmdb_id: int) -> bool:
+        """Remove only the import-list exclusion for one exact TMDB identity."""
+        exclusion = next(
+            (
+                item
+                for item in self.get_exclusions()
+                if item.get("tmdbId") == tmdb_id
+            ),
+            None,
+        )
+        if exclusion is None:
             return False
+
+        exclusion_id = exclusion.get("id")
+        if not isinstance(exclusion_id, int) or isinstance(exclusion_id, bool):
+            raise RadarrError(
+                f"Radarr exclusion for TMDB {tmdb_id} has no valid id"
+            )
+
+        try:
+            response = self.http_client.delete(
+                f"api/v3/exclusions/{exclusion_id}"
+            )
+            response.raise_for_status()
+        except Exception as e:
+            logger.error(
+                "radarr_remove_exclusion_error",
+                tmdb_id=tmdb_id,
+                exclusion_id=exclusion_id,
+                error=str(e),
+            )
+            raise RadarrError(
+                f"Failed to remove Radarr exclusion for TMDB {tmdb_id}: {e}"
+            ) from e
+
+        self._exclusions_cache = [
+            item
+            for item in self.get_exclusions()
+            if item.get("id") != exclusion_id
+        ]
+        logger.info(
+            "radarr_exclusion_removed",
+            tmdb_id=tmdb_id,
+            exclusion_id=exclusion_id,
+        )
+        return True
 
     @retry_on_api_error(max_attempts=3)
     def add_movie(
@@ -171,6 +219,7 @@ class RadarrClient:
         year: int,
         monitored: bool = True,
         search_for_movie: bool = True,
+        override_exclusion: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """Add a movie to Radarr.
 
@@ -180,6 +229,7 @@ class RadarrClient:
             year: Release year
             monitored: Whether to monitor the movie for releases
             search_for_movie: Whether to search for the movie immediately
+            override_exclusion: Remove the exact TMDB import-list exclusion first
 
         Returns:
             Added movie dict or None if already exists or excluded
@@ -192,8 +242,13 @@ class RadarrClient:
         try:
             # Check if movie is in exclusion list
             if self.is_movie_excluded(tmdb_id):
-                logger.info("radarr_movie_excluded", tmdb_id=tmdb_id, title=title)
-                return None
+                if not override_exclusion:
+                    logger.info("radarr_movie_excluded", tmdb_id=tmdb_id, title=title)
+                    return None
+                if not self.remove_exclusion(tmdb_id):
+                    raise RadarrError(
+                        f"Radarr exclusion disappeared before override for TMDB {tmdb_id}"
+                    )
 
             # Check if movie already exists
             if self.is_movie_in_radarr(tmdb_id):

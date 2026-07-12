@@ -62,6 +62,7 @@ def reconcile_sync_state(
     cache_radarr_movies: Iterable[Any] | None = None,
     cache_sync_states: Iterable[Any] | None = None,
     radarr_movies: Iterable[Any] | None = None,
+    radarr_exclusions: Iterable[Any] | None = None,
     plex_watchlist_movies: Iterable[Any] | None = None,
     plex_library_movies: Iterable[Any] | None = None,
     managed_destinations: Iterable[Any] | None = None,
@@ -81,6 +82,7 @@ def reconcile_sync_state(
     cache_radarr_raw = list(cache_radarr_movies or [])
     cache_sync_raw = list(cache_sync_states or [])
     radarr_raw = list(radarr_movies or [])
+    radarr_exclusion_raw = list(radarr_exclusions or [])
     plex_watchlist_raw = list(plex_watchlist_movies or [])
     plex_library_raw = list(plex_library_movies or [])
     collection_error_raw = list(collection_errors or [])
@@ -112,6 +114,7 @@ def reconcile_sync_state(
         "worker_cache_radarr": len(cache_radarr),
         "worker_cache_sync": len(cache_sync),
         "radarr": len(radarr_live),
+        "radarr_exclusions": len(radarr_exclusion_raw),
         "plex_watchlist": len(plex_watchlist),
         "plex_library": len(plex_library),
         "collection_errors": len(collection_error_raw),
@@ -132,6 +135,11 @@ def reconcile_sync_state(
     cache_radarr_by_id = _index_by_tmdb(cache_radarr, "worker_cache_radarr", decisions)
     cache_sync_by_id = _index_by_tmdb(cache_sync, "worker_cache_sync", decisions)
     radarr_by_id = _index_by_tmdb(radarr_live, "radarr", decisions)
+    radarr_excluded_ids = {
+        tmdb_id
+        for item in radarr_exclusion_raw
+        if (tmdb_id := _to_int(_read(item, "tmdb_id", "tmdbId"))) is not None
+    }
     plex_watchlist_by_id = _index_by_tmdb(
         plex_watchlist,
         "plex_watchlist",
@@ -148,6 +156,7 @@ def reconcile_sync_state(
                 backend_radarr_by_id,
                 radarr_by_id,
                 managed_by_destination["radarr"],
+                radarr_excluded_ids,
             )
         )
 
@@ -244,6 +253,7 @@ def _radarr_decisions(
     backend_radarr_by_id: dict[int, ReconciliationMovie],
     radarr_by_id: dict[int, ReconciliationMovie],
     managed_ids: set[int],
+    excluded_ids: set[int],
 ) -> list[ReconciliationDecision]:
     decisions = []
 
@@ -263,15 +273,35 @@ def _radarr_decisions(
                 )
             )
         else:
-            decisions.append(
-                ReconciliationDecision(
-                    area="radarr",
-                    action="add",
-                    movie=movie,
-                    reason="desired_radarr_movie_missing",
-                    managed=tmdb_id in managed_ids,
-                )
+            title_year = _title_year_key(movie)
+            has_path_collision = title_year is not None and any(
+                _title_year_key(live_movie) == title_year
+                for live_movie in radarr_by_id.values()
             )
+            if has_path_collision:
+                decisions.append(
+                    ReconciliationDecision(
+                        area="radarr",
+                        action="skip",
+                        movie=movie,
+                        reason="radarr_title_year_collision_requires_manual_review",
+                        managed=tmdb_id in managed_ids,
+                    )
+                )
+            else:
+                decisions.append(
+                    ReconciliationDecision(
+                        area="radarr",
+                        action="add",
+                        movie=movie,
+                        reason=(
+                            "desired_radarr_movie_missing_override_exclusion"
+                            if tmdb_id in excluded_ids
+                            else "desired_radarr_movie_missing"
+                        ),
+                        managed=tmdb_id in managed_ids,
+                    )
+                )
 
     for tmdb_id, movie in radarr_by_id.items():
         if tmdb_id not in backend_radarr_by_id:
@@ -306,6 +336,13 @@ def _radarr_decisions(
                 )
 
     return decisions
+
+
+def _title_year_key(movie: ReconciliationMovie) -> tuple[str, int] | None:
+    if movie.year is None:
+        return None
+    normalized_title = " ".join(movie.title.casefold().split())
+    return normalized_title, movie.year
 
 
 def _cache_radarr_drift_decisions(

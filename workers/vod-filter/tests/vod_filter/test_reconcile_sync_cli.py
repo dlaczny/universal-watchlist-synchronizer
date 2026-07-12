@@ -85,6 +85,10 @@ def test_reconcile_sync_cli_writes_read_only_report(
             calls.append(("radarr", None))
             return []
 
+        def get_exclusions(self):
+            calls.append(("radarr_exclusions", None))
+            return []
+
     class FakePlexClient:
         def __init__(self, *args, **kwargs):
             pass
@@ -111,4 +115,5 @@ def test_reconcile_sync_cli_writes_read_only_report(
     assert "- backend_snapshot: 1" in report_path.read_text(encoding="utf-8")
     assert ("backend_snapshot", True) in calls
     assert ("managed_destinations", None) in calls
+    assert ("radarr_exclusions", None) in calls
     assert ("plex_library", "Movies") in calls

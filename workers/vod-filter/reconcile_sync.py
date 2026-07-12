@@ -113,6 +113,11 @@ def main(argv=None) -> int:
         errors,
     )
     radarr_movies = _collect("Radarr movies", radarr_client.get_all_movies, errors)
+    radarr_exclusions = _collect(
+        "Radarr exclusions",
+        radarr_client.get_exclusions,
+        errors,
+    )
     plex_watchlist = _collect("Plex watchlist", plex_client.get_watchlist, errors)
     plex_library = _collect(
         f"Plex library {args.library_name}",
@@ -131,6 +136,7 @@ def main(argv=None) -> int:
         source_last_successful_sync_at=backend_snapshot[
             "last_successful_movie_sync_at"
         ],
+        radarr_exclusions=radarr_exclusions,
     )
 
     report_path = (

@@ -8,7 +8,7 @@ tags:
   - radarr
   - plex
 timestamp: 2026-07-12T00:00:00Z
-version: 0.2.1
+version: 0.3.0
 ---
 
 # Production Configuration
@@ -94,6 +94,14 @@ Review decisions by `area`, `action`, `reason`, `managed`, and
 `execution_status`. A first reconciliation normally includes
 `mutation_disabled`; that blocker is expected while apply is off.
 
+These destination reasons require explicit attention:
+
+| Reason | Meaning |
+|---|---|
+| `desired_radarr_movie_missing_override_exclusion` | Apply will remove the exact TMDB import-list exclusion, then add the desired movie. |
+| `radarr_title_year_collision_requires_manual_review` | Another TMDB identity already maps to the same Radarr title/year folder key; no add occurs. |
+| `plex_discovery_identity_not_found` | Plex Discover could not resolve the exact TMDB identity; no mutation or ownership record occurs. |
+
 # Review Checklist
 
 Before enabling apply, verify:
@@ -103,6 +111,8 @@ Before enabling apply, verify:
 - source freshness is within policy;
 - every source movie has a valid TMDB identity and enriched metadata;
 - Radarr adds are truly unavailable on configured owned services;
+- each planned Radarr exclusion override is intended;
+- title/year collision skips identify the correct TMDB row to retain manually;
 - Plex-watchlist adds match source/library/download intent;
 - unmanaged destination rows are `skip`, not `remove`;
 - downloaded Radarr rows are `skip` with manual-review reason;

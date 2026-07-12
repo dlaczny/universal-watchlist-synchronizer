@@ -17,6 +17,7 @@ class CollectedMovieSyncState:
     plex_library_movies: tuple[dict[str, Any], ...]
     managed_destinations: tuple[dict[str, Any], ...]
     collection_errors: tuple[str, ...]
+    radarr_exclusions: tuple[dict[str, Any], ...] = ()
 
 
 class MovieSyncCollector:
@@ -57,6 +58,11 @@ class MovieSyncCollector:
             self.radarr_client.get_all_movies,
             errors,
         )
+        radarr_exclusions = self._collect(
+            "radarr_exclusions",
+            self.radarr_client.get_exclusions,
+            errors,
+        )
         plex_watchlist = self._collect(
             "plex_watchlist",
             self.plex_client.get_watchlist,
@@ -84,6 +90,7 @@ class MovieSyncCollector:
             plex_library_movies=tuple(plex_library),
             managed_destinations=tuple(managed),
             collection_errors=tuple(errors),
+            radarr_exclusions=tuple(radarr_exclusions),
         )
 
     @staticmethod

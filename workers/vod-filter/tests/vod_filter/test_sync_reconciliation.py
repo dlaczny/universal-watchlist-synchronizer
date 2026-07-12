@@ -51,6 +51,39 @@ def test_reconcile_sync_state_reports_radarr_add_keep_and_remove():
     assert decision_titles(report, "radarr", "remove") == ["Stale Radarr"]
 
 
+def test_reconcile_sync_state_skips_radarr_title_year_path_collision():
+    report = reconcile_sync_state(
+        backend_radarr_export_movies=[movie("Resurrection", 878608, year=2025)],
+        radarr_movies=[movie("Resurrection", 1279580, year=2025, has_file=False)],
+    )
+
+    assert decision_titles(report, "radarr", "add") == []
+    assert any(
+        decision.area == "radarr"
+        and decision.action == "skip"
+        and decision.movie.tmdb_id == 878608
+        and decision.reason == "radarr_title_year_collision_requires_manual_review"
+        for decision in report.decisions
+    )
+
+
+def test_reconcile_sync_state_explains_radarr_exclusion_override():
+    report = reconcile_sync_state(
+        backend_radarr_export_movies=[movie("Desired Again", 101)],
+        radarr_movies=[],
+        radarr_exclusions=[{"id": 55, "tmdbId": 101, "movieTitle": "Desired Again"}],
+    )
+
+    decision = next(
+        item
+        for item in report.decisions
+        if item.area == "radarr" and item.movie.tmdb_id == 101
+    )
+    assert decision.action == "add"
+    assert decision.reason == "desired_radarr_movie_missing_override_exclusion"
+    assert report.source_counts["radarr_exclusions"] == 1
+
+
 def test_reconcile_sync_state_reports_plex_add_keep_skip_and_remove():
     report = reconcile_sync_state(
         backend_watchlist_movies=[

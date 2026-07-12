@@ -42,8 +42,14 @@ class FakeRadarr:
         self.calls = []
         self.fail_add = fail_add
 
-    def add_movie(self, tmdb_id: int, title: str, year: int):
-        self.calls.append(("add", tmdb_id, title, year))
+    def add_movie(
+        self,
+        tmdb_id: int,
+        title: str,
+        year: int,
+        override_exclusion: bool = False,
+    ):
+        self.calls.append(("add", tmdb_id, title, year, override_exclusion))
         if self.fail_add:
             raise RuntimeError("radarr failed")
         return {"id": tmdb_id}
@@ -54,12 +60,13 @@ class FakeRadarr:
 
 
 class FakePlex:
-    def __init__(self):
+    def __init__(self, add_result: bool = True):
         self.calls = []
+        self.add_result = add_result
 
     def add_to_watchlist(self, tmdb_id: int, title: str, year: int):
         self.calls.append(("add", tmdb_id, title, year))
-        return True
+        return self.add_result
 
     def remove_from_watchlist(self, tmdb_id: int, title: str):
         self.calls.append(("remove", tmdb_id, title))
@@ -144,7 +151,7 @@ def test_executor_applies_safe_actions_and_updates_ownership():
 
     assert result.errors == ()
     assert radarr.calls == [
-        ("add", 1, "Movie 1", 2024),
+        ("add", 1, "Movie 1", 2024, False),
         ("remove", 2, False),
     ]
     assert plex.calls == [
@@ -159,6 +166,27 @@ def test_executor_applies_safe_actions_and_updates_ownership():
         ("release", "plex_watchlist", 5),
     ]
     assert {item.execution_status for item in result.report.decisions} == {"completed"}
+
+
+def test_executor_overrides_only_a_planned_radarr_exclusion():
+    radarr = FakeRadarr()
+    executor = MovieSyncExecutor(radarr, FakePlex(), FakeCache())
+
+    result = executor.execute(
+        report(
+            decision(
+                "radarr",
+                "add",
+                101,
+                reason="desired_radarr_movie_missing_override_exclusion",
+            )
+        ),
+        blockers=[],
+        apply=True,
+    )
+
+    assert result.errors == ()
+    assert radarr.calls == [("add", 101, "Movie 101", 2024, True)]
 
 
 def test_executor_records_error_and_continues_with_independent_action():
@@ -182,3 +210,23 @@ def test_executor_records_error_and_continues_with_independent_action():
         "completed",
     ]
     assert plex.calls == [("add", 2, "Movie 2", 2024)]
+
+
+def test_executor_turns_unresolved_plex_identity_into_reported_skip():
+    radarr = FakeRadarr()
+    plex = FakePlex(add_result=False)
+    cache = FakeCache()
+    executor = MovieSyncExecutor(radarr, plex, cache)
+
+    result = executor.execute(
+        report(decision("plex_watchlist", "add", 101)),
+        blockers=[],
+        apply=True,
+    )
+
+    resolved = result.report.decisions[0]
+    assert result.errors == ()
+    assert resolved.action == "skip"
+    assert resolved.reason == "plex_discovery_identity_not_found"
+    assert resolved.execution_status == "skipped"
+    assert cache.calls == []

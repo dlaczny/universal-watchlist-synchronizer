@@ -8,8 +8,8 @@ tags:
   - worker
   - deployment
   - ci-cd
-timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+timestamp: 2026-07-12T00:00:00Z
+version: 0.3.0
 ---
 
 # Purpose
@@ -105,7 +105,13 @@ vocabulary as runtime logs and tests.
 ## Radarr
 
 - Add an eligible backend candidate that is absent from Radarr.
+- Read Radarr import-list exclusions as a required planning boundary. When an
+  eligible candidate has an exact TMDB exclusion, report
+  `desired_radarr_movie_missing_override_exclusion`; apply removes only that
+  exclusion before adding the movie.
 - Keep an eligible candidate already in Radarr.
+- Skip a missing candidate for manual review when another TMDB identity already
+  uses the same normalized title/year folder key.
 - Adopt an existing Radarr movie as worker-managed only while it is desired by
   the backend.
 - Remove only a worker-managed movie that is no longer a Radarr candidate.
@@ -125,6 +131,12 @@ A movie is desired on the Plex watchlist when at least one condition is true:
 The worker adds or keeps desired movies and records ownership. It removes only
 worker-managed entries that are no longer desired. Pre-existing unrelated Plex
 watchlist entries are preserved.
+
+Plex Discover text searches may use title variants and a wider result set, but
+only an exact TMDB identity authorizes a watchlist mutation. A true catalog miss
+becomes `plex_discovery_identity_not_found` and remains unowned for later manual
+review; transient Discover errors are retried and remain execution errors if
+all attempts fail.
 
 ## Plex Library
 

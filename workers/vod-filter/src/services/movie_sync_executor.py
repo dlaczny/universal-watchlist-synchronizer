@@ -16,6 +16,14 @@ class MovieSyncExecutionResult:
     errors: tuple[str, ...]
 
 
+class _DecisionSkipped(Exception):
+    """Convert a destination limitation into an explicit reported skip."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
 class MovieSyncExecutor:
     """Execute one already-computed plan without changing its decisions."""
 
@@ -60,6 +68,15 @@ class MovieSyncExecutor:
             try:
                 status = self._execute_decision(decision)
                 executed.append(replace(decision, execution_status=status))
+            except _DecisionSkipped as skipped:
+                executed.append(
+                    replace(
+                        decision,
+                        action="skip",
+                        reason=skipped.reason,
+                        execution_status="skipped",
+                    )
+                )
             except Exception as error:
                 tmdb_id = decision.movie.tmdb_id or "unknown"
                 errors.append(
@@ -95,6 +112,10 @@ class MovieSyncExecutor:
                 tmdb_id,
                 decision.movie.title,
                 decision.movie.year,
+                override_exclusion=(
+                    decision.reason
+                    == "desired_radarr_movie_missing_override_exclusion"
+                ),
             )
             if result is None:
                 raise RuntimeError("Radarr add returned no result")
@@ -127,7 +148,7 @@ class MovieSyncExecutor:
                 decision.movie.year,
             )
             if not added:
-                raise RuntimeError("Plex watchlist add returned false")
+                raise _DecisionSkipped("plex_discovery_identity_not_found")
             self.cache_service.mark_managed("plex_watchlist", tmdb_id, "add")
             return "completed"
 

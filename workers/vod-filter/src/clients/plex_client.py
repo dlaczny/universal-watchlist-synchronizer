@@ -4,6 +4,7 @@ Uses PlexAPI library for Plex server interactions.
 """
 
 from typing import Optional, List, Dict, Any
+import unicodedata
 import structlog
 from plexapi.server import PlexServer
 from plexapi.myplex import MyPlexAccount
@@ -108,29 +109,24 @@ class PlexClient:
             Movie object if found, None otherwise
         """
         try:
-            # Use PlexAPI's searchDiscover method which searches Plex's entire database
-            query = f"{title} {year}"
-            results = self.account.searchDiscover(query=query, limit=10)
+            for query in self._discovery_queries(title, year):
+                results = self.account.searchDiscover(query=query, limit=50)
 
-            # Filter results to find exact match
-            for result in results:
-                # Only consider movie results
-                if result.type != "movie":
-                    continue
+                for result in results:
+                    if result.type != "movie":
+                        continue
 
-                # Title/year narrows discovery; TMDB identity authorizes mutation.
-                if (
-                    result.title.lower() == title.lower()
-                    and str(result.year) == str(year)
-                    and self._extract_tmdb_id(result) == tmdb_id
-                ):
-                    logger.debug(
-                        "plex_discovery_found",
-                        title=title,
-                        year=year,
-                        plex_title=result.title,
-                    )
-                    return result
+                    # Search text is only discovery; exact TMDB identity authorizes mutation.
+                    if self._extract_tmdb_id(result) == tmdb_id:
+                        logger.debug(
+                            "plex_discovery_found",
+                            title=title,
+                            year=year,
+                            plex_title=result.title,
+                            plex_year=getattr(result, "year", None),
+                            query=query,
+                        )
+                        return result
 
             logger.debug("plex_discovery_not_found", title=title, year=year)
             return None
@@ -139,7 +135,21 @@ class PlexClient:
             if is_plex_rate_limit_error(e):
                 raise
             logger.error("plex_discovery_error", title=title, year=year, error=str(e))
-            return None
+            raise PlexError(f"Plex discovery search failed: {e}") from e
+
+    @staticmethod
+    def _discovery_queries(title: str, year: int) -> list[str]:
+        ascii_title = (
+            unicodedata.normalize("NFKD", title)
+            .encode("ascii", "ignore")
+            .decode("ascii")
+        )
+        candidates = [title, ascii_title, f"{title} {year}", f"{ascii_title} {year}"]
+        return [
+            query
+            for index, query in enumerate(candidates)
+            if query and query not in candidates[:index]
+        ]
 
     @retry_on_api_error(max_attempts=3)
     def add_to_watchlist(self, tmdb_id: int, title: str, year: int) -> bool:
@@ -151,7 +161,7 @@ class PlexClient:
             year: Release year
 
         Returns:
-            True if added successfully, False if already in watchlist or not found
+            True if added or already present, False if exact identity is not found
 
         Raises:
             PlexError: If addition fails
@@ -174,7 +184,7 @@ class PlexClient:
             # Check if already in watchlist
             if hasattr(movie, 'onWatchlist') and movie.onWatchlist(self.account):
                 logger.debug("plex_movie_already_in_watchlist", tmdb_id=tmdb_id, title=title)
-                return False
+                return True
 
             # Add to watchlist using PlexAPI's built-in method
             movie.addToWatchlist()

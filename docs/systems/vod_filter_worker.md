@@ -7,8 +7,8 @@ tags:
   - python
   - radarr
   - plex
-timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+timestamp: 2026-07-12T00:00:00Z
+version: 0.3.0
 ---
 
 # Production Role
@@ -35,7 +35,7 @@ called by `continuous_sync.py`.
 
 | Module | Responsibility |
 |---|---|
-| `movie_sync_collector.py` | Reads backend snapshot, Radarr, Plex watchlist/library, and SQLite ownership; preserves every collection error. |
+| `movie_sync_collector.py` | Reads backend snapshot, Radarr movies/exclusions, Plex watchlist/library, and SQLite ownership; preserves every collection error. |
 | `sync_reconciliation.py` | Pure deterministic destination plan and reason codes. |
 | `movie_sync_policy.py` | Freshness, collection, identity, empty-source, apply-mode, and removal-volume gates. |
 | `movie_sync_executor.py` | Applies Radarr first, then Plex-watchlist decisions, recording independent failures. |
@@ -49,7 +49,13 @@ called by `continuous_sync.py`.
 - `remove` is possible only for an owned destination row.
 - A no-longer-desired Radarr row with a file is skipped for manual review.
 - Radarr removal always passes `delete_files=false`.
+- A Radarr exclusion is removed only for an exact TMDB add whose plan contains
+  `desired_radarr_movie_missing_override_exclusion`.
+- A different TMDB identity with the same Radarr title/year is skipped for
+  manual review instead of risking a folder collision.
 - Plex library state is read-only; only Plex watchlist add/remove is supported.
+- Plex discovery requires exact TMDB identity; a catalog miss is reported as a
+  skip and does not create ownership.
 - Unmanaged destination rows are reported and preserved.
 
 # Runtime Storage

@@ -36,6 +36,11 @@ class FakeRadarr:
             raise self.error
         return [{"tmdbId": 101, "title": "Desired", "hasFile": False}]
 
+    def get_exclusions(self):
+        if self.error:
+            raise self.error
+        return [{"id": 55, "tmdbId": 202, "movieTitle": "Excluded"}]
+
 
 class FakePlex:
     def __init__(self, watchlist_error: Exception | None = None):
@@ -69,6 +74,7 @@ def test_collector_returns_complete_immutable_boundary_state():
 
     assert state.backend_movies[0]["tmdb_id"] == 101
     assert state.radarr_movies[0]["tmdbId"] == 101
+    assert state.radarr_exclusions[0]["tmdbId"] == 202
     assert state.plex_library_movies[0]["tmdb_id"] == 202
     assert state.managed_destinations[0]["destination"] == "radarr"
     assert state.collection_errors == ()
@@ -87,10 +93,12 @@ def test_collector_keeps_collecting_and_reports_each_boundary_failure():
 
     assert state.backend_movies == ()
     assert state.radarr_movies == ()
+    assert state.radarr_exclusions == ()
     assert state.plex_watchlist_movies == ()
     assert state.plex_library_movies[0]["tmdb_id"] == 202
     assert state.collection_errors == (
         "backend_snapshot: backend down",
         "radarr: radarr down",
+        "radarr_exclusions: radarr down",
         "plex_watchlist: plex down",
     )
