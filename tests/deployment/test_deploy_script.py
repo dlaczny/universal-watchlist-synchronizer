@@ -9,6 +9,8 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "deploy-movie-sync.sh"
 PRODUCTION_COMPOSE = ROOT / "deploy" / "production" / "compose.yaml"
+BACKEND_DOCKERFILE = ROOT / "backend" / "src" / "Watchlist.Api" / "Dockerfile"
+WORKER_DOCKERFILE = ROOT / "workers" / "vod-filter" / "Dockerfile"
 SERVICE = ROOT / "deploy" / "local-cd" / "systemd" / "watchlist-deploy.service"
 TIMER = ROOT / "deploy" / "local-cd" / "systemd" / "watchlist-deploy.timer"
 SHA = "a" * 40
@@ -37,6 +39,8 @@ def bash_path(path: Path) -> str:
 def test_shell_and_systemd_security_contracts() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
     compose = PRODUCTION_COMPOSE.read_text(encoding="utf-8")
+    backend_dockerfile = BACKEND_DOCKERFILE.read_text(encoding="utf-8")
+    worker_dockerfile = WORKER_DOCKERFILE.read_text(encoding="utf-8")
     service = SERVICE.read_text(encoding="utf-8")
     timer = TIMER.read_text(encoding="utf-8")
 
@@ -52,6 +56,9 @@ def test_shell_and_systemd_security_contracts() -> None:
     assert "WATCHLIST_RUNTIME_GID" in text
     assert 'user: "${WATCHLIST_RUNTIME_UID' in compose
     assert "${WATCHLIST_RUNTIME_GID" in compose
+    assert "COPY --from=build --chown=app:app /app/publish ." in backend_dockerfile
+    assert "COPY --from=builder --chown=watchlist:watchlist --chmod=0555" in worker_dockerfile
+    assert worker_dockerfile.count("--chmod=0555") == 3
     assert "set -x" not in text
     assert "printenv" not in text
     assert "env |" not in text
