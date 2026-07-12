@@ -147,7 +147,7 @@ def test_reconcile_sync_state_preserves_unmanaged_destination_movies():
     assert decision_titles(report, "radarr", "skip") == ["Manual Radarr"]
     assert decision_titles(report, "plex_watchlist", "skip") == ["Manual Plex"]
     assert any(
-        decision.reason == "unmanaged_radarr_movie_preserved"
+        decision.reason == "radarr_movie_without_source_authorization_preserved"
         for decision in report.decisions
     )
     assert any(
@@ -156,9 +156,29 @@ def test_reconcile_sync_state_preserves_unmanaged_destination_movies():
     )
 
 
-def test_reconcile_sync_state_skips_downloaded_managed_radarr_removal():
+def test_complete_snapshot_preserves_managed_radarr_movie_without_source_authorization():
     report = reconcile_sync_state(
         backend_snapshot_movies=[],
+        backend_watched_movies=[],
+        radarr_movies=[movie("Never In Letterboxd", 101, has_file=False)],
+        managed_destinations=[managed("radarr", 101)],
+    )
+
+    assert decision_titles(report, "radarr", "remove") == []
+    decision = find_decision(report, "radarr", "skip", 101)
+    assert decision.reason == "radarr_movie_without_source_authorization_preserved"
+
+
+def test_reconcile_sync_state_skips_downloaded_managed_radarr_removal():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[
+            movie(
+                "Downloaded",
+                101,
+                radarr_eligible=False,
+                metadata_status="enriched",
+            )
+        ],
         radarr_movies=[movie("Downloaded", 101, has_file=True)],
         managed_destinations=[managed("radarr", 101)],
     )

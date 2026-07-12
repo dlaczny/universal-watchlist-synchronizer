@@ -47,6 +47,8 @@ called by `continuous_sync.py`.
 - `add` records worker ownership after the external action succeeds.
 - `keep` adopts a desired pre-existing row or refreshes existing ownership.
 - Ordinary `remove` is possible only for an owned destination row.
+- Ordinary Radarr remove also requires the exact ID to remain active in the
+  complete backend source. Stale ownership alone is never deletion authority.
 - A no-longer-desired Radarr row with a file is skipped for manual review.
 - Ordinary Radarr removal always passes `delete_files=false`.
 - A published watched exact-TMDB Radarr removal carries

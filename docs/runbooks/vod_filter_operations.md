@@ -109,6 +109,7 @@ These destination reasons require explicit attention:
 |---|---|
 | `desired_radarr_movie_missing_override_exclusion` | Apply will remove the exact TMDB import-list exclusion, then add the desired movie. |
 | `radarr_title_year_collision_requires_manual_review` | Another TMDB identity already maps to the same Radarr title/year folder key; no add occurs. |
+| `radarr_movie_without_source_authorization_preserved` | The complete active/watched source has no authority for this Radarr ID; stale ownership cannot remove it. |
 | `plex_discovery_identity_not_found` | Plex Discover could not resolve the exact TMDB identity; no mutation or ownership record occurs. |
 | `watched_letterboxd_movie_remove_from_radarr` | Exact published watched event will remove the Radarr row with files; requires both apply and watched-file gates. |
 | `watched_letterboxd_movie_remove_from_plex_watchlist` | Exact published watched event will remove only the Plex-watchlist row. |

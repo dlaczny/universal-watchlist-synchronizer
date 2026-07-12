@@ -52,7 +52,7 @@ python -m pytest -q
 python -m compileall -q src continuous_sync.py sync_movies.py reconcile_sync.py healthcheck.py
 ```
 
-The expected worker suite is 131 tests. It includes strict snapshot matching,
+The expected worker suite is 132 tests. It includes strict snapshot matching,
 Radarr baseline/disappearance persistence, watched/manual planning, destructive
 policy and executor checks, cleanup audit history, reports, and configuration.
 

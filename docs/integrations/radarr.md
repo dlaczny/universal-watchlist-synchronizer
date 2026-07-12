@@ -22,9 +22,11 @@ backend movie snapshot. It adds an eligible missing movie and records ownership,
 or adopts an already-present desired movie. It preserves every unrelated
 unmanaged movie.
 
-An ordinary worker-owned movie no longer eligible for Radarr is removed only
-when Radarr reports no downloaded file, with `delete_files=false`. Ordinary
-downloaded rows remain `downloaded_file_requires_manual_review`.
+An ordinary worker-owned movie that remains active in Letterboxd but is no
+longer eligible for Radarr is removed only when Radarr reports no downloaded
+file, with `delete_files=false`. Ordinary downloaded rows remain
+`downloaded_file_requires_manual_review`. A Radarr ID absent from both active
+and watched source authority is preserved even if a stale ownership row exists.
 
 A current published Letterboxd watched event is the only exception. It may
 remove any exact-TMDB Radarr match, including a downloaded or pre-ownership row,

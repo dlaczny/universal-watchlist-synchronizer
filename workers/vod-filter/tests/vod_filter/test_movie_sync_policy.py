@@ -106,7 +106,10 @@ def test_evaluate_plan_blocks_unexpected_empty_source_with_managed_movies():
 
 def test_evaluate_plan_blocks_removal_count_and_percentage_thresholds():
     report = fresh_report(
-        backend_snapshot_movies=[],
+        backend_snapshot_movies=[
+            movie("One", 1, radarr_eligible=False, metadata_status="enriched"),
+            movie("Two", 2, radarr_eligible=False, metadata_status="enriched"),
+        ],
         radarr_movies=[
             movie("One", 1, has_file=False),
             movie("Two", 2, has_file=False),

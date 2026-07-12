@@ -133,8 +133,9 @@ logs and tests.
   uses the same normalized title/year folder key.
 - Adopt an existing Radarr movie as worker-managed only while it is desired by
   the backend.
-- Remove an ordinary worker-managed movie that is no longer a Radarr candidate
-  only when it has no downloaded file, always with `delete_files=false`.
+- Remove an ordinary worker-managed movie that is still active in the complete
+  source but is no longer a Radarr candidate only when it has no downloaded
+  file, always with `delete_files=false`.
 - Skip ordinary downloaded-file cleanup for manual review.
 - A published Letterboxd watched event overrides ownership and downloaded-file
   protection only for its exact TMDB identity. Its Radarr decision is

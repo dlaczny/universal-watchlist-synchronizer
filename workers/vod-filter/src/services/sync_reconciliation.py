@@ -268,6 +268,11 @@ def reconcile_sync_state(
                 normal_radarr_by_id,
                 managed_by_destination["radarr"],
                 radarr_excluded_ids,
+                active_source_ids=(
+                    active_tmdb_ids
+                    if backend_snapshot_movies is not None
+                    else None
+                ),
             )
         )
 
@@ -458,6 +463,7 @@ def _radarr_decisions(
     radarr_by_id: dict[int, ReconciliationMovie],
     managed_ids: set[int],
     excluded_ids: set[int],
+    active_source_ids: set[int] | None = None,
 ) -> list[ReconciliationDecision]:
     decisions = []
 
@@ -509,7 +515,17 @@ def _radarr_decisions(
 
     for tmdb_id, movie in radarr_by_id.items():
         if tmdb_id not in backend_radarr_by_id:
-            if tmdb_id not in managed_ids:
+            if active_source_ids is not None and tmdb_id not in active_source_ids:
+                decisions.append(
+                    ReconciliationDecision(
+                        area="radarr",
+                        action="skip",
+                        movie=movie,
+                        reason="radarr_movie_without_source_authorization_preserved",
+                        managed=tmdb_id in managed_ids,
+                    )
+                )
+            elif tmdb_id not in managed_ids:
                 decisions.append(
                     ReconciliationDecision(
                         area="radarr",
