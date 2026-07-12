@@ -1,5 +1,22 @@
 # Change Log
 
+## 2026-07-12
+
+- Deployed backend and movie worker to the homelab from exact Movie-CI-passing
+  SHAs while keeping all runtime credentials host-local and mode `0600`.
+- Added separate long backend-refresh timeouts and a deployment window that
+  accommodates the real movie dataset.
+- Made Radarr exclusion overrides explicit, skipped same-folder TMDB
+  collisions, widened Plex discovery while retaining exact-TMDB authorization,
+  and converted true catalog misses into non-mutating report skips.
+- Hardened deployment acceptance so every release and rollback must write a
+  fresh worker heartbeat instead of inheriting persisted health.
+- Completed supervised apply and convergence: 36 Radarr additions and 64 Plex
+  watchlist additions succeeded across the rollout, with no automatic removals,
+  file deletion, or Plex-library deletion.
+- Enabled hourly unattended movie apply and the five-minute CI-gated deployment
+  timer; preserved the legacy dirty checkout for rollback observation.
+
 ## 2026-07-11
 
 - Added authenticated movie-only backend sync and a complete worker snapshot.

@@ -6,8 +6,8 @@ tags:
   - report
   - okf
   - cleanup
-timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+timestamp: 2026-07-12T00:00:00Z
+version: 0.3.0
 ---
 
 # Result
@@ -62,6 +62,9 @@ secret-free CI, and exact-SHA homelab release.
   manual dependency on them.
 - Archive or remove the completed production implementation plan when it no
   longer provides useful execution history.
+- Resolve the three stable movie-identity skips listed in the roadmap and make
+  Plex rows without TMDB GUIDs visible in reconciliation reports.
+- Add disk/failed-run alerting before removing the legacy rollback deployment.
 - Add schemas only when automated API-contract tooling requires them.
 
 # Links

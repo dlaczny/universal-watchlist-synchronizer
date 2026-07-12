@@ -7,8 +7,8 @@ tags:
   - sync
   - worker
   - ci-cd
-timestamp: 2026-07-11T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-12T00:00:00Z
+version: 1.0.0
 ---
 
 # Production Movie Sync Implementation Plan
@@ -537,30 +537,30 @@ and redacted fingerprint. Do not continue to push if a real credential is found.
 Confirm all staged files match this plan, commit OKF updates, and push only after
 fresh verification succeeds.
 
-- [ ] **Step 5: Wait for exact-SHA Movie CI**
+- [x] **Step 5: Wait for exact-SHA Movie CI**
 
 Poll the public workflow API until success. A failure returns to implementation;
 it is not bypassed on the host.
 
-- [ ] **Step 6: Prepare the host without exposing secrets**
+- [x] **Step 6: Prepare the host without exposing secrets**
 
 Create `/opt/watchlist-prod`, copy the existing backend env and local worker env
 over SSH, set mode `0600`, generate one sync API key directly on the host, and
 write it to both env files without printing it. Install and daemon-reload the
 systemd units.
 
-- [ ] **Step 7: Deploy reconciliation-only**
+- [x] **Step 7: Deploy reconciliation-only**
 
 Set `MOVIE_SYNC_APPLY=false`, run the deploy service manually, verify backend and
 worker container health, and inspect the generated plan for blockers/removals.
 
-- [ ] **Step 8: Enable and supervise safe apply**
+- [x] **Step 8: Enable and supervise safe apply**
 
 Only when the report passes policy, set `MOVIE_SYNC_APPLY=true`, restart the
 worker, run one sync, and verify that no file/library deletion endpoint was
 called. Run a second sync and require only `keep`/`skip` or explained changes.
 
-- [ ] **Step 9: Verify continuous delivery**
+- [x] **Step 9: Verify continuous delivery**
 
 Confirm timer active, service successful, recorded release SHA equals GitHub
 main, backend `/healthz` succeeds, sync status is current, worker heartbeat is
