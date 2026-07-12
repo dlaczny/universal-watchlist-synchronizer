@@ -35,6 +35,7 @@ public static class DependencyInjection
         services.AddSingleton<IWatchlistReadRepository, MongoWatchlistReadRepository>();
         services.AddSingleton<IWatchlistExportRepository, MongoWatchlistExportRepository>();
         services.AddSingleton<IWatchlistWriteRepository, MongoWatchlistWriteRepository>();
+        services.AddSingleton<ILetterboxdSourceSnapshotRepository, MongoLetterboxdSourceSnapshotRepository>();
         services.AddSingleton<ITmdbMovieMetadataRepository, MongoTmdbMovieMetadataRepository>();
         services.AddSingleton<ISyncStatusReadRepository, MongoSyncStatusReadRepository>();
         services.AddOptions<PlexOptions>()

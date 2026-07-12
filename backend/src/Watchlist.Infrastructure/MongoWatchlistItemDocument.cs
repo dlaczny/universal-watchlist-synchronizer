@@ -83,6 +83,14 @@ public sealed class MongoWatchlistItemDocument
 
     public string PlexMatchConfidence { get; init; } = "none";
 
+    public DateTimeOffset? LastSeenInSourceAt { get; init; }
+
+    public DateTimeOffset? LastWatchedAt { get; init; }
+
+    public long LifecycleVersion { get; init; }
+
+    public IReadOnlyList<MongoMovieLifecycleEventDocument> LifecycleEvents { get; init; } = [];
+
     public WatchlistItem ToDomain()
     {
         if (MediaType == MediaType.Unspecified

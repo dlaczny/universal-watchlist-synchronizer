@@ -195,5 +195,9 @@ public sealed class MongoWatchlistItemDocumentTests
 
         document.ImdbId.Should().Be("tt35450621");
         document.LetterboxdPath.Should().Be("/film/karma-2026/");
+        document.LifecycleVersion.Should().Be(0);
+        document.LifecycleEvents.Should().BeEmpty();
+        document.LastSeenInSourceAt.Should().BeNull();
+        document.LastWatchedAt.Should().BeNull();
     }
 }

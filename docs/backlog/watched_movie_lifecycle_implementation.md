@@ -168,7 +168,7 @@ git commit -m "feat: reject invalid Letterboxd snapshots"
 - Test: `backend/tests/Watchlist.Application.Tests/MongoWatchlistItemDocumentTests.cs`
 - Test: `backend/tests/Watchlist.Application.Tests/MongoDbOptionsTests.cs`
 
-- [ ] **Step 1: Write failing MongoDB lifecycle tests**
+- [x] **Step 1: Write failing MongoDB lifecycle tests**
 
 Cover initial `added`, unchanged active, `watched`, stable watched,
 `reactivated`, and second watched transitions. Assert that documents are retained,
@@ -186,7 +186,7 @@ Add a failure-path test in which a document update throws before manifest
 insertion. The newest published snapshot must remain unchanged and the failed
 generation must not become authoritative.
 
-- [ ] **Step 2: Run the MongoDB tests and verify RED**
+- [x] **Step 2: Run the MongoDB tests and verify RED**
 
 Run:
 
@@ -196,7 +196,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 
 Expected: compile failures for the lifecycle and manifest types.
 
-- [ ] **Step 3: Add lifecycle and manifest documents**
+- [x] **Step 3: Add lifecycle and manifest documents**
 
 Use this persisted shape:
 
@@ -242,7 +242,7 @@ Add `LastSeenInSourceAt`, `LastWatchedAt`, `LifecycleVersion`, and
 `LetterboxdSourceSnapshotsCollectionName` with default
 `letterboxd_source_snapshots`.
 
-- [ ] **Step 4: Implement publish-after-complete application**
+- [x] **Step 4: Implement publish-after-complete application**
 
 Read the latest manifest first. With no manifest, treat all existing
 Letterboxd movie documents as the initial active set and use an empty watched
@@ -261,7 +261,7 @@ The manifest repository returns the newest manifest by `PublishedAt` and `Id`.
 An absent manifest is valid only during migration and means all current
 Letterboxd documents are active.
 
-- [ ] **Step 5: Verify lifecycle persistence and migration behavior**
+- [x] **Step 5: Verify lifecycle persistence and migration behavior**
 
 Run the focused MongoDB tests, then:
 
@@ -272,7 +272,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 Expected: all selected tests pass; a removed movie remains in MongoDB with a
 published watched event.
 
-- [ ] **Step 6: Commit MongoDB lifecycle persistence**
+- [x] **Step 6: Commit MongoDB lifecycle persistence**
 
 ```powershell
 git add backend/src backend/tests/Watchlist.Application.Tests

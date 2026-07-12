@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using MongoDB.Driver.Core.Events;
 using Watchlist.Application;
 using Watchlist.Domain;
 using Watchlist.Infrastructure;
@@ -21,18 +22,22 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
             ConnectionString = "mongodb://localhost:27017",
             DatabaseName = databaseName,
             WatchlistItemsCollectionName = "watchlist_items",
-            SyncRunsCollectionName = "sync_runs"
+            SyncRunsCollectionName = "sync_runs",
+            LetterboxdSourceSnapshotsCollectionName = "letterboxd_source_snapshots"
         };
         database = client.GetDatabase(databaseName);
     }
 
     [Fact]
-    public async Task ApplyLetterboxdMovieSyncAsync_UpsertsTraceFieldsDeletesRemovedMoviesAndPreservesOtherSources()
+    public async Task ApplyLetterboxdMovieSyncAsync_UpsertsTraceFieldsRetainsWatchedMoviesAndPublishesManifest()
     {
         IMongoCollection<MongoWatchlistItemDocument> items =
             database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
         IMongoCollection<MongoSyncRunDocument> syncRuns =
             database.GetCollection<MongoSyncRunDocument>(options.SyncRunsCollectionName);
+        IMongoCollection<MongoLetterboxdSourceSnapshotDocument> snapshots =
+            database.GetCollection<MongoLetterboxdSourceSnapshotDocument>(
+                options.LetterboxdSourceSnapshotsCollectionName);
         await items.InsertManyAsync([
             MongoWatchlistItemDocument.FromDomain(CreateLetterboxdMovie("old", "Removed")),
             MongoWatchlistItemDocument.FromDomain(CreateTmdbMovie()),
@@ -63,9 +68,36 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
                 item.ImdbId == "tt35450621"
                 && item.LetterboxdPath == "/film/karma-2026/"
                 && item.TmdbMetadataStatus == "not_synced");
-        storedItems.Should().NotContain(item => item.Id == "movie-letterboxd-old");
+        MongoWatchlistItemDocument watched = storedItems
+            .Single(item => item.Id == "movie-letterboxd-old");
+        watched.LastWatchedAt.Should().Be(completedAt);
+        watched.LifecycleVersion.Should().Be(1);
+        watched.LifecycleEvents.Should().ContainSingle().Which.Should().Match<MongoMovieLifecycleEventDocument>(
+            item => item.EventType == "watched"
+                && item.SourceSnapshotId == result.SourceSnapshotId
+                && item.LifecycleVersion == 1
+                && item.OccurredAt == completedAt);
+
+        MongoWatchlistItemDocument added = storedItems
+            .Single(item => item.Id == "movie-letterboxd-1418998");
+        added.LastSeenInSourceAt.Should().Be(completedAt);
+        added.LifecycleVersion.Should().Be(1);
+        added.LifecycleEvents.Should().ContainSingle(item => item.EventType == "added");
         storedItems.Should().Contain(item => item.Id == "movie-tmdb-existing");
         storedItems.Should().Contain(item => item.Id == "tv-tmdb-existing");
+
+        MongoLetterboxdSourceSnapshotDocument snapshot = await snapshots
+            .Find(FilterDefinition<MongoLetterboxdSourceSnapshotDocument>.Empty)
+            .SingleAsync();
+        snapshot.Id.Should().Be(result.SourceSnapshotId);
+        snapshot.PublishedAt.Should().Be(completedAt);
+        snapshot.SourceIds.Should().Equal("1418998");
+        snapshot.ItemCount.Should().Be(1);
+        snapshot.WatchedMovies.Should().ContainSingle().Which.Should().Match<MongoPublishedWatchedMovieDocument>(
+            item => item.SourceId == "old"
+                && item.WatchedAt == completedAt
+                && item.LifecycleVersion == 1
+                && item.LifecycleEventId == watched.LifecycleEvents.Single().EventId);
 
         MongoSyncRunDocument syncRun = await syncRuns
             .Find(FilterDefinition<MongoSyncRunDocument>.Empty)
@@ -189,6 +221,135 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
         storedDocument.PlexMatchedAt.Should().Be(DateTimeOffset.Parse("2026-06-05T12:00:00Z"));
         storedDocument.PlexMatchReason.Should().Be("imdb");
         storedDocument.PlexMatchConfidence.Should().Be("exact");
+    }
+
+    [Fact]
+    public async Task ApplyLetterboxdMovieSyncAsync_WhenWatchedMovieReturns_PreservesHistoryAcrossReactivation()
+    {
+        IMongoCollection<MongoWatchlistItemDocument> items =
+            database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
+        IMongoCollection<MongoLetterboxdSourceSnapshotDocument> snapshots =
+            database.GetCollection<MongoLetterboxdSourceSnapshotDocument>(
+                options.LetterboxdSourceSnapshotsCollectionName);
+        await items.InsertOneAsync(
+            MongoWatchlistItemDocument.FromDomain(CreateLetterboxdMovie("101", "Lifecycle Movie")));
+        MongoWatchlistWriteRepository repository = new(database, Options.Create(options));
+        WatchlistItemWriteModel other = new(
+            CreateLetterboxdMovie("202", "Other Movie"),
+            "tt0000202",
+            "/film/other/");
+        WatchlistItemWriteModel lifecycle = new(
+            CreateLetterboxdMovie("101", "Lifecycle Movie"),
+            "tt0000101",
+            "/film/lifecycle/");
+
+        LetterboxdMovieSyncApplyResult watched = await repository.ApplyLetterboxdMovieSyncAsync(
+            [other],
+            new HashSet<string>(["202"], StringComparer.Ordinal),
+            "letterboxd_completed",
+            DateTimeOffset.Parse("2026-07-12T10:00:00Z"),
+            CancellationToken.None);
+        LetterboxdMovieSyncApplyResult stableWatched = await repository.ApplyLetterboxdMovieSyncAsync(
+            [other],
+            new HashSet<string>(["202"], StringComparer.Ordinal),
+            "letterboxd_completed",
+            DateTimeOffset.Parse("2026-07-12T11:00:00Z"),
+            CancellationToken.None);
+        LetterboxdMovieSyncApplyResult reactivated = await repository.ApplyLetterboxdMovieSyncAsync(
+            [lifecycle, other],
+            new HashSet<string>(["101", "202"], StringComparer.Ordinal),
+            "letterboxd_completed",
+            DateTimeOffset.Parse("2026-07-12T12:00:00Z"),
+            CancellationToken.None);
+        LetterboxdMovieSyncApplyResult watchedAgain = await repository.ApplyLetterboxdMovieSyncAsync(
+            [other],
+            new HashSet<string>(["202"], StringComparer.Ordinal),
+            "letterboxd_completed",
+            DateTimeOffset.Parse("2026-07-12T13:00:00Z"),
+            CancellationToken.None);
+
+        watched.ItemsMarkedWatched.Should().Be(1);
+        stableWatched.ItemsMarkedWatched.Should().Be(0);
+        reactivated.ItemsMarkedWatched.Should().Be(0);
+        watchedAgain.ItemsMarkedWatched.Should().Be(1);
+
+        MongoWatchlistItemDocument stored = await items
+            .Find(item => item.SourceId == "101")
+            .SingleAsync();
+        stored.LifecycleVersion.Should().Be(3);
+        stored.LifecycleEvents.Select(item => item.EventType)
+            .Should().Equal("watched", "reactivated", "watched");
+        stored.LifecycleEvents.Select(item => item.SourceSnapshotId)
+            .Should().OnlyHaveUniqueItems();
+        stored.LastWatchedAt.Should().Be(DateTimeOffset.Parse("2026-07-12T13:00:00Z"));
+        stored.LastSeenInSourceAt.Should().Be(DateTimeOffset.Parse("2026-07-12T12:00:00Z"));
+
+        List<MongoLetterboxdSourceSnapshotDocument> published = await snapshots
+            .Find(FilterDefinition<MongoLetterboxdSourceSnapshotDocument>.Empty)
+            .SortBy(snapshot => snapshot.PublishedAt)
+            .ToListAsync();
+        published.Should().HaveCount(4);
+        published[0].WatchedMovies.Should().ContainSingle(item => item.SourceId == "101");
+        published[1].WatchedMovies.Should().BeEquivalentTo(published[0].WatchedMovies);
+        published[2].WatchedMovies.Should().BeEmpty();
+        published[3].WatchedMovies.Should().ContainSingle().Which.LifecycleEventId
+            .Should().Be(stored.LifecycleEvents.Last().EventId);
+    }
+
+    [Fact]
+    public async Task ApplyLetterboxdMovieSyncAsync_WhenDocumentWritesDoNotComplete_DoesNotPublishManifest()
+    {
+        string interruptedDatabaseName = $"watchlist_test_{Guid.NewGuid():N}";
+        using CancellationTokenSource cancellation = new();
+        int completedUpdates = 0;
+        MongoClientSettings settings = MongoClientSettings.FromConnectionString(
+            "mongodb://localhost:27017");
+        settings.ClusterConfigurator = cluster => cluster.Subscribe<CommandSucceededEvent>(command =>
+        {
+            if (command.CommandName == "update"
+                && Interlocked.Increment(ref completedUpdates) == 1)
+            {
+                cancellation.Cancel();
+            }
+        });
+        MongoClient interruptedClient = new(settings);
+        IMongoDatabase interruptedDatabase = interruptedClient.GetDatabase(interruptedDatabaseName);
+        MongoDbOptions interruptedOptions = new()
+        {
+            ConnectionString = "mongodb://localhost:27017",
+            DatabaseName = interruptedDatabaseName,
+            WatchlistItemsCollectionName = "watchlist_items",
+            SyncRunsCollectionName = "sync_runs",
+            LetterboxdSourceSnapshotsCollectionName = "letterboxd_source_snapshots"
+        };
+        MongoWatchlistWriteRepository repository = new(
+            interruptedDatabase,
+            Options.Create(interruptedOptions));
+        WatchlistItemWriteModel first = new(
+            CreateLetterboxdMovie("101", "First"),
+            "tt0000101",
+            "/film/first/");
+        WatchlistItemWriteModel second = new(
+            CreateLetterboxdMovie("202", "Second"),
+            "tt0000202",
+            "/film/second/");
+
+        Func<Task> action = () => repository.ApplyLetterboxdMovieSyncAsync(
+            [first, second],
+            new HashSet<string>(["101", "202"], StringComparer.Ordinal),
+            "letterboxd_completed",
+            DateTimeOffset.Parse("2026-07-12T14:00:00Z"),
+            cancellation.Token);
+
+        await action.Should().ThrowAsync<OperationCanceledException>();
+        IMongoCollection<MongoLetterboxdSourceSnapshotDocument> snapshots =
+            interruptedDatabase.GetCollection<MongoLetterboxdSourceSnapshotDocument>(
+                interruptedOptions.LetterboxdSourceSnapshotsCollectionName);
+        long publishedCount = await snapshots.CountDocumentsAsync(
+            FilterDefinition<MongoLetterboxdSourceSnapshotDocument>.Empty);
+        publishedCount.Should().Be(0);
+
+        await interruptedClient.DropDatabaseAsync(interruptedDatabaseName);
     }
 
     [Fact]

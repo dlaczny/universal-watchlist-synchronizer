@@ -13,4 +13,7 @@ public sealed class MongoDbOptions
     public string SyncRunsCollectionName { get; init; } = string.Empty;
 
     public string PlexLibraryItemsCollectionName { get; init; } = "plex_library_items";
+
+    public string LetterboxdSourceSnapshotsCollectionName { get; init; } =
+        "letterboxd_source_snapshots";
 }

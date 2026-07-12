@@ -11,5 +11,7 @@ public sealed class MongoDbOptionsTests
         MongoDbOptions options = new();
 
         options.PlexLibraryItemsCollectionName.Should().Be("plex_library_items");
+        options.LetterboxdSourceSnapshotsCollectionName.Should().Be(
+            "letterboxd_source_snapshots");
     }
 }

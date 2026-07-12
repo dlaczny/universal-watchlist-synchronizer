@@ -15,6 +15,10 @@ public sealed class MongoWatchlistWriteRepository(
     private readonly IMongoCollection<MongoSyncRunDocument> syncRuns =
         database.GetCollection<MongoSyncRunDocument>(options.Value.SyncRunsCollectionName);
 
+    private readonly IMongoCollection<MongoLetterboxdSourceSnapshotDocument> sourceSnapshots =
+        database.GetCollection<MongoLetterboxdSourceSnapshotDocument>(
+            options.Value.LetterboxdSourceSnapshotsCollectionName);
+
     public async Task<IReadOnlyList<WatchlistItem>> GetItemsAsync(CancellationToken cancellationToken)
     {
         List<MongoWatchlistItemDocument> documents = await watchlistItems
@@ -31,13 +35,53 @@ public sealed class MongoWatchlistWriteRepository(
         DateTimeOffset completedAt,
         CancellationToken cancellationToken)
     {
+        List<MongoWatchlistItemDocument> existingDocuments = await watchlistItems
+            .Find(CreateLetterboxdMovieFilter())
+            .ToListAsync(cancellationToken);
+        Dictionary<string, MongoWatchlistItemDocument> existingBySourceId = existingDocuments
+            .ToDictionary(document => document.SourceId, StringComparer.Ordinal);
+        MongoLetterboxdSourceSnapshotDocument? previousSnapshot = await sourceSnapshots
+            .Find(FilterDefinition<MongoLetterboxdSourceSnapshotDocument>.Empty)
+            .SortByDescending(snapshot => snapshot.PublishedAt)
+            .ThenByDescending(snapshot => snapshot.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        HashSet<string> previousActiveIds = previousSnapshot is null
+            ? existingDocuments.Select(document => document.SourceId).ToHashSet(StringComparer.Ordinal)
+            : previousSnapshot.SourceIds.ToHashSet(StringComparer.Ordinal);
+        Dictionary<string, MongoPublishedWatchedMovieDocument> previousWatchedBySourceId =
+            (previousSnapshot?.WatchedMovies ?? [])
+                .ToDictionary(movie => movie.SourceId, StringComparer.Ordinal);
+        Dictionary<string, MongoPublishedWatchedMovieDocument> watchedBySourceId =
+            previousWatchedBySourceId.Values
+                .Where(movie => !sourceIds.Contains(movie.SourceId))
+                .ToDictionary(movie => movie.SourceId, StringComparer.Ordinal);
+        string snapshotId =
+            $"letterboxd-{completedAt:yyyyMMddHHmmssfffffff}-{Guid.NewGuid():N}";
+
         foreach (WatchlistItemWriteModel item in items)
         {
             MongoWatchlistItemDocument document = MongoWatchlistItemDocument.FromDomain(
                 item.Item,
                 item.ImdbId,
                 item.LetterboxdPath);
-            UpdateDefinition<MongoWatchlistItemDocument> update = CreateLetterboxdMovieUpsertUpdate(document);
+            existingBySourceId.TryGetValue(document.SourceId, out MongoWatchlistItemDocument? existing);
+            MongoMovieLifecycleEventDocument? lifecycleEvent = null;
+            if (!previousActiveIds.Contains(document.SourceId))
+            {
+                string eventType = previousWatchedBySourceId.ContainsKey(document.SourceId)
+                    ? "reactivated"
+                    : "added";
+                lifecycleEvent = CreateLifecycleEvent(
+                    document.Id,
+                    eventType,
+                    snapshotId,
+                    (existing?.LifecycleVersion ?? 0) + 1,
+                    completedAt);
+            }
+
+            watchedBySourceId.Remove(document.SourceId);
+            UpdateDefinition<MongoWatchlistItemDocument> update =
+                CreateLetterboxdMovieUpsertUpdate(document, completedAt, lifecycleEvent);
 
             await watchlistItems.UpdateOneAsync(
                 stored => stored.Id == document.Id,
@@ -46,11 +90,57 @@ public sealed class MongoWatchlistWriteRepository(
                 cancellationToken);
         }
 
-        DeleteResult deleteResult = await watchlistItems.DeleteManyAsync(
-            CreateRemovedLetterboxdMovieFilter(sourceIds),
-            cancellationToken);
+        int watchedCount = 0;
+        foreach (string removedSourceId in previousActiveIds.Except(sourceIds, StringComparer.Ordinal))
+        {
+            if (!existingBySourceId.TryGetValue(
+                    removedSourceId,
+                    out MongoWatchlistItemDocument? document))
+            {
+                continue;
+            }
 
-        string snapshotId = $"letterboxd-{completedAt:yyyyMMddHHmmssfffffff}";
+            MongoMovieLifecycleEventDocument watchedEvent = CreateLifecycleEvent(
+                document.Id,
+                "watched",
+                snapshotId,
+                document.LifecycleVersion + 1,
+                completedAt);
+            UpdateDefinitionBuilder<MongoWatchlistItemDocument> update =
+                Builders<MongoWatchlistItemDocument>.Update;
+            await watchlistItems.UpdateOneAsync(
+                stored => stored.Id == document.Id,
+                update
+                    .Set(stored => stored.LastWatchedAt, completedAt)
+                    .Set(stored => stored.LifecycleVersion, watchedEvent.LifecycleVersion)
+                    .Set(stored => stored.UpdatedAt, completedAt)
+                    .Push(stored => stored.LifecycleEvents, watchedEvent),
+                cancellationToken: cancellationToken);
+
+            watchedBySourceId[removedSourceId] = new MongoPublishedWatchedMovieDocument
+            {
+                SourceId = removedSourceId,
+                LifecycleEventId = watchedEvent.EventId,
+                WatchedAt = completedAt,
+                LifecycleVersion = watchedEvent.LifecycleVersion
+            };
+            watchedCount++;
+        }
+
+        MongoLetterboxdSourceSnapshotDocument sourceSnapshot = new()
+        {
+            Id = snapshotId,
+            PublishedAt = completedAt,
+            SourceIds = sourceIds.Order(StringComparer.Ordinal).ToList(),
+            WatchedMovies = watchedBySourceId.Values
+                .OrderBy(movie => movie.SourceId, StringComparer.Ordinal)
+                .ToList(),
+            ItemCount = sourceIds.Count
+        };
+        await sourceSnapshots.InsertOneAsync(
+            sourceSnapshot,
+            cancellationToken: cancellationToken);
+
         MongoSyncRunDocument syncRun = new()
         {
             Id = snapshotId,
@@ -62,17 +152,15 @@ public sealed class MongoWatchlistWriteRepository(
 
         return new LetterboxdMovieSyncApplyResult(
             snapshotId,
-            (int)deleteResult.DeletedCount);
+            watchedCount);
     }
 
-    private static FilterDefinition<MongoWatchlistItemDocument> CreateRemovedLetterboxdMovieFilter(
-        IReadOnlySet<string> sourceIds)
+    private static FilterDefinition<MongoWatchlistItemDocument> CreateLetterboxdMovieFilter()
     {
         FilterDefinitionBuilder<MongoWatchlistItemDocument> filter = Builders<MongoWatchlistItemDocument>.Filter;
 
         return filter.Eq(document => document.MediaType, MediaType.Movie)
-            & filter.Eq(document => document.Source, WatchlistSource.Letterboxd)
-            & filter.Nin(document => document.SourceId, sourceIds);
+            & filter.Eq(document => document.Source, WatchlistSource.Letterboxd);
     }
 
     public async Task<TmdbTvWatchlistApplyResult> ApplyTmdbTvWatchlistSyncAsync(
@@ -154,11 +242,13 @@ public sealed class MongoWatchlistWriteRepository(
     }
 
     private static UpdateDefinition<MongoWatchlistItemDocument> CreateLetterboxdMovieUpsertUpdate(
-        MongoWatchlistItemDocument document)
+        MongoWatchlistItemDocument document,
+        DateTimeOffset completedAt,
+        MongoMovieLifecycleEventDocument? lifecycleEvent)
     {
         UpdateDefinitionBuilder<MongoWatchlistItemDocument> update = Builders<MongoWatchlistItemDocument>.Update;
 
-        return update
+        UpdateDefinition<MongoWatchlistItemDocument> result = update
             .SetOnInsert(stored => stored.Id, document.Id)
             .Set(stored => stored.MediaType, document.MediaType)
             .Set(stored => stored.Source, document.Source)
@@ -173,6 +263,34 @@ public sealed class MongoWatchlistWriteRepository(
             .Set(stored => stored.ReleaseStatus, document.ReleaseStatus)
             .Set(stored => stored.AvailabilityStatus, document.AvailabilityStatus)
             .Set(stored => stored.AddedAt, document.AddedAt)
-            .Set(stored => stored.UpdatedAt, document.UpdatedAt);
+            .Set(stored => stored.UpdatedAt, document.UpdatedAt)
+            .Set(stored => stored.LastSeenInSourceAt, completedAt);
+
+        if (lifecycleEvent is not null)
+        {
+            result = update.Combine(
+                result,
+                update.Set(stored => stored.LifecycleVersion, lifecycleEvent.LifecycleVersion),
+                update.Push(stored => stored.LifecycleEvents, lifecycleEvent));
+        }
+
+        return result;
+    }
+
+    private static MongoMovieLifecycleEventDocument CreateLifecycleEvent(
+        string documentId,
+        string eventType,
+        string snapshotId,
+        long lifecycleVersion,
+        DateTimeOffset occurredAt)
+    {
+        return new MongoMovieLifecycleEventDocument
+        {
+            EventId = $"{documentId}:{eventType}:{lifecycleVersion}:{snapshotId}",
+            EventType = eventType,
+            SourceSnapshotId = snapshotId,
+            LifecycleVersion = lifecycleVersion,
+            OccurredAt = occurredAt
+        };
     }
 }
