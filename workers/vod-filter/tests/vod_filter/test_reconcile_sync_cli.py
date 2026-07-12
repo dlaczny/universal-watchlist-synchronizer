@@ -55,6 +55,7 @@ def test_reconcile_sync_cli_writes_read_only_report(
         def fetch_movie_sync_snapshot(self, sync_first=False):
             calls.append(("backend_snapshot", sync_first))
             return {
+                "source_snapshot_id": "letterboxd-42",
                 "generated_at": None,
                 "last_successful_movie_sync_at": None,
                 "movies": [
@@ -67,6 +68,15 @@ def test_reconcile_sync_cli_writes_read_only_report(
                         "availability_status": "not_on_plex",
                     }
                 ],
+                "watched_movies": [
+                    {
+                        "title": "Watched Movie",
+                        "year": 2023,
+                        "tmdb_id": 202,
+                        "source_id": "202",
+                        "lifecycle_event_id": "movie-202:watched:2",
+                    }
+                ],
             }
 
     class FakeCacheService:
@@ -77,13 +87,24 @@ def test_reconcile_sync_cli_writes_read_only_report(
             calls.append(("managed_destinations", None))
             return []
 
+        def get_radarr_observations(self):
+            calls.append(("radarr_observations", None))
+            return []
+
     class FakeRadarrClient:
         def __init__(self, *args, **kwargs):
             pass
 
         def get_all_movies(self):
             calls.append(("radarr", None))
-            return []
+            return [
+                {
+                    "title": "Watched Movie",
+                    "year": 2023,
+                    "tmdbId": 202,
+                    "hasFile": True,
+                }
+            ]
 
         def get_exclusions(self):
             calls.append(("radarr_exclusions", None))
@@ -112,8 +133,13 @@ def test_reconcile_sync_cli_writes_read_only_report(
 
     assert exit_code == 0
     assert report_path.exists()
-    assert "- backend_snapshot: 1" in report_path.read_text(encoding="utf-8")
+    report = report_path.read_text(encoding="utf-8")
+    assert "- backend_snapshot: 1" in report
+    assert "Source snapshot ID: letterboxd-42" in report
+    assert "watched_letterboxd_movie_remove_from_radarr" in report
+    assert "authorization=letterboxd_watched" in report
     assert ("backend_snapshot", True) in calls
     assert ("managed_destinations", None) in calls
+    assert ("radarr_observations", None) in calls
     assert ("radarr_exclusions", None) in calls
     assert ("plex_library", "Movies") in calls

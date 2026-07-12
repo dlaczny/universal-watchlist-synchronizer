@@ -103,13 +103,20 @@ def main(argv=None) -> int:
     except Exception as error:
         errors.append(f"backend movie snapshot: {error}")
         backend_snapshot = {
+            "source_snapshot_id": None,
             "movies": [],
+            "watched_movies": [],
             "generated_at": None,
             "last_successful_movie_sync_at": None,
         }
     managed_destinations = _collect(
         "worker managed destinations",
         cache_service.get_managed_destinations,
+        errors,
+    )
+    radarr_observations = _collect(
+        "Radarr observations",
+        cache_service.get_radarr_observations,
         errors,
     )
     radarr_movies = _collect("Radarr movies", radarr_client.get_all_movies, errors)
@@ -127,7 +134,9 @@ def main(argv=None) -> int:
 
     report = reconcile_sync_state(
         backend_snapshot_movies=backend_snapshot["movies"],
+        backend_watched_movies=backend_snapshot["watched_movies"],
         radarr_movies=radarr_movies,
+        radarr_observations=radarr_observations,
         plex_watchlist_movies=plex_watchlist,
         plex_library_movies=plex_library,
         managed_destinations=managed_destinations,
@@ -136,6 +145,7 @@ def main(argv=None) -> int:
         source_last_successful_sync_at=backend_snapshot[
             "last_successful_movie_sync_at"
         ],
+        source_snapshot_id=backend_snapshot["source_snapshot_id"],
         radarr_exclusions=radarr_exclusions,
     )
 
