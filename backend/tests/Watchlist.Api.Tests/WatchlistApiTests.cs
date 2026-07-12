@@ -247,6 +247,23 @@ public sealed class WatchlistApiTests
             "Letterboxd watchlist returned malformed JSON.");
     }
 
+    [Theory]
+    [InlineData("/api/sync/letterboxd")]
+    [InlineData("/api/sync/movies")]
+    public async Task PostMovieSourceSync_WhenSnapshotRejected_ReturnsBadGateway(string path)
+    {
+        using SeededApiFactory factory = new(
+            new LetterboxdSnapshotRejectedException("Letterboxd watchlist returned no movies."));
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync(path, null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("error").GetString().Should().Be(
+            "Letterboxd watchlist snapshot was rejected.");
+    }
+
     [Fact]
     public async Task PostTmdbMovieSync_ReturnsBatchResult()
     {

@@ -46,14 +46,15 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
             "/film/karma-2026/");
         DateTimeOffset completedAt = DateTimeOffset.Parse("2026-06-03T12:00:01Z");
 
-        int deleted = await repository.ApplyLetterboxdMovieSyncAsync(
+        LetterboxdMovieSyncApplyResult result = await repository.ApplyLetterboxdMovieSyncAsync(
             [writeModel],
             new HashSet<string>(["1418998"], StringComparer.Ordinal),
             "letterboxd_completed",
             completedAt,
             CancellationToken.None);
 
-        deleted.Should().Be(1);
+        result.ItemsMarkedWatched.Should().Be(1);
+        result.SourceSnapshotId.Should().StartWith("letterboxd-");
         List<MongoWatchlistItemDocument> storedItems = await items
             .Find(FilterDefinition<MongoWatchlistItemDocument>.Empty)
             .ToListAsync();

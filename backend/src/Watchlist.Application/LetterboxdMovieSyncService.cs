@@ -8,16 +8,25 @@ namespace Watchlist.Application;
 public sealed class LetterboxdMovieSyncService(
     ILetterboxdWatchlistClient client,
     IWatchlistWriteRepository repository,
-    TimeProvider timeProvider) : ILetterboxdMovieSyncService
+    TimeProvider timeProvider,
+    LetterboxdSyncGate syncGate) : ILetterboxdMovieSyncService
 {
     private const string CompletedResultStatus = "completed";
     private const string CompletedRunStatus = "letterboxd_completed";
 
     /// <inheritdoc />
-    public async Task<LetterboxdSyncResultDto> SyncAsync(CancellationToken cancellationToken)
+    public Task<LetterboxdSyncResultDto> SyncAsync(CancellationToken cancellationToken)
+    {
+        return syncGate.RunAsync(
+            () => SyncCoreAsync(cancellationToken),
+            cancellationToken);
+    }
+
+    private async Task<LetterboxdSyncResultDto> SyncCoreAsync(CancellationToken cancellationToken)
     {
         DateTimeOffset startedAt = timeProvider.GetUtcNow();
         IReadOnlyList<LetterboxdMovieDto> sourceMovies = await client.GetMoviesAsync(cancellationToken);
+        ValidateSourceMovies(sourceMovies);
         IReadOnlyList<WatchlistItem> existingItems = await repository.GetItemsAsync(cancellationToken);
         Dictionary<string, WatchlistItem> existingLetterboxdMovies = existingItems
             .Where(item => item.MediaType == MediaType.Movie && item.Source == WatchlistSource.Letterboxd)
@@ -31,7 +40,7 @@ public sealed class LetterboxdMovieSyncService(
             .ToHashSet(StringComparer.Ordinal);
 
         DateTimeOffset finishedAt = timeProvider.GetUtcNow();
-        int deleted = await repository.ApplyLetterboxdMovieSyncAsync(
+        LetterboxdMovieSyncApplyResult applyResult = await repository.ApplyLetterboxdMovieSyncAsync(
             upsertItems,
             sourceIds,
             CompletedRunStatus,
@@ -44,7 +53,35 @@ public sealed class LetterboxdMovieSyncService(
             finishedAt,
             sourceMovies.Count,
             upsertItems.Count,
-            deleted);
+            applyResult.ItemsMarkedWatched,
+            applyResult.SourceSnapshotId);
+    }
+
+    private static void ValidateSourceMovies(IReadOnlyList<LetterboxdMovieDto> sourceMovies)
+    {
+        if (sourceMovies.Count == 0)
+        {
+            throw new LetterboxdSnapshotRejectedException(
+                "Letterboxd watchlist returned no movies.");
+        }
+
+        HashSet<string> sourceIds = new(StringComparer.Ordinal);
+        foreach (LetterboxdMovieDto movie in sourceMovies)
+        {
+            if (!int.TryParse(movie.SourceId, out int sourceId)
+                || sourceId <= 0
+                || string.IsNullOrWhiteSpace(movie.Title))
+            {
+                throw new LetterboxdSnapshotRejectedException(
+                    "Letterboxd watchlist returned an invalid movie identity.");
+            }
+
+            if (!sourceIds.Add(movie.SourceId))
+            {
+                throw new LetterboxdSnapshotRejectedException(
+                    "Letterboxd watchlist returned duplicate movie identities.");
+            }
+        }
     }
 
     private static WatchlistItemWriteModel ToWriteModel(

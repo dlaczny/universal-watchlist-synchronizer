@@ -38,7 +38,7 @@ version: 0.1.0
 - Test: `backend/tests/Watchlist.Application.Tests/LetterboxdMovieSyncServiceTests.cs`
 - Test: `backend/tests/Watchlist.Api.Tests/WatchlistApiTests.cs`
 
-- [ ] **Step 1: Write failing service tests for rejected snapshots**
+- [x] **Step 1: Write failing service tests for rejected snapshots**
 
 Add tests proving that an empty result, duplicate source IDs, a non-positive
 source ID, or an empty title throws `LetterboxdSnapshotRejectedException` and
@@ -60,7 +60,7 @@ public async Task SyncAsync_WhenSourceIsEmpty_RejectsWithoutWriting()
 }
 ```
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 
@@ -71,7 +71,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 Expected: compile or assertion failures for the missing exception, apply result,
 and validation.
 
-- [ ] **Step 3: Define the source publication result contract**
+- [x] **Step 3: Define the source publication result contract**
 
 Use these application contracts:
 
@@ -120,14 +120,14 @@ public sealed class LetterboxdSyncGate
 Register `LetterboxdSyncGate` as a singleton and wrap the complete fetch,
 validate, compare, and publish sequence.
 
-- [ ] **Step 4: Map source rejection to a non-success HTTP response**
+- [x] **Step 4: Map source rejection to a non-success HTTP response**
 
 Catch `LetterboxdSnapshotRejectedException` at the Letterboxd and movie-sync
 HTTP boundaries and return `502` problem details without source rows or config
 values. Add API tests for `POST /api/sync/letterboxd` and
 `POST /api/sync/movies`.
 
-- [ ] **Step 5: Verify GREEN and existing orchestration compatibility**
+- [x] **Step 5: Verify GREEN and existing orchestration compatibility**
 
 Run:
 
@@ -139,7 +139,7 @@ dotnet test backend\tests\Watchlist.Api.Tests\Watchlist.Api.Tests.csproj --filte
 Expected: all selected tests pass and rejected snapshots execute no repository
 write.
 
-- [ ] **Step 6: Commit the source contract**
+- [x] **Step 6: Commit the source contract**
 
 ```powershell
 git add backend/src/Watchlist.Application backend/src/Watchlist.Infrastructure/DependencyInjection.cs backend/src/Watchlist.Api/Program.cs backend/tests

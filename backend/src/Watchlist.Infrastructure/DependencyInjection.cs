@@ -57,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<IAvailabilityRefreshService, AvailabilityRefreshService>();
         services.AddScoped<ICombinedSyncService, CombinedSyncService>();
         services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<LetterboxdSyncGate>();
         services.AddSingleton<IHttpRetryDelay, DefaultHttpRetryDelay>();
         services.AddHttpClient<ILetterboxdWatchlistClient, LetterboxdWatchlistClient>();
         services.AddHttpClient<ITmdbMovieClient, TmdbMovieClient>((serviceProvider, httpClient) =>

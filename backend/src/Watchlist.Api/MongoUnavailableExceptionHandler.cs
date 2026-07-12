@@ -32,6 +32,16 @@ public sealed class MongoUnavailableExceptionHandler : IExceptionHandler
             return true;
         }
 
+        if (exception is LetterboxdSnapshotRejectedException)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status502BadGateway;
+            await httpContext.Response.WriteAsJsonAsync(
+                new { error = "Letterboxd watchlist snapshot was rejected." },
+                cancellationToken);
+
+            return true;
+        }
+
         if (exception is TmdbUnavailableException)
         {
             httpContext.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;

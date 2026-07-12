@@ -10,7 +10,7 @@ public sealed class LetterboxdMovieSyncServiceTests
     private static readonly DateTimeOffset SyncTime = DateTimeOffset.Parse("2026-06-03T12:00:00Z");
 
     [Fact]
-    public async Task SyncAsync_WhenMoviesFetched_UpsertsMappedMoviesAndDeletesRemovedLetterboxdMovies()
+    public async Task SyncAsync_WhenMoviesFetched_UpsertsMappedMoviesAndPublishesWatchedTransition()
     {
         FakeLetterboxdWatchlistClient client = new([
             new LetterboxdMovieDto("1418998", "tt35450621", "Karma", 2026, "/film/karma-2026/"),
@@ -30,7 +30,8 @@ public sealed class LetterboxdMovieSyncServiceTests
         result.FinishedAt.Should().Be(SyncTime);
         result.ItemsFetched.Should().Be(2);
         result.ItemsUpserted.Should().Be(2);
-        result.ItemsDeleted.Should().Be(1);
+        result.ItemsMarkedWatched.Should().Be(1);
+        result.SourceSnapshotId.Should().Be("letterboxd-snapshot-1");
         repository.AppliedItems.Select(item => item.Item.Id).Should().Equal(
             "movie-letterboxd-1418998",
             "movie-letterboxd-4951");
@@ -74,7 +75,7 @@ public sealed class LetterboxdMovieSyncServiceTests
         AvailabilityStatus availabilityStatus)
     {
         FakeLetterboxdWatchlistClient client = new([
-            new LetterboxdMovieDto("source", "tt0000001", "Movie", releaseYear, "/film/movie/")
+            new LetterboxdMovieDto("101", "tt0000001", "Movie", releaseYear, "/film/movie/")
         ]);
         FakeWatchlistWriteRepository repository = new([]);
         LetterboxdMovieSyncService service = CreateService(client, repository);
@@ -92,7 +93,7 @@ public sealed class LetterboxdMovieSyncServiceTests
     public async Task SyncAsync_WhenReleaseYearUnknown_MapsUnknownReleaseAndUnknownMatch()
     {
         FakeLetterboxdWatchlistClient client = new([
-            new LetterboxdMovieDto("source", null, "Movie", null, "/film/movie/")
+            new LetterboxdMovieDto("101", null, "Movie", null, "/film/movie/")
         ]);
         FakeWatchlistWriteRepository repository = new([]);
         LetterboxdMovieSyncService service = CreateService(client, repository);
@@ -119,6 +120,60 @@ public sealed class LetterboxdMovieSyncServiceTests
         repository.CompletedStatuses.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task SyncAsync_WhenSourceIsEmpty_RejectsWithoutReadingOrWritingRepository()
+    {
+        FakeLetterboxdWatchlistClient client = new([]);
+        FakeWatchlistWriteRepository repository = new([CreateExistingMovie("4951")]);
+        LetterboxdMovieSyncService service = CreateService(client, repository);
+
+        Func<Task> action = () => service.SyncAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<LetterboxdSnapshotRejectedException>();
+        repository.GetItemsCallCount.Should().Be(0);
+        repository.ApplyCallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SyncAsync_WhenSourceIdsAreDuplicated_RejectsWithoutReadingOrWritingRepository()
+    {
+        FakeLetterboxdWatchlistClient client = new([
+            new LetterboxdMovieDto("101", "tt0000101", "First", 2024, "/film/first/"),
+            new LetterboxdMovieDto("101", "tt0000101", "Duplicate", 2024, "/film/duplicate/")
+        ]);
+        FakeWatchlistWriteRepository repository = new([]);
+        LetterboxdMovieSyncService service = CreateService(client, repository);
+
+        Func<Task> action = () => service.SyncAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<LetterboxdSnapshotRejectedException>();
+        repository.GetItemsCallCount.Should().Be(0);
+        repository.ApplyCallCount.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("0", "Movie")]
+    [InlineData("-1", "Movie")]
+    [InlineData("not-a-number", "Movie")]
+    [InlineData("101", "")]
+    [InlineData("101", "   ")]
+    public async Task SyncAsync_WhenRequiredSourceIdentityIsInvalid_RejectsWithoutRepositoryAccess(
+        string sourceId,
+        string title)
+    {
+        FakeLetterboxdWatchlistClient client = new([
+            new LetterboxdMovieDto(sourceId, null, title, 2024, "/film/movie/")
+        ]);
+        FakeWatchlistWriteRepository repository = new([]);
+        LetterboxdMovieSyncService service = CreateService(client, repository);
+
+        Func<Task> action = () => service.SyncAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<LetterboxdSnapshotRejectedException>();
+        repository.GetItemsCallCount.Should().Be(0);
+        repository.ApplyCallCount.Should().Be(0);
+    }
+
     private static LetterboxdMovieSyncService CreateService(
         ILetterboxdWatchlistClient client,
         FakeWatchlistWriteRepository repository)
@@ -126,7 +181,8 @@ public sealed class LetterboxdMovieSyncServiceTests
         return new LetterboxdMovieSyncService(
             client,
             repository,
-            new FakeTimeProvider(SyncTime));
+            new FakeTimeProvider(SyncTime),
+            new LetterboxdSyncGate());
     }
 
     private static WatchlistItem CreateExistingMovie(string sourceId)
@@ -211,6 +267,10 @@ public sealed class LetterboxdMovieSyncServiceTests
 
     private sealed class FakeWatchlistWriteRepository(IReadOnlyList<WatchlistItem> items) : IWatchlistWriteRepository
     {
+        public int GetItemsCallCount { get; private set; }
+
+        public int ApplyCallCount { get; private set; }
+
         public List<WatchlistItem> Items { get; } = items.ToList();
 
         public List<WatchlistItemWriteModel> AppliedItems { get; } = [];
@@ -223,16 +283,18 @@ public sealed class LetterboxdMovieSyncServiceTests
 
         public Task<IReadOnlyList<WatchlistItem>> GetItemsAsync(CancellationToken cancellationToken)
         {
+            GetItemsCallCount++;
             return Task.FromResult<IReadOnlyList<WatchlistItem>>(Items);
         }
 
-        public Task<int> ApplyLetterboxdMovieSyncAsync(
+        public Task<LetterboxdMovieSyncApplyResult> ApplyLetterboxdMovieSyncAsync(
             IReadOnlyList<WatchlistItemWriteModel> itemsToUpsert,
             IReadOnlySet<string> sourceIds,
             string completedStatus,
             DateTimeOffset completedAt,
             CancellationToken cancellationToken)
         {
+            ApplyCallCount++;
             AppliedItems.AddRange(itemsToUpsert);
             AppliedSourceIds.AddRange(sourceIds);
             CompletedStatuses.Add(completedStatus);
@@ -244,9 +306,10 @@ public sealed class LetterboxdMovieSyncServiceTests
                     && !sourceIds.Contains(item.SourceId))
                 .ToList();
 
-            Items.RemoveAll(deletedItems.Contains);
-
-            return Task.FromResult(deletedItems.Count);
+            return Task.FromResult(
+                new LetterboxdMovieSyncApplyResult(
+                    "letterboxd-snapshot-1",
+                    deletedItems.Count));
         }
 
         public Task<TmdbTvWatchlistApplyResult> ApplyTmdbTvWatchlistSyncAsync(

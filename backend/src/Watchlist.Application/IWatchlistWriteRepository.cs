@@ -15,7 +15,7 @@ public interface IWatchlistWriteRepository
     /// <summary>
     /// Applies one completed Letterboxd movie sync as a single persistence operation.
     /// </summary>
-    Task<int> ApplyLetterboxdMovieSyncAsync(
+    Task<LetterboxdMovieSyncApplyResult> ApplyLetterboxdMovieSyncAsync(
         IReadOnlyList<WatchlistItemWriteModel> items,
         IReadOnlySet<string> sourceIds,
         string completedStatus,

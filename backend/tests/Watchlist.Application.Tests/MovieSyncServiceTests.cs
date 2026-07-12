@@ -55,7 +55,8 @@ public sealed class MovieSyncServiceTests
                 Now.AddSeconds(1),
                 2,
                 2,
-                0));
+                0,
+                "letterboxd-snapshot"));
         }
     }
 

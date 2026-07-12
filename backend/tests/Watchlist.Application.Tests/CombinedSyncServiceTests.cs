@@ -51,7 +51,7 @@ public sealed class CombinedSyncServiceTests
         public Task<LetterboxdSyncResultDto> SyncAsync(CancellationToken cancellationToken)
         {
             calls.Add("letterboxd");
-            return Task.FromResult(new LetterboxdSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:00Z"), DateTimeOffset.Parse("2026-06-05T12:00:01Z"), 2, 2, 0));
+            return Task.FromResult(new LetterboxdSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:00Z"), DateTimeOffset.Parse("2026-06-05T12:00:01Z"), 2, 2, 0, "letterboxd-snapshot"));
         }
     }
 

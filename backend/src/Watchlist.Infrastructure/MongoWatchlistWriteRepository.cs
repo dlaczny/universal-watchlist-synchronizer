@@ -24,7 +24,7 @@ public sealed class MongoWatchlistWriteRepository(
         return documents.Select(document => document.ToDomain()).ToList();
     }
 
-    public async Task<int> ApplyLetterboxdMovieSyncAsync(
+    public async Task<LetterboxdMovieSyncApplyResult> ApplyLetterboxdMovieSyncAsync(
         IReadOnlyList<WatchlistItemWriteModel> items,
         IReadOnlySet<string> sourceIds,
         string completedStatus,
@@ -50,16 +50,19 @@ public sealed class MongoWatchlistWriteRepository(
             CreateRemovedLetterboxdMovieFilter(sourceIds),
             cancellationToken);
 
+        string snapshotId = $"letterboxd-{completedAt:yyyyMMddHHmmssfffffff}";
         MongoSyncRunDocument syncRun = new()
         {
-            Id = $"letterboxd-{completedAt:yyyyMMddHHmmssfffffff}",
+            Id = snapshotId,
             Status = completedStatus,
             LastSuccessfulSyncAt = completedAt
         };
 
         await syncRuns.InsertOneAsync(syncRun, cancellationToken: cancellationToken);
 
-        return (int)deleteResult.DeletedCount;
+        return new LetterboxdMovieSyncApplyResult(
+            snapshotId,
+            (int)deleteResult.DeletedCount);
     }
 
     private static FilterDefinition<MongoWatchlistItemDocument> CreateRemovedLetterboxdMovieFilter(

@@ -181,14 +181,14 @@ public sealed class TmdbTvWatchlistSyncServiceTests
             return Task.FromResult<IReadOnlyList<WatchlistItem>>([]);
         }
 
-        public Task<int> ApplyLetterboxdMovieSyncAsync(
+        public Task<LetterboxdMovieSyncApplyResult> ApplyLetterboxdMovieSyncAsync(
             IReadOnlyList<WatchlistItemWriteModel> items,
             IReadOnlySet<string> sourceIds,
             string completedStatus,
             DateTimeOffset completedAt,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(0);
+            return Task.FromResult(new LetterboxdMovieSyncApplyResult("unused", 0));
         }
 
         public Task<TmdbTvWatchlistApplyResult> ApplyTmdbTvWatchlistSyncAsync(

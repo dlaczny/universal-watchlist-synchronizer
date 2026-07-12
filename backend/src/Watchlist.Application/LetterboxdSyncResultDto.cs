@@ -9,4 +9,5 @@ public sealed record LetterboxdSyncResultDto(
     DateTimeOffset FinishedAt,
     int ItemsFetched,
     int ItemsUpserted,
-    int ItemsDeleted);
+    int ItemsMarkedWatched,
+    string SourceSnapshotId);
