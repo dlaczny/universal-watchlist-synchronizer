@@ -4,11 +4,13 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 
 VOD_FILTER_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(VOD_FILTER_ROOT))
 
+import sync_movies as sync_movies_module
 from sync_movies import execute_movie_sync
 from src.services.movie_sync_collector import CollectedMovieSyncState
 from src.services.movie_sync_policy import SyncPolicy
@@ -120,3 +122,79 @@ def test_execute_movie_sync_returns_safety_code_for_stale_apply(tmp_path: Path):
     assert result.exit_code == 3
     assert "source_snapshot_stale" in result.blockers
     assert executor.calls == [(["source_snapshot_stale"], True)]
+
+
+def test_execute_movie_sync_reports_watched_authorization_contract(tmp_path: Path):
+    class WatchedCollector:
+        def collect(self, *, sync_first: bool):
+            return CollectedMovieSyncState(
+                backend_movies=(),
+                backend_watched_movies=(
+                    {
+                        "tmdb_id": 101,
+                        "title": "Watched",
+                        "year": 2024,
+                        "source_id": "101",
+                        "watched_at": NOW,
+                        "lifecycle_version": 2,
+                        "lifecycle_event_id": "movie-101:watched:2",
+                    },
+                ),
+                source_snapshot_id="letterboxd-42",
+                source_snapshot_at=NOW,
+                source_last_successful_sync_at=NOW,
+                radarr_movies=(
+                    {"tmdbId": 101, "title": "Watched", "year": 2024, "hasFile": True},
+                ),
+                radarr_observations=(),
+                plex_watchlist_movies=(),
+                plex_library_movies=(),
+                managed_destinations=(),
+                collection_errors=(),
+            )
+
+    result = execute_movie_sync(
+        collector=WatchedCollector(),
+        executor=FakeExecutor(),
+        cache_service=FakeCache(),
+        policy=SyncPolicy(
+            allow_mutation=False,
+            allow_watched_file_deletion=True,
+            max_removal_percent=100.0,
+        ),
+        sync_first=True,
+        apply=False,
+        report_dir=tmp_path,
+        now=NOW,
+    )
+
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    radarr = next(
+        item
+        for item in payload["decisions"]
+        if item["area"] == "radarr" and item["action"] == "remove"
+    )
+    assert payload["source_snapshot_id"] == "letterboxd-42"
+    assert radarr["authorization"] == "letterboxd_watched"
+    assert radarr["authorization_event_id"] == "movie-101:watched:2"
+    assert radarr["delete_files"] is True
+    markdown = result.markdown_path.read_text(encoding="utf-8")
+    assert "Source snapshot ID: letterboxd-42" in markdown
+    assert "authorization=letterboxd_watched" in markdown
+    assert "authorization_event_id=movie-101:watched:2" in markdown
+    assert "delete_files=true" in markdown
+    assert "MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION" not in markdown
+
+
+def test_build_movie_sync_policy_passes_watched_file_deletion_gate():
+    config = SimpleNamespace(
+        movie_sync_max_source_age_minutes=120,
+        movie_sync_max_removal_count=10,
+        movie_sync_max_removal_percent=25.0,
+        movie_sync_allow_watched_file_deletion=True,
+    )
+
+    policy = sync_movies_module.build_movie_sync_policy(config, apply=True)
+
+    assert policy.allow_mutation is True
+    assert policy.allow_watched_file_deletion is True

@@ -570,7 +570,7 @@ git commit -m "feat: plan watched movie cleanup"
 - Test: `workers/vod-filter/tests/vod_filter/test_sync_movies_cli.py`
 - Test: `workers/vod-filter/tests/vod_filter/test_run_history.py`
 
-- [ ] **Step 1: Write failing executor defense tests**
+- [x] **Step 1: Write failing executor defense tests**
 
 Prove exact watched Radarr decisions call
 `remove_movie(tmdb_id, delete_files=True)`, ordinary removal remains false,
@@ -578,14 +578,14 @@ invalid destructive authorization raises without a client call, Plex cleanup
 never calls a library method, independent failures continue, and SQLite records
 success/error attempts.
 
-- [ ] **Step 2: Write failing config and report tests**
+- [x] **Step 2: Write failing config and report tests**
 
 Assert `MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION` defaults false, parses true, is
 passed into policy, and appears in neither `Config.__repr__` nor reports. JSON
 and Markdown reports must include snapshot ID, authorization, event ID, and
 `delete_files`.
 
-- [ ] **Step 3: Verify RED**
+- [x] **Step 3: Verify RED**
 
 Run:
 
@@ -593,14 +593,14 @@ Run:
 python -m pytest workers/vod-filter/tests/vod_filter/test_config.py workers/vod-filter/tests/vod_filter/test_movie_sync_executor.py workers/vod-filter/tests/vod_filter/test_sync_movies_cli.py workers/vod-filter/tests/vod_filter/test_run_history.py -q
 ```
 
-- [ ] **Step 4: Implement executor checks and observation updates**
+- [x] **Step 4: Implement executor checks and observation updates**
 
 Use `decision.delete_files` in the Radarr client call only after checking the
 authorization invariant. After successful watched removal, mark the Radarr
 observation absent with its lifecycle event ID. Release managed ownership when
 present. Record every authorized cleanup attempt without storing credentials.
 
-- [ ] **Step 5: Wire configuration and orchestration**
+- [x] **Step 5: Wire configuration and orchestration**
 
 Pass `state.backend_watched_movies`, `state.radarr_observations`, and
 `state.source_snapshot_id` into reconciliation. Construct policy with:
@@ -611,7 +611,7 @@ allow_watched_file_deletion=config.movie_sync_allow_watched_file_deletion
 
 Add `MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION=false` to tracked examples only.
 
-- [ ] **Step 6: Verify GREEN and full worker regression suite**
+- [x] **Step 6: Verify GREEN and full worker regression suite**
 
 Run focused tests, then:
 
@@ -620,7 +620,7 @@ python -m pytest workers/vod-filter/tests/vod_filter -q
 python -m compileall -q workers/vod-filter/src workers/vod-filter/sync_movies.py workers/vod-filter/continuous_sync.py workers/vod-filter/healthcheck.py
 ```
 
-- [ ] **Step 7: Commit execution and reporting**
+- [x] **Step 7: Commit execution and reporting**
 
 ```powershell
 git add workers/vod-filter deploy/production/worker.env.example

@@ -134,6 +134,13 @@ class Config:
             minimum=0,
             maximum=100,
         )
+        self.movie_sync_allow_watched_file_deletion: bool = (
+            os.getenv(
+                "MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION",
+                "false",
+            ).lower()
+            == "true"
+        )
 
         # Radarr Removal Settings
         self.radarr_delete_files_on_removal: bool = (

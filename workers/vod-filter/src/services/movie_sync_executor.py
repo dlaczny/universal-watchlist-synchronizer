@@ -90,12 +90,18 @@ class MovieSyncExecutor:
         )
 
     def _execute_decision(self, decision: ReconciliationDecision) -> str:
+        self._validate_file_deletion_authorization(decision)
         if decision.action in {"skip", "uncertain", "error"}:
             return "skipped"
 
         tmdb_id = decision.movie.tmdb_id
         if tmdb_id is None:
             return "skipped"
+        if isinstance(tmdb_id, bool) or not isinstance(tmdb_id, int) or tmdb_id <= 0:
+            raise RuntimeError("invalid TMDB identity")
+
+        if decision.action == "remove":
+            return self._execute_removal(decision, tmdb_id)
 
         if decision.area == "radarr":
             return self._execute_radarr(decision, tmdb_id)
@@ -103,6 +109,94 @@ class MovieSyncExecutor:
             return self._execute_plex_watchlist(decision, tmdb_id)
 
         return "skipped"
+
+    def _execute_removal(
+        self,
+        decision: ReconciliationDecision,
+        tmdb_id: int,
+    ) -> str:
+        self._validate_removal_authorization(decision)
+        try:
+            if decision.area == "radarr":
+                status = self._execute_radarr(decision, tmdb_id)
+            elif decision.area == "plex_watchlist":
+                status = self._execute_plex_watchlist(decision, tmdb_id)
+            else:
+                return "skipped"
+        except Exception as error:
+            self._record_cleanup_attempt(decision, tmdb_id, "error", str(error))
+            raise
+
+        self._record_cleanup_attempt(decision, tmdb_id, "completed", None)
+        return status
+
+    @staticmethod
+    def _validate_removal_authorization(
+        decision: ReconciliationDecision,
+    ) -> None:
+        MovieSyncExecutor._validate_file_deletion_authorization(decision)
+        event_id = decision.authorization_event_id
+        valid_watched_event = isinstance(event_id, str) and bool(event_id.strip())
+
+        if decision.authorization is None:
+            return
+
+        if decision.authorization == "letterboxd_watched":
+            valid_destination = decision.area in {"radarr", "plex_watchlist"}
+            expected_file_deletion = decision.area == "radarr"
+            if (
+                not valid_destination
+                or not valid_watched_event
+                or decision.delete_files != expected_file_deletion
+            ):
+                raise RuntimeError("invalid watched cleanup authorization")
+            return
+
+        if decision.authorization == "manual_radarr_removal":
+            if (
+                decision.area != "plex_watchlist"
+                or decision.delete_files
+                or decision.authorization_event_id is not None
+            ):
+                raise RuntimeError("invalid manual cleanup authorization")
+            return
+
+        raise RuntimeError("invalid cleanup authorization")
+
+    @staticmethod
+    def _validate_file_deletion_authorization(
+        decision: ReconciliationDecision,
+    ) -> None:
+        if not decision.delete_files:
+            return
+        event_id = decision.authorization_event_id
+        if not (
+            decision.area == "radarr"
+            and decision.action == "remove"
+            and decision.authorization == "letterboxd_watched"
+            and isinstance(event_id, str)
+            and bool(event_id.strip())
+        ):
+            raise RuntimeError("invalid file deletion authorization")
+
+    def _record_cleanup_attempt(
+        self,
+        decision: ReconciliationDecision,
+        tmdb_id: int,
+        status: str,
+        error: str | None,
+    ) -> None:
+        if decision.authorization is None:
+            return
+        self.cache_service.record_cleanup_attempt(
+            authorization=decision.authorization,
+            authorization_event_id=decision.authorization_event_id,
+            destination=decision.area,
+            tmdb_id=tmdb_id,
+            delete_files=decision.delete_files,
+            status=status,
+            error=error,
+        )
 
     def _execute_radarr(self, decision: ReconciliationDecision, tmdb_id: int) -> str:
         if decision.action == "add":
@@ -123,7 +217,15 @@ class MovieSyncExecutor:
             return "completed"
 
         if decision.action == "remove":
-            self.radarr_client.remove_movie(tmdb_id, delete_files=False)
+            self.radarr_client.remove_movie(
+                tmdb_id,
+                delete_files=decision.delete_files,
+            )
+            if decision.authorization == "letterboxd_watched":
+                self.cache_service.mark_radarr_removed_by_worker(
+                    tmdb_id,
+                    decision.authorization_event_id,
+                )
             self.cache_service.release_managed("radarr", tmdb_id)
             return "completed"
 

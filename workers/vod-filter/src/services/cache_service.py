@@ -919,6 +919,22 @@ class CacheService:
             conn.commit()
             return int(cursor.lastrowid)
 
+    def get_recent_cleanup_attempts(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Return recent credential-free cleanup audit rows."""
+        if limit < 1:
+            raise ValueError("limit must be positive")
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM movie_cleanup_history
+                ORDER BY attempted_at DESC, id DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
     @staticmethod
     def _positive_tmdb_id(value: Any, field: str) -> int:
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:

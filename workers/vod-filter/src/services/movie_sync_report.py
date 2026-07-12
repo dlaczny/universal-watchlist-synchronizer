@@ -32,6 +32,7 @@ def write_movie_sync_reports(
 
     payload = {
         "generated_at": report.generated_at.isoformat(),
+        "source_snapshot_id": report.source_snapshot_id,
         "source_snapshot_at": _iso(report.source_snapshot_at),
         "source_last_successful_sync_at": _iso(
             report.source_last_successful_sync_at
@@ -45,6 +46,9 @@ def write_movie_sync_reports(
                 "reason": decision.reason,
                 "managed": decision.managed,
                 "execution_status": decision.execution_status,
+                "delete_files": decision.delete_files,
+                "authorization": decision.authorization,
+                "authorization_event_id": decision.authorization_event_id,
                 "movie": {
                     "tmdb_id": decision.movie.tmdb_id,
                     "imdb_id": decision.movie.imdb_id,

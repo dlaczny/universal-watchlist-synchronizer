@@ -58,13 +58,16 @@ def execute_movie_sync(
         state = collector.collect(sync_first=sync_first)
         report = reconcile_sync_state(
             backend_snapshot_movies=state.backend_movies,
+            backend_watched_movies=state.backend_watched_movies,
             radarr_movies=state.radarr_movies,
+            radarr_observations=state.radarr_observations,
             plex_watchlist_movies=state.plex_watchlist_movies,
             plex_library_movies=state.plex_library_movies,
             managed_destinations=state.managed_destinations,
             collection_errors=state.collection_errors,
             source_snapshot_at=state.source_snapshot_at,
             source_last_successful_sync_at=state.source_last_successful_sync_at,
+            source_snapshot_id=state.source_snapshot_id,
             radarr_exclusions=state.radarr_exclusions,
         )
         blockers = evaluate_plan(report, policy, now=current_time)
@@ -135,6 +138,19 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
+def build_movie_sync_policy(config, apply: bool) -> SyncPolicy:
+    """Build the production policy from validated, non-secret configuration."""
+    return SyncPolicy(
+        max_source_age_minutes=config.movie_sync_max_source_age_minutes,
+        max_removal_count=config.movie_sync_max_removal_count,
+        max_removal_percent=config.movie_sync_max_removal_percent,
+        allow_mutation=apply,
+        allow_watched_file_deletion=(
+            config.movie_sync_allow_watched_file_deletion
+        ),
+    )
+
+
 def main(argv=None) -> int:
     load_dotenv()
     args = parse_args(argv)
@@ -180,12 +196,7 @@ def main(argv=None) -> int:
     )
     executor = MovieSyncExecutor(radarr, plex, cache)
     apply = args.apply or config.movie_sync_apply
-    policy = SyncPolicy(
-        max_source_age_minutes=config.movie_sync_max_source_age_minutes,
-        max_removal_count=config.movie_sync_max_removal_count,
-        max_removal_percent=config.movie_sync_max_removal_percent,
-        allow_mutation=apply,
-    )
+    policy = build_movie_sync_policy(config, apply)
 
     try:
         result = execute_movie_sync(

@@ -322,6 +322,7 @@ def render_markdown_report(report: SyncReconciliationReport) -> str:
         "# Sync reconciliation report",
         "",
         f"Generated: {report.generated_at.isoformat(timespec='seconds')}",
+        f"Source snapshot ID: {report.source_snapshot_id or 'unknown'}",
         f"Source snapshot: {_format_datetime(report.source_snapshot_at)}",
         "Last successful movie sync: "
         f"{_format_datetime(report.source_last_successful_sync_at)}",
@@ -347,7 +348,10 @@ def render_markdown_report(report: SyncReconciliationReport) -> str:
         decisions = _filter_decisions(report.decisions, area, action)
         lines.extend([f"## {_area_title(area)} - {action} ({len(decisions)})", ""])
         for decision in decisions:
-            lines.append(f"- {_format_movie(decision.movie)} - {decision.reason}")
+            lines.append(
+                f"- {_format_movie(decision.movie)} - {decision.reason} - "
+                f"{_format_authorization(decision)}"
+            )
         lines.append("")
 
     return "\n".join(lines)
@@ -973,6 +977,17 @@ def _format_movie(movie: ReconciliationMovie) -> str:
         identifiers.append(f"IMDb {movie.imdb_id}")
     identifier_text = f" - {', '.join(identifiers)}" if identifiers else ""
     return f"{movie.title}{year}{identifier_text}"
+
+
+def _format_authorization(decision: ReconciliationDecision) -> str:
+    authorization = decision.authorization or "none"
+    event_id = decision.authorization_event_id or "none"
+    delete_files = str(decision.delete_files).lower()
+    return (
+        f"authorization={authorization}, "
+        f"authorization_event_id={event_id}, "
+        f"delete_files={delete_files}"
+    )
 
 
 def _format_datetime(value: datetime | None) -> str:

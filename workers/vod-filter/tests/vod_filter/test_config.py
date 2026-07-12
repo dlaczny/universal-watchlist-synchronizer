@@ -44,6 +44,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES",
         "MOVIE_SYNC_MAX_REMOVAL_COUNT",
         "MOVIE_SYNC_MAX_REMOVAL_PERCENT",
+        "MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION",
     }
     for key in keys:
         monkeypatch.delenv(key, raising=False)
@@ -82,6 +83,7 @@ def test_cleanup_deletion_defaults_match_safety_policy() -> None:
     assert config.radarr_delete_files_on_removal is False
     assert config.radarr_remove_when_vod_available is True
     assert config.radarr_delete_files_when_vod_available is False
+    assert config.movie_sync_allow_watched_file_deletion is False
 
 
 def test_watchlist_source_defaults_to_letterboxd() -> None:
@@ -112,6 +114,7 @@ def test_watchlist_app_source_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES", "90")
     monkeypatch.setenv("MOVIE_SYNC_MAX_REMOVAL_COUNT", "4")
     monkeypatch.setenv("MOVIE_SYNC_MAX_REMOVAL_PERCENT", "15.5")
+    monkeypatch.setenv("MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION", "true")
 
     config = Config()
     config.validate()
@@ -126,6 +129,8 @@ def test_watchlist_app_source_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.movie_sync_max_source_age_minutes == 90
     assert config.movie_sync_max_removal_count == 4
     assert config.movie_sync_max_removal_percent == 15.5
+    assert config.movie_sync_allow_watched_file_deletion is True
+    assert "allow_watched_file_deletion" not in repr(config)
 
 
 @pytest.mark.parametrize(
