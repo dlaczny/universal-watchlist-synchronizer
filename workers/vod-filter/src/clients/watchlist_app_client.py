@@ -23,10 +23,12 @@ class WatchlistAppClient:
         base_url: str,
         http_client: httpx.Client | None = None,
         timeout_seconds: int = 30,
+        sync_timeout_seconds: int = 900,
         sync_key: str | None = None,
     ):
         self.base_url = base_url.rstrip("/")
         self.http_client = http_client or httpx.Client(timeout=timeout_seconds)
+        self.sync_timeout_seconds = sync_timeout_seconds
         self.sync_key = sync_key
 
     def fetch_radarr_movie_export(self, sync_first: bool = False) -> list[dict[str, Any]]:
@@ -142,6 +144,7 @@ class WatchlistAppClient:
         response = self.http_client.post(
             f"{self.base_url}/api/sync/movies",
             headers=headers,
+            timeout=self.sync_timeout_seconds,
         )
         try:
             response.raise_for_status()

@@ -7,8 +7,8 @@ tags:
   - reconciliation
   - radarr
   - plex
-timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+timestamp: 2026-07-12T00:00:00Z
+version: 0.2.1
 ---
 
 # Production Configuration
@@ -22,6 +22,8 @@ only in ignored or host-local environment files.
 | `WATCHLIST_APP_URL` | Backend base URL. | required |
 | `WATCHLIST_APP_SYNC_KEY` | Header value for backend sync mutation. | required in backend mode |
 | `WATCHLIST_APP_SYNC_FIRST` | Trigger `POST /api/sync/movies` before snapshot read. | `false` |
+| `WATCHLIST_APP_TIMEOUT_SECONDS` | Timeout for ordinary backend snapshot reads. | `30` |
+| `WATCHLIST_APP_SYNC_TIMEOUT_SECONDS` | Timeout for the full backend movie refresh only. | `900` |
 | `MOVIE_SYNC_APPLY` | Permit policy-approved destination actions. | `false` |
 | `MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES` | Maximum source freshness age. | `120` |
 | `MOVIE_SYNC_MAX_REMOVAL_COUNT` | Maximum removals in one plan. | `10` |
@@ -48,6 +50,10 @@ Omit `--skip-backend-sync` when the configured
 `WATCHLIST_APP_SYNC_FIRST=true` should refresh the backend first. A
 reconciliation-only run writes reports and ownership-neutral plans but does not
 call mutating Radarr or Plex methods.
+
+The full refresh can make hundreds of upstream metadata requests. Keep its
+timeout separate from ordinary API reads so a slow refresh can finish without
+hiding a stalled snapshot endpoint.
 
 # Apply Run
 

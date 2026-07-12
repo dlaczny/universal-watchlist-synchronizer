@@ -54,6 +54,7 @@ def test_shell_and_systemd_security_contracts() -> None:
     assert "builder prune" in text
     assert "WATCHLIST_RUNTIME_UID" in text
     assert "WATCHLIST_RUNTIME_GID" in text
+    assert 'HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-240}"' in text
     assert 'user: "${WATCHLIST_RUNTIME_UID' in compose
     assert "${WATCHLIST_RUNTIME_GID" in compose
     assert "COPY --from=build --chown=app:app /app/publish ." in backend_dockerfile

@@ -6,8 +6,8 @@ tags:
   - deployment
   - homelab
   - rollback
-timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+timestamp: 2026-07-12T00:00:00Z
+version: 0.2.1
 ---
 
 # Boundary
@@ -43,8 +43,8 @@ checkout and first-cutover backend rollback.
    sync key and use the same value for backend `Sync__ApiKey` and worker
    `WATCHLIST_APP_SYNC_KEY`.
 4. Set `WATCHLIST_SOURCE=watchlist_app`,
-   `WATCHLIST_APP_SYNC_FIRST=true`, and `MOVIE_SYNC_APPLY=false` for the first
-   release.
+   `WATCHLIST_APP_SYNC_FIRST=true`, `WATCHLIST_APP_SYNC_TIMEOUT_SECONDS=900`,
+   and `MOVIE_SYNC_APPLY=false` for the first release.
 5. Install the validated `deploy-movie-sync.sh` and `check-movie-ci.py` under
    `/opt/watchlist-prod/deployer`.
 6. Install the service and timer from `deploy/local-cd/systemd/` under
@@ -55,6 +55,10 @@ The service runs as `watchlist`, stores Docker state under
 its systemd filesystem sandbox. The deployer exports that service account's
 numeric UID/GID to Compose so the worker can write the private bind-mounted data
 directory without changing it to world-writable permissions.
+
+The default deploy health gate waits up to 240 five-second attempts. This
+20-minute window is deliberately longer than the 15-minute full-sync timeout;
+ordinary backend reads still fail after 30 seconds by default.
 
 # First Reconciliation Deployment
 

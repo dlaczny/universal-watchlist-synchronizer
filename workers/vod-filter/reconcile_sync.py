@@ -82,6 +82,8 @@ def main(argv=None) -> int:
 
     backend_client = WatchlistAppClient(
         config.watchlist_app_url,
+        timeout_seconds=config.watchlist_app_timeout_seconds,
+        sync_timeout_seconds=config.watchlist_app_sync_timeout_seconds,
         sync_key=config.watchlist_app_sync_key,
     )
     cache_service = CacheService(database_path=str(config.database_path))

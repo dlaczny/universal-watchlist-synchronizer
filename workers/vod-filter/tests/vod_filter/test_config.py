@@ -38,6 +38,8 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "WATCHLIST_APP_URL",
         "WATCHLIST_APP_SYNC_FIRST",
         "WATCHLIST_APP_SYNC_KEY",
+        "WATCHLIST_APP_TIMEOUT_SECONDS",
+        "WATCHLIST_APP_SYNC_TIMEOUT_SECONDS",
         "MOVIE_SYNC_APPLY",
         "MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES",
         "MOVIE_SYNC_MAX_REMOVAL_COUNT",
@@ -88,6 +90,8 @@ def test_watchlist_source_defaults_to_letterboxd() -> None:
     assert config.watchlist_source == "letterboxd"
     assert config.watchlist_app_url is None
     assert config.watchlist_app_sync_first is False
+    assert config.watchlist_app_timeout_seconds == 30
+    assert config.watchlist_app_sync_timeout_seconds == 900
 
 
 def test_watchlist_app_source_requires_url(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -102,6 +106,8 @@ def test_watchlist_app_source_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("WATCHLIST_APP_URL", "http://watchlist.local:5000/")
     monkeypatch.setenv("WATCHLIST_APP_SYNC_FIRST", "true")
     monkeypatch.setenv("WATCHLIST_APP_SYNC_KEY", "sync-secret")
+    monkeypatch.setenv("WATCHLIST_APP_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("WATCHLIST_APP_SYNC_TIMEOUT_SECONDS", "321")
     monkeypatch.setenv("MOVIE_SYNC_APPLY", "true")
     monkeypatch.setenv("MOVIE_SYNC_MAX_SOURCE_AGE_MINUTES", "90")
     monkeypatch.setenv("MOVIE_SYNC_MAX_REMOVAL_COUNT", "4")
@@ -114,10 +120,26 @@ def test_watchlist_app_source_config(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.watchlist_app_url == "http://watchlist.local:5000"
     assert config.watchlist_app_sync_first is True
     assert config.watchlist_app_sync_key == "sync-secret"
+    assert config.watchlist_app_timeout_seconds == 45
+    assert config.watchlist_app_sync_timeout_seconds == 321
     assert config.movie_sync_apply is True
     assert config.movie_sync_max_source_age_minutes == 90
     assert config.movie_sync_max_removal_count == 4
     assert config.movie_sync_max_removal_percent == 15.5
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["WATCHLIST_APP_TIMEOUT_SECONDS", "WATCHLIST_APP_SYNC_TIMEOUT_SECONDS"],
+)
+def test_invalid_watchlist_app_timeouts_raise_configuration_error(
+    monkeypatch: pytest.MonkeyPatch,
+    key: str,
+) -> None:
+    monkeypatch.setenv(key, "0")
+
+    with pytest.raises(ConfigurationError):
+        Config()
 
 
 def test_watchlist_app_source_requires_sync_key(monkeypatch: pytest.MonkeyPatch) -> None:

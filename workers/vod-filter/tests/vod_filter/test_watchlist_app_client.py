@@ -77,6 +77,38 @@ def test_watchlist_app_client_can_sync_first():
     ]
 
 
+def test_watchlist_app_client_uses_long_timeout_only_for_backend_sync():
+    timeouts = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        timeouts.append((request.method, request.extensions["timeout"]["read"]))
+        if request.url.path == "/api/sync/movies":
+            return httpx.Response(200, json={"status": "completed"})
+        if request.url.path == "/api/export/movies/sync-state":
+            return httpx.Response(
+                200,
+                json={
+                    "generatedAt": "2026-07-11T08:00:00+00:00",
+                    "lastSuccessfulMovieSyncAt": "2026-07-11T07:55:00+00:00",
+                    "movies": [],
+                },
+            )
+        return httpx.Response(404)
+
+    client = WatchlistAppClient(
+        base_url="http://watchlist.local",
+        http_client=httpx.Client(
+            transport=httpx.MockTransport(handler),
+            timeout=17,
+        ),
+        sync_timeout_seconds=321,
+    )
+
+    client.fetch_movie_sync_snapshot(sync_first=True)
+
+    assert timeouts == [("POST", 321), ("GET", 17)]
+
+
 def test_watchlist_app_client_fetches_complete_movie_sync_snapshot():
     requests = []
 

@@ -105,6 +105,16 @@ class Config:
         self.watchlist_app_sync_key: Optional[str] = (
             os.getenv("WATCHLIST_APP_SYNC_KEY", "").strip() or None
         )
+        self.watchlist_app_timeout_seconds: int = self._parse_int(
+            "WATCHLIST_APP_TIMEOUT_SECONDS",
+            default="30",
+            minimum=1,
+        )
+        self.watchlist_app_sync_timeout_seconds: int = self._parse_int(
+            "WATCHLIST_APP_SYNC_TIMEOUT_SECONDS",
+            default="900",
+            minimum=1,
+        )
         self.movie_sync_apply: bool = (
             os.getenv("MOVIE_SYNC_APPLY", "false").lower() == "true"
         )

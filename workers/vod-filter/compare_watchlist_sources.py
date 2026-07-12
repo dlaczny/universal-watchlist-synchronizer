@@ -243,7 +243,12 @@ def fetch_python_direct_candidates(config, cache_service: CacheService) -> list[
 
 
 def fetch_watchlist_app_candidates(config) -> list[Candidate]:
-    client = WatchlistAppClient(config.watchlist_app_url)
+    client = WatchlistAppClient(
+        config.watchlist_app_url,
+        timeout_seconds=config.watchlist_app_timeout_seconds,
+        sync_timeout_seconds=config.watchlist_app_sync_timeout_seconds,
+        sync_key=config.watchlist_app_sync_key,
+    )
     movies = client.fetch_radarr_movie_export(sync_first=config.watchlist_app_sync_first)
     return candidates_from_movies("watchlist_app", movies)
 

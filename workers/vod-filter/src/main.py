@@ -399,6 +399,9 @@ def main() -> int:
                 if config.watchlist_source == "watchlist_app":
                     watchlist_app_client = WatchlistAppClient(
                         base_url=config.watchlist_app_url,
+                        timeout_seconds=config.watchlist_app_timeout_seconds,
+                        sync_timeout_seconds=config.watchlist_app_sync_timeout_seconds,
+                        sync_key=config.watchlist_app_sync_key,
                     )
 
                     class WatchlistAppSourceService:

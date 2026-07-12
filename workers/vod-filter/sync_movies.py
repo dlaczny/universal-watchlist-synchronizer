@@ -159,6 +159,8 @@ def main(argv=None) -> int:
     cache = CacheService(database_path=str(config.database_path))
     backend = WatchlistAppClient(
         config.watchlist_app_url,
+        timeout_seconds=config.watchlist_app_timeout_seconds,
+        sync_timeout_seconds=config.watchlist_app_sync_timeout_seconds,
         sync_key=config.watchlist_app_sync_key,
     )
     radarr = RadarrClient(

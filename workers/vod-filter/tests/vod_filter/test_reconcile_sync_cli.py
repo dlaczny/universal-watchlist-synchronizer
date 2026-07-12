@@ -29,6 +29,8 @@ def test_reconcile_sync_cli_writes_read_only_report(
         watchlist_app_url = "http://watchlist.local"
         watchlist_app_sync_first = True
         watchlist_app_sync_key = "sync-secret"
+        watchlist_app_timeout_seconds = 30
+        watchlist_app_sync_timeout_seconds = 900
         database_path = tmp_path / "vod-filter.db"
         radarr_url = "http://radarr.local"
         radarr_api_key = "radarr-key"
@@ -38,8 +40,16 @@ def test_reconcile_sync_cli_writes_read_only_report(
         plex_token = "plex-token"
 
     class FakeWatchlistAppClient:
-        def __init__(self, base_url, sync_key=None):
+        def __init__(
+            self,
+            base_url,
+            timeout_seconds=None,
+            sync_timeout_seconds=None,
+            sync_key=None,
+        ):
             self.base_url = base_url
+            assert timeout_seconds == 30
+            assert sync_timeout_seconds == 900
             assert sync_key == "sync-secret"
 
         def fetch_movie_sync_snapshot(self, sync_first=False):
