@@ -8,6 +8,7 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "deploy-movie-sync.sh"
+PRODUCTION_COMPOSE = ROOT / "deploy" / "production" / "compose.yaml"
 SERVICE = ROOT / "deploy" / "local-cd" / "systemd" / "watchlist-deploy.service"
 TIMER = ROOT / "deploy" / "local-cd" / "systemd" / "watchlist-deploy.timer"
 SHA = "a" * 40
@@ -35,6 +36,7 @@ def bash_path(path: Path) -> str:
 
 def test_shell_and_systemd_security_contracts() -> None:
     text = SCRIPT.read_text(encoding="utf-8")
+    compose = PRODUCTION_COMPOSE.read_text(encoding="utf-8")
     service = SERVICE.read_text(encoding="utf-8")
     timer = TIMER.read_text(encoding="utf-8")
 
@@ -46,6 +48,10 @@ def test_shell_and_systemd_security_contracts() -> None:
     assert "last-successful.sha" in text
     assert "rollback" in text.lower()
     assert "builder prune" in text
+    assert "WATCHLIST_RUNTIME_UID" in text
+    assert "WATCHLIST_RUNTIME_GID" in text
+    assert 'user: "${WATCHLIST_RUNTIME_UID' in compose
+    assert "${WATCHLIST_RUNTIME_GID" in compose
     assert "set -x" not in text
     assert "printenv" not in text
     assert "env |" not in text
@@ -173,3 +179,27 @@ def test_failed_release_rolls_back_previous_release(tmp_path: Path) -> None:
     assert "down --remove-orphans" in log
     assert f"checkout --detach --force {PREVIOUS_SHA}" in log
     assert f"Restored production release {PREVIOUS_SHA}." in result.stdout
+
+
+def test_successful_release_records_current_and_previous_sha(tmp_path: Path) -> None:
+    result, deploy_root, _ = run_fake_deployer(
+        tmp_path,
+        previous_sha=PREVIOUS_SHA,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (deploy_root / "state/last-successful.sha").read_text(encoding="utf-8").strip() == SHA
+    assert (
+        deploy_root / "state/previous-successful.sha"
+    ).read_text(encoding="utf-8").strip() == PREVIOUS_SHA
+
+
+def test_already_deployed_release_repairs_stable_deployer_copy(tmp_path: Path) -> None:
+    result, deploy_root, _ = run_fake_deployer(
+        tmp_path,
+        previous_sha=SHA,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (deploy_root / "deployer/deploy-movie-sync.sh").is_file()
+    assert (deploy_root / "deployer/check-movie-ci.py").is_file()

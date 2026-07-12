@@ -30,6 +30,7 @@ services:
       context: ../../workers/vod-filter
       dockerfile: Dockerfile
     container_name: watchlist-prod-worker
+    user: "${WATCHLIST_RUNTIME_UID:-10001}:${WATCHLIST_RUNTIME_GID:-10001}"
     restart: unless-stopped
     init: true
     env_file:
@@ -54,4 +55,3 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-

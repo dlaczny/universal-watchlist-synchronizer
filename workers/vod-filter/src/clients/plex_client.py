@@ -96,12 +96,13 @@ class PlexClient:
             logger.error("plex_get_watchlist_error", error=str(e))
             raise PlexError(f"Failed to get watchlist from Plex: {e}")
 
-    def _search_plex_discovery(self, title: str, year: int):
+    def _search_plex_discovery(self, title: str, year: int, tmdb_id: int):
         """Search for a movie using PlexAPI's searchDiscover method.
 
         Args:
             title: Movie title
             year: Release year
+            tmdb_id: Expected TMDB identity
 
         Returns:
             Movie object if found, None otherwise
@@ -117,8 +118,12 @@ class PlexClient:
                 if result.type != "movie":
                     continue
 
-                # Check for exact title and year match
-                if result.title.lower() == title.lower() and str(result.year) == str(year):
+                # Title/year narrows discovery; TMDB identity authorizes mutation.
+                if (
+                    result.title.lower() == title.lower()
+                    and str(result.year) == str(year)
+                    and self._extract_tmdb_id(result) == tmdb_id
+                ):
                     logger.debug(
                         "plex_discovery_found",
                         title=title,
@@ -155,7 +160,7 @@ class PlexClient:
 
         try:
             # Search for movie using PlexAPI's searchDiscover (searches entire Plex database)
-            movie = self._search_plex_discovery(title, year)
+            movie = self._search_plex_discovery(title, year, tmdb_id)
 
             if not movie:
                 logger.warning(
@@ -207,7 +212,7 @@ class PlexClient:
 
                 # Check if this is the movie we want to remove
                 item_tmdb_id = self._extract_tmdb_id(item)
-                if item_tmdb_id == tmdb_id or item.title == title:
+                if item_tmdb_id == tmdb_id:
                     item.removeFromWatchlist()
                     logger.info("plex_movie_removed_from_watchlist", tmdb_id=tmdb_id, title=title)
                     return True
