@@ -7,7 +7,7 @@ tags:
   - homelab
   - rollback
 timestamp: 2026-07-12T00:00:00Z
-version: 0.3.0
+version: 0.4.0
 ---
 
 # Boundary
@@ -44,7 +44,8 @@ checkout and first-cutover backend rollback.
    `WATCHLIST_APP_SYNC_KEY`.
 4. Set `WATCHLIST_SOURCE=watchlist_app`,
    `WATCHLIST_APP_SYNC_FIRST=true`, `WATCHLIST_APP_SYNC_TIMEOUT_SECONDS=900`,
-   and `MOVIE_SYNC_APPLY=false` for the first release.
+   `MOVIE_SYNC_APPLY=false`, and
+   `MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION=false` for the first release.
 5. Install the validated `deploy-movie-sync.sh` and `check-movie-ci.py` under
    `/opt/watchlist-prod/deployer`.
 6. Install the service and timer from `deploy/local-cd/systemd/` under
@@ -78,9 +79,15 @@ Inspect the newest files under
 `/opt/watchlist-prod/data/worker/reports/`. Apply must remain disabled until the
 checklist in [VOD Filter Operations](vod_filter_operations.md) passes.
 
-# Enable Apply
+# Enable Apply And Watched Cleanup
 
-Edit only `MOVIE_SYNC_APPLY` in the host worker env, then recreate the worker:
+First enable only `MOVIE_SYNC_APPLY`, recreate the worker, and review ordinary
+apply. Keep watched file deletion disabled until the first successful full
+Radarr collection has established a baseline and the lifecycle report has no
+active/watched conflicts or collection errors.
+
+Then set `MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION=true` in the same protected
+host env and recreate only the worker:
 
 ```bash
 cd /opt/watchlist-prod/repository
@@ -91,8 +98,9 @@ docker compose -f deploy/production/compose.yaml up -d --no-build --force-recrea
 ```
 
 Review the first apply report, Radarr state, Plex watchlist, and worker
-heartbeat. Automatic behavior never deletes downloaded files or Plex library
-media.
+heartbeat. Do not manufacture a watched event or delete a real file for a test.
+The armed path deletes downloaded files only for exact published watched
+Radarr decisions; Plex library media remains read-only.
 
 # Timer And Status
 

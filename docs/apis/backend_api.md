@@ -7,7 +7,7 @@ tags:
   - backend
   - worker
 timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+version: 0.3.0
 ---
 
 # Boundary
@@ -47,8 +47,15 @@ Plex-only movies with `source=plex` and `libraryMembership=plex_only`.
 3. Plex movie inventory and availability sync.
 
 It does not run TV sync. The response includes `startedAt`, `finishedAt`, each
-stage result, and overall `status=completed|partial`. TMDB not-found or failed
-items make the result partial.
+stage result, and overall `status=completed|partial`. The nested Letterboxd
+result includes `itemsFetched`, `itemsUpserted`, `itemsMarkedWatched`, and the
+published `sourceSnapshotId`. TMDB not-found or failed items make the result
+partial.
+
+An empty Letterboxd result is not a successful empty watchlist. Empty,
+duplicate, malformed, or nonpositive source identities are rejected before any
+repository read or write. The API returns a dependency error and publishes no
+lifecycle transition or source snapshot.
 
 # Other Sync Operations
 
@@ -75,6 +82,9 @@ upstream failure, and `503` when required Plex proxy configuration is missing.
 # Exports
 
 Worker contracts are documented separately in [Export Endpoints](export_endpoints.md).
+Browse, detail, compatibility export, TMDB enrichment, and Plex matching expose
+only active Letterboxd IDs from the latest published manifest. Watched rows are
+retained for audit and cleanup authorization but are absent from normal reads.
 
 # Links
 

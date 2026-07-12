@@ -647,7 +647,7 @@ git commit -m "feat: execute watched cleanup safely"
 - Modify: `docs/reports/okf_cleanup_report.md`
 - Modify: `docs/log.md`
 
-- [ ] **Step 1: Update OKF from future design to implemented behavior**
+- [x] **Step 1: Update OKF from future design to implemented behavior**
 
 Document source publication, lifecycle fields, snapshot JSON, exact reason
 codes, SQLite observation state, destructive authorization, feature gate,
@@ -655,13 +655,13 @@ removal limits, reports, failure recovery, and operator checks. Replace the old
 blanket downloaded-file prohibition with the narrow watched exception while
 retaining all ordinary and Plex-library protections.
 
-- [ ] **Step 2: Mark implementation progress accurately**
+- [x] **Step 2: Mark implementation progress accurately**
 
 Check completed tasks in this plan only after their verification commands pass.
 Move the roadmap item to completed only after supervised production rollout.
 Record that pre-feature watched history is not backfilled.
 
-- [ ] **Step 3: Validate OKF and tracked examples**
+- [x] **Step 3: Validate OKF and tracked examples**
 
 Run:
 
@@ -672,7 +672,7 @@ git diff --check
 
 Expected: OKF validation passes and no whitespace errors are reported.
 
-- [ ] **Step 4: Commit documentation**
+- [x] **Step 4: Commit documentation**
 
 ```powershell
 git add docs

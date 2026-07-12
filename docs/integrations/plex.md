@@ -7,7 +7,7 @@ tags:
   - availability
   - watchlist
 timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+version: 0.3.0
 ---
 
 # Backend Inventory
@@ -27,9 +27,16 @@ desired on the Plex watchlist when it is on an owned streaming service, is in
 the Plex library, or has a completed Radarr download. Existing desired rows are
 adopted; unrelated rows remain unmanaged.
 
-Only worker-owned no-longer-desired watchlist rows can be removed. Plex library
-media is never removed or otherwise mutated by production sync. Watchlist add
-and remove operations require the exact expected TMDB identity; title/year is
+Ordinary cleanup removes only worker-owned no-longer-desired watchlist rows.
+Two exact-TMDB authorizations can also remove a pre-existing watchlist row:
+
+- a current published Letterboxd watched event;
+- a durable manual Radarr disappearance for an identity that is neither active
+  nor watched in the published source state.
+
+Both override Plex-library membership for the watchlist decision only. Plex
+library media is never removed or otherwise mutated by production sync.
+Watchlist add and remove operations require exact TMDB identity; title/year is
 used only to narrow discovery results.
 
 Worker configuration uses `PLEX_URL`, `PLEX_TOKEN`, and optional

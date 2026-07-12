@@ -8,7 +8,7 @@ tags:
   - worker
   - backend
 timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+version: 0.3.0
 ---
 
 # Decision
@@ -22,15 +22,17 @@ sync across Letterboxd, TMDB, MongoDB, Radarr, and Plex.
 - One worker engine collects, plans, gates, optionally applies, and reports.
 - Decisions share stable actions and reason codes across reports and tests.
 - SQLite ownership protects unmanaged destination rows.
-- Downloaded files and Plex library media are excluded from automatic deletion.
+- Plex library media is excluded from automatic deletion. Downloaded files are
+  excluded from ordinary cleanup; exact published watched removals use the
+  separately gated exception.
 - GitHub validates the full movie release without production secrets.
 - Homelab deployment is exact-SHA gated, health checked, and rollback capable.
 
 # Remaining Consequences
 
 - Operate the first deployment in reconciliation mode before enabling apply.
-- Keep operator review for downloaded managed Radarr rows and uncertain backend
-  Plex matches.
+- Keep operator review for ordinary downloaded managed Radarr rows, watched
+  cleanup rollout, and uncertain backend Plex matches.
 - Do not expand to TV/Sonarr until movie operations have proved stable.
 - Limit Android changes to contract-preserving fixes until this decision changes.
 

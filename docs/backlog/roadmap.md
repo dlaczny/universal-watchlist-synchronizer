@@ -6,7 +6,7 @@ tags:
   - backlog
   - roadmap
 timestamp: 2026-07-12T00:00:00Z
-version: 0.4.0
+version: 0.5.0
 ---
 
 # Completed Movie Foundation
@@ -28,10 +28,13 @@ version: 0.4.0
 
 # Operations Next
 
-- Implement the approved [Watched Movie Lifecycle Design](watched_movie_lifecycle_design.md):
-  persist Letterboxd `active`/`watched` transitions, delete exact watched
-  Radarr matches with files behind an explicit feature gate, and remove Plex
-  watchlist rows after watched or manually observed Radarr removals.
+- Roll out the implemented [Watched Movie Lifecycle Design](watched_movie_lifecycle_design.md):
+  deploy with watched file deletion disabled, establish the Radarr observation
+  baseline, review the first reconciliation, then enable the protected host
+  gate and supervise apply/convergence. The implementation is test-covered but
+  remains an operations item until this rollout is recorded.
+- Record explicitly that disappearances before the first published lifecycle
+  manifest are not backfilled as watched history.
 - Resolve the `Resurrection` (2025) Radarr folder collision: desired TMDB
   `878608` conflicts with existing TMDB `1279580`; automatic add remains
   skipped.

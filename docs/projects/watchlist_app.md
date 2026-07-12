@@ -8,7 +8,7 @@ tags:
   - backend
   - plex
 timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+version: 0.3.0
 ---
 
 # Current Product
@@ -25,7 +25,8 @@ not part of the deployable production movie path.
 - Preserve Letterboxd as desired movie-watchlist authority.
 - Explain every destination add, keep, remove, skip, uncertainty, and failure.
 - Keep unrelated Radarr and Plex watchlist entries unchanged.
-- Never automatically delete downloaded files or Plex library media.
+- Delete downloaded files only for an exact published watched Radarr event
+  behind the dedicated host gate; never mutate Plex library media.
 - Serve cached browse data without depending on live integrations.
 - Deploy only tested, secret-free commits with rollback.
 
@@ -34,11 +35,13 @@ not part of the deployable production movie path.
 | Concern | Source |
 |---|---|
 | Desired movies | Letterboxd imported by backend |
+| Active/watched lifecycle | Latest published backend source manifest |
 | Identity, metadata, owned-service availability | TMDB cached by backend |
 | Normalized desired state | MongoDB complete movie snapshot |
 | Existing downloads and monitoring | Live Radarr |
 | Existing media and universal watchlist | Live Plex |
 | Worker ownership and run history | Worker SQLite |
+| Manual Radarr disappearance | Worker SQLite observation ledger |
 | Deployed release | `/opt/watchlist-prod/state/last-successful.sha` |
 
 # Repository Areas

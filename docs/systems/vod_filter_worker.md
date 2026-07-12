@@ -8,7 +8,7 @@ tags:
   - radarr
   - plex
 timestamp: 2026-07-12T00:00:00Z
-version: 0.3.0
+version: 0.4.0
 ---
 
 # Production Role
@@ -35,20 +35,28 @@ called by `continuous_sync.py`.
 
 | Module | Responsibility |
 |---|---|
-| `movie_sync_collector.py` | Reads backend snapshot, Radarr movies/exclusions, Plex watchlist/library, and SQLite ownership; preserves every collection error. |
+| `movie_sync_collector.py` | Reads the coherent backend lifecycle snapshot, Radarr movies/exclusions, Plex state, ownership, and observations; preserves every collection error. |
 | `sync_reconciliation.py` | Pure deterministic destination plan and reason codes. |
-| `movie_sync_policy.py` | Freshness, collection, identity, empty-source, apply-mode, and removal-volume gates. |
-| `movie_sync_executor.py` | Applies Radarr first, then Plex-watchlist decisions, recording independent failures. |
+| `movie_sync_policy.py` | Freshness, collection, identity, empty-source, apply, removal-volume, and watched-file gates. |
+| `movie_sync_executor.py` | Revalidates destructive authorization, applies Radarr then Plex-watchlist decisions, and records independent outcomes. |
 | `movie_sync_report.py` | Redaction-safe JSON and Markdown reports. |
-| `cache_service.py` | SQLite run history and `managed_destinations` ownership. |
+| `cache_service.py` | SQLite ownership, run history, Radarr observations, and cleanup audit history. |
 
 # Ownership And Mutation
 
 - `add` records worker ownership after the external action succeeds.
 - `keep` adopts a desired pre-existing row or refreshes existing ownership.
-- `remove` is possible only for an owned destination row.
+- Ordinary `remove` is possible only for an owned destination row.
 - A no-longer-desired Radarr row with a file is skipped for manual review.
-- Radarr removal always passes `delete_files=false`.
+- Ordinary Radarr removal always passes `delete_files=false`.
+- A published watched exact-TMDB Radarr removal carries
+  `letterboxd_watched`, its lifecycle event ID, and `delete_files=true`; it may
+  remove a downloaded row that predates worker ownership only when the separate
+  watched-file gate is enabled.
+- The same watched event may remove the exact Plex-watchlist row regardless of
+  ownership or Plex-library membership.
+- A `manual` absent Radarr observation may remove only the exact Plex-watchlist
+  row. It never creates a Radarr or Plex-library action.
 - A Radarr exclusion is removed only for an exact TMDB add whose plan contains
   `desired_radarr_movie_missing_override_exclusion`.
 - A different TMDB identity with the same Radarr title/year is skipped for
@@ -56,14 +64,15 @@ called by `continuous_sync.py`.
 - Plex library state is read-only; only Plex watchlist add/remove is supported.
 - Plex discovery requires exact TMDB identity; a catalog miss is reported as a
   skip and does not create ownership.
-- Unmanaged destination rows are reported and preserved.
+- Unmanaged destination rows are reported and preserved unless an exact
+  watched/manual-removal authorization explicitly overrides ownership.
 
 # Runtime Storage
 
 The production volume is `/app/data`, mapped to
 `/opt/watchlist-prod/data/worker` on the host. It contains:
 
-- `vod-filter.db` for run and ownership state;
+- `vod-filter.db` for ownership, runs, Radarr observations, and cleanup audit;
 - `reports/movie-sync-<run-id>.json` and `.md`;
 - `last-run.json` for container health.
 
@@ -73,6 +82,10 @@ Core production settings are documented in
 [VOD Filter Operations](../runbooks/vod_filter_operations.md). The committed
 `worker.env.example` contains placeholders only. Real values stay in
 `/opt/watchlist-prod/config/worker.env` with mode `0600`.
+
+`MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION` defaults to `false` and is independent
+of `MOVIE_SYNC_APPLY`. Reports show authorization and `delete_files`, never
+credentials or this host control value.
 
 # Container Contract
 

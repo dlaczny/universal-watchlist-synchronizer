@@ -7,7 +7,7 @@ tags:
   - okf
   - cleanup
 timestamp: 2026-07-12T00:00:00Z
-version: 0.3.0
+version: 0.4.0
 ---
 
 # Result
@@ -20,6 +20,13 @@ The 2026-07-11 pass removed stale descriptions of the overlapping
 now document the implemented backend snapshot, worker plan/apply engine,
 secret-free CI, and exact-SHA homelab release.
 
+The 2026-07-12 lifecycle pass replaced blanket file-preservation statements
+with one narrow implemented exception: an exact published Letterboxd watched
+event may remove its Radarr row with files behind a separate default-off gate.
+OKF also records retained lifecycle documents, publish-last source manifests,
+manual Radarr observations, Plex-watchlist-only cleanup, audit rows, and the
+no-backfill boundary.
+
 # Moved Into OKF
 
 | Previous source | Current concepts |
@@ -30,6 +37,7 @@ secret-free CI, and exact-SHA homelab release.
 | Worker README and legacy docs | Worker system, operations runbook, integrations, and production architecture. |
 | Previous free-form `docs/` and `docs/superpowers/` | Project, architecture, systems, APIs, data models, decisions, backlog, and runbooks. |
 | Production movie implementation | Movie architecture, API contracts, worker/deployment systems, operations, validation, and roadmap. |
+| Watched lifecycle design and implementation | Active/watched manifests, export contract, observation ledger, authorization rules, feature gate, audit/report fields, and rollout runbook. |
 
 # Deleted Or Replaced
 
@@ -53,6 +61,8 @@ secret-free CI, and exact-SHA homelab release.
   new release completes its rollback-observation period.
 - Compatibility backend endpoints and direct-source worker code, documented as
   outside the production path.
+- The watched lifecycle design and implementation plan as execution history
+  until supervised rollout and its observation period are complete.
 
 # Remaining Cleanup Candidates
 
@@ -60,8 +70,8 @@ secret-free CI, and exact-SHA homelab release.
   production rollback-observation period.
 - Retire compatibility worker scripts after operating history confirms no
   manual dependency on them.
-- Archive or remove the completed production implementation plan when it no
-  longer provides useful execution history.
+- Archive or remove completed production and watched-lifecycle implementation
+  plans after rollout history is captured in durable runbooks and logs.
 - Resolve the three stable movie-identity skips listed in the roadmap and make
   Plex rows without TMDB GUIDs visible in reconciliation reports.
 - Add disk/failed-run alerting before removing the legacy rollback deployment.

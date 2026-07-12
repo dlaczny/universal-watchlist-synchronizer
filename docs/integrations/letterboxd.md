@@ -1,13 +1,13 @@
 ---
 type: Integration
 title: Letterboxd
-description: Source of truth for movie watchlist entries imported by the backend.
+description: Source of truth for active movie intent and published watched transitions imported by the backend.
 tags:
   - letterboxd
   - movies
   - sync
 timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Purpose
@@ -37,7 +37,25 @@ id, imdb_id, title, release_year, clean_title, adult
 # Failure Behavior
 
 The Letterboxd sync endpoint returns dependency errors when the proxy is
-unavailable or returns malformed JSON.
+unavailable or returns malformed JSON. Zero rows, duplicate source IDs,
+nonpositive IDs, and blank required text are rejected before repository access.
+Such a run performs no lifecycle transition, destination planning authority, or
+manifest publication.
+
+# Lifecycle Publication
+
+For each valid non-empty snapshot, the backend compares the new source IDs with
+the latest published manifest:
+
+- a new active ID appends `added`;
+- a previously active missing ID appends `watched`;
+- a watched ID that reappears appends `reactivated`;
+- a still-watched ID retains its original watched event and version.
+
+Documents are retained. The complete manifest is written last and its snapshot
+ID is returned by the sync API. One successful non-empty snapshot is enough to
+confirm a watched transition. Pre-feature disappearances are not reconstructed
+or backfilled.
 
 # Links
 

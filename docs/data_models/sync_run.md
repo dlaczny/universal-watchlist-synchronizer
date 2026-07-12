@@ -8,7 +8,7 @@ tags:
   - mongodb
   - sqlite
 timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+version: 0.3.0
 ---
 
 # Backend State
@@ -18,14 +18,28 @@ MongoDB `sync_runs` stores integration status, timestamps, errors, and counts.
 the latest `plex_movies_completed` timestamp as
 `lastSuccessfulMovieSyncAt`, which is the production freshness reference.
 
+MongoDB `letterboxd_source_snapshots` stores immutable publish-last manifests.
+Each row has a snapshot ID, publish time, complete active source IDs, current
+watched event references, and item count. `sync_runs` is operational history;
+the latest manifest is lifecycle authority.
+
 # Worker State
 
 SQLite stores `movie_sync` runs and `managed_destinations` keyed by destination
 and TMDB ID. Ownership records distinguish worker-managed rows from unrelated
 Radarr or Plex-watchlist content.
 
-Every run writes a JSON/Markdown report pair with source counts, timestamps,
-blockers, decisions, reason codes, ownership, and execution status. The worker
+SQLite also stores:
+
+| Table | Purpose |
+|---|---|
+| `radarr_observation_state` | Marks whether the first successful full Radarr baseline exists. |
+| `radarr_observations` | Exact TMDB presence plus `manual`, `active_source`, or `watched` disappearance state. |
+| `movie_cleanup_history` | Credential-free watched/manual cleanup attempts, status, event ID, destination, and `delete_files`. |
+
+Every run writes a JSON/Markdown report pair with source snapshot ID, source
+counts, timestamps, blockers, decisions, reason codes, ownership,
+authorization, event ID, `delete_files`, and execution status. The worker
 also atomically writes `last-run.json`; container health accepts only recent
 `completed`, `partial`, or `reconciliation` states.
 
@@ -34,6 +48,10 @@ also atomically writes `last-run.json`; container health accepts only recent
 An action failure makes a run partial; successful actions and ownership updates
 are retained. The next interval collects fresh state and replans instead of
 replaying a stale transaction.
+
+A failed Radarr collection does not alter observations. A successful watched
+Radarr removal immediately marks its observation absent with the authorizing
+event ID, preventing later misclassification as a manual removal.
 
 # Links
 

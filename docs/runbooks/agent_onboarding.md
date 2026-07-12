@@ -7,7 +7,7 @@ tags:
   - onboarding
   - okf
 timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+version: 0.3.0
 ---
 
 # Start Here
@@ -28,8 +28,11 @@ Read, in order:
 
 - Use the complete backend movie snapshot for production desired state.
 - Keep planning side-effect free and preserve stable reason codes.
-- Never automatically delete downloaded Radarr files or Plex library media.
-- Preserve unmanaged Radarr and Plex-watchlist rows.
+- Delete Radarr files only for an exact TMDB removal carrying a published
+  Letterboxd watched event and only when the watched-file gate is enabled.
+- Never mutate Plex library media.
+- Preserve unmanaged Radarr and Plex-watchlist rows except for the explicit
+  watched and manually observed Radarr-removal authorizations.
 - Keep credentials out of Git, logs, reports, Android, and GitHub Actions.
 - Keep Android TV and TV/Sonarr work on hold unless scope explicitly changes.
 - Update OKF whenever behavior, contracts, ownership, deployment, or operations

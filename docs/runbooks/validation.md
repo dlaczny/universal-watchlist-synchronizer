@@ -7,7 +7,7 @@ tags:
   - tests
   - okf
 timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+version: 0.3.0
 ---
 
 # OKF And Deployment Tooling
@@ -35,8 +35,12 @@ dotnet build backend\Watchlist.sln --configuration Release --no-restore
 dotnet test backend\Watchlist.sln --configuration Release --no-build
 ```
 
-The expected suite is 150 Application tests and 37 API tests. Mongo repository
+The expected suite is 167 Application tests and 39 API tests. Mongo repository
 tests are part of the required result, not an optional timeout exclusion.
+
+Lifecycle coverage must include rejected empty/duplicate source snapshots,
+publish-last manifests, active/watched/reactivated transitions, active-only
+reads, and coherent watched export.
 
 # Worker
 
@@ -47,6 +51,10 @@ python -m pip install -r requirements.txt "pytest>=8.0.0"
 python -m pytest -q
 python -m compileall -q src continuous_sync.py sync_movies.py reconcile_sync.py healthcheck.py
 ```
+
+The expected worker suite is 131 tests. It includes strict snapshot matching,
+Radarr baseline/disappearance persistence, watched/manual planning, destructive
+policy and executor checks, cleanup audit history, reports, and configuration.
 
 # Containers
 
@@ -74,6 +82,10 @@ clean publishable checkout:
 docker run --rm -v "${PWD}:/repo" zricethezav/gitleaks:v8.30.1 git --redact --no-banner /repo
 docker run --rm -v "${PWD}:/repo" zricethezav/gitleaks:v8.30.1 dir --redact --no-banner /repo
 ```
+
+The publishable-tree scan must run from a clean exact-tree worktree so ignored
+host secrets and local build output are absent by construction. Any confirmed
+finding blocks integration, push, and deployment.
 
 Local ignored `.env`, `appsettings.*.Local.json`, build output, and `.artifacts`
 may contain real credentials and must remain ignored. A broad local directory

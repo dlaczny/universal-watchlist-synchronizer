@@ -1,20 +1,21 @@
 ---
 type: Data Model
 title: Watchlist Item
-description: Normalized movie or TV item served by the backend and consumed by Android.
+description: Normalized active movie or TV item plus retained Letterboxd movie lifecycle state.
 tags:
   - data-model
   - watchlist
   - api
 timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Overview
 
 `WatchlistItem` is the normalized backend domain record for a wanted movie or TV
 show. MongoDB persists this model in `watchlist_items`; backend DTOs expose it
-to Android.
+to Android. Letterboxd movie documents are retained after they leave the active
+watchlist so their watched authorization and event history remain auditable.
 
 # Identity Fields
 
@@ -57,6 +58,27 @@ to Android.
 |---|---|
 | `addedAt` | Source watchlist-added timestamp when known. |
 | `updatedAt` | Last backend update timestamp. |
+
+# Letterboxd Lifecycle Fields
+
+MongoDB movie documents also store:
+
+| Field | Meaning |
+|---|---|
+| `lastSeenInSourceAt` | Last published Letterboxd snapshot in which the movie was active. |
+| `lastWatchedAt` | Time of the latest active-to-watched transition. |
+| `lifecycleVersion` | Monotonic per-movie lifecycle version. |
+| `lifecycleEvents` | Ordered immutable `added`, `watched`, and `reactivated` events with source snapshot IDs. |
+
+Current active/watched membership is not trusted from a mutable document flag.
+The latest `letterboxd_source_snapshots` manifest contains the complete active
+source-ID set plus the current watched event references. Normal browse,
+enrichment, matching, and compatibility export select only active IDs. The
+worker watched export joins manifest references to retained documents.
+
+Existing documents are treated as active when no manifest exists, allowing a
+migration baseline. Disappearances that happened before the first published
+lifecycle manifest are not backfilled as watched events.
 
 # Mongo Trace Fields
 

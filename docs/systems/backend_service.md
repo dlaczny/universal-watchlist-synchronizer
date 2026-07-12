@@ -8,7 +8,7 @@ tags:
   - mongodb
   - api
 timestamp: 2026-07-11T00:00:00Z
-version: 0.2.0
+version: 0.3.0
 ---
 
 # Structure
@@ -26,11 +26,11 @@ The backend under `backend/` targets .NET 10.
 
 | Service | Role |
 |---|---|
-| `LetterboxdMovieSyncService` | Imports desired movie rows. |
+| `LetterboxdMovieSyncService` | Validates a non-empty source, computes lifecycle transitions, and publishes a source snapshot. |
 | `TmdbMovieEnrichmentService` | Resolves movie identity, metadata, and provider availability. |
 | `PlexMovieSyncService` | Stores Plex movie inventory and updates availability matches. |
 | `MovieSyncService` | Runs the three movie stages in order and returns completed or partial status. |
-| `WatchlistExportService` | Produces the complete worker snapshot and compatibility exports. |
+| `WatchlistExportService` | Produces one coherent active/watched worker snapshot and compatibility exports. |
 | `PlexMovieMatcher` | Matches IMDb, then TMDB, then unique normalized title/year. |
 
 `CombinedSyncService` and TMDB TV synchronization remain available but are not
@@ -41,6 +41,14 @@ used by the production movie worker.
 - `watchlist_items`: normalized movie and TV records.
 - `plex_library_items`: latest Plex movie inventory.
 - `sync_runs`: source and integration status used for freshness.
+- `letterboxd_source_snapshots`: immutable active and watched lifecycle
+  manifests; written last and read once per worker export.
+
+`watchlist_items` retains watched Letterboxd movie documents and their event
+history. Active-only repository filters use the latest manifest for browse,
+TMDB enrichment, Plex matching, and compatibility export. If no manifest exists
+during migration, existing Letterboxd documents are treated as the active
+baseline.
 
 MongoDB failures are not replaced with process-local fallback data. Seed data
 is inserted only when configured collections are empty.
@@ -50,7 +58,7 @@ is inserted only when configured collections are empty.
 | Section | Required production content |
 |---|---|
 | `Sync:ApiKey` | Shared key for all sync mutations. Required at Production startup. |
-| `MongoDb` | Connection string, database, and three collection names. |
+| `MongoDb` | Connection string, database, and collection names including `LetterboxdSourceSnapshotsCollectionName`. |
 | `Letterboxd` | Watchlist proxy URL. |
 | `Tmdb` | Access token, base URL, image base URL; TV account fields are optional for movie-only operation. |
 | `Plex` | Base URL and token. |
