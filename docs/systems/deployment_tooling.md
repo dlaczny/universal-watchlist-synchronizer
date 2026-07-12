@@ -1,46 +1,79 @@
 ---
 type: System
 title: Deployment Tooling
-description: GitHub Actions, Docker Compose, local deploy scripts, and homelab deployment boundaries.
+description: Secret-free GitHub validation and exact-SHA local deployment of backend and movie-worker containers.
 tags:
   - deployment
   - ci
   - homelab
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
-# Overview
+# GitHub Validation
 
-Deployment tooling supports a local-only homelab setup. GitHub Actions validate
-builds and tests. A trusted Proxmox VM handles backend deployment and Android TV
-APK installation.
+`.github/workflows/movie-ci.yml` runs for pull requests, `main` pushes, and
+manual dispatch. It has read-only repository permission and these jobs:
 
-# Files
+| Job | Validation |
+|---|---|
+| `okf` | OKF validator and deployment-tool tests. |
+| `backend` | Release restore/build and all 187 backend tests with MongoDB 8. |
+| `worker` | Python 3.11 dependencies, all worker tests, and production compile check. |
+| `secret-scan` | Redacted Gitleaks history and checked-out-tree scans. |
+| `containers` | Backend and worker production image builds after all prior jobs pass. |
+
+Actions and the MongoDB/Gitleaks images are pinned to immutable revisions or
+digests. No production credentials enter GitHub. Android CI remains separate
+and is not a movie release prerequisite.
+
+# Production Files
 
 | Path | Role |
 |---|---|
-| `.github/workflows/backend-ci.yml` | Builds and tests backend changes. |
-| `.github/workflows/android-ci.yml` | Builds Android debug APK and unit tests. |
-| `.github/workflows/validate-okf.yml` | Validates OKF docs. |
-| `backend/src/Watchlist.Api/Dockerfile` | Backend container image. |
-| `deploy/backend/compose.yaml` | Backend Docker Compose deployment using VM-local env file. |
-| `deploy/backend/watchlist-backend.env.example` | Non-secret example backend env file. |
-| `deploy/local-cd/systemd/` | Systemd service and timer for local deployment. |
-| `scripts/deploy-watchlist-local.sh` | Pulls trusted main, deploys backend, builds Android APK, installs to TV. |
+| `deploy/production/compose.yaml` | Commit-tagged backend and worker services, health dependency, non-root/read-only controls, log rotation. |
+| `deploy/production/*.env.example` | Non-secret configuration contracts. |
+| `scripts/check-movie-ci.py` | Queries the public Actions API for a successful push run at one exact SHA. |
+| `scripts/deploy-movie-sync.sh` | Locked checkout/build/cutover/state/rollback transaction. |
+| `deploy/local-cd/systemd/` | Five-minute timer and hardened `watchlist` oneshot service. |
 
-# Rules
+# Host Layout
 
-- Do not commit backend secrets, Plex tokens, TMDB tokens, MongoDB credentials,
-  signing keys, or local APKs.
-- Do not deploy pull request code automatically.
-- Keep runtime secrets on the trusted local deployment host.
-- Use MongoDB Atlas in deployment because the Proxmox VM CPU did not expose AVX
-  needed by modern MongoDB containers.
-- Portainer is deferred; use systemd on the VM first.
+| Path | Purpose |
+|---|---|
+| `/opt/watchlist-prod/repository` | Dedicated detached production checkout. |
+| `/opt/watchlist-prod/config` | Mode-`0600` backend, worker, and deploy environment files. |
+| `/opt/watchlist-prod/data/worker` | SQLite, reports, and heartbeat. |
+| `/opt/watchlist-prod/state/last-successful.sha` | Atomic rollback release state. |
+| `/opt/watchlist-prod/state/previous-successful.sha` | Prior healthy release retained for audit/manual rollback. |
+| `/opt/watchlist-prod/deployer` | Stable scripts replaced only after a validated successful release. |
+
+The legacy dirty `/opt/watchlist-app` checkout is not reset or reused. Its old
+backend Compose deployment is retained only as first-cutover rollback until the
+new path has proved stable.
+
+# Release Transaction
+
+The systemd service takes `flock`, resolves `origin/main`, requires a completed
+successful `Movie CI` push run for that exact SHA, checks it out detached,
+validates Compose, prunes stale build cache, and builds SHA-tagged images. It
+then stops the legacy backend when present, starts the new Compose project, and
+requires both backend HTTP health and a healthy worker heartbeat.
+
+Failure after cutover restores the previous production SHA or, on first
+cutover, the legacy backend. Success atomically records the SHA, updates the
+stable deployer, retains the current and prior image sets, and prunes older
+release images.
+
+# Secret Boundary
+
+- Public Git and GitHub Actions contain examples and placeholders only.
+- Backend, worker, MongoDB, Radarr, Plex, TMDB, and sync keys live only on the
+  trusted host or ignored developer files.
+- The public Actions API requires no token for the polling rate used here.
+- Scripts never enable shell tracing or print environment-file contents.
 
 # Links
 
-- Runbook: [Homelab CD](../runbooks/homelab_cd.md)
-- Decision: [Homelab CD Boundary](../decisions/homelab_cd_boundary.md)
-
+- [Homelab CD](../runbooks/homelab_cd.md)
+- [Production Movie Sync](../architecture/movie_sync_production.md)

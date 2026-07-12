@@ -7,13 +7,15 @@ tags:
   - android-tv
   - client
 timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Overview
 
-The Android client lives under `android/`. Android TV is the first target.
-The client is read-only and consumes backend DTOs through `WatchlistApiClient`.
+The Android client lives under `android/`. Feature work and deployment are
+currently on hold. The preserved client is read-only and consumes backend DTOs
+through `WatchlistApiClient`; only contract-preserving fixes are in active
+scope.
 
 # Runtime Contract
 

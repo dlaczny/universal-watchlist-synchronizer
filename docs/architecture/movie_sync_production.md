@@ -9,7 +9,7 @@ tags:
   - deployment
   - ci-cd
 timestamp: 2026-07-11T00:00:00Z
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Purpose
@@ -81,8 +81,8 @@ The production worker is split into focused units:
 | Recorder | Writes JSON and Markdown reports, action outcomes, ownership state, run history, and a health heartbeat. |
 
 `sync_movies.py` is the single production command. The container loop invokes
-that command under the existing exclusive file lock. Legacy overlapping cleanup,
-main-sync, and library-sync entry points are removed from the production image
+that command in one Compose-managed process. Legacy overlapping cleanup,
+main-sync, and library-sync entry points are excluded from the production image
 after their required behavior is covered by the new engine.
 
 # Decision Model
@@ -157,15 +157,15 @@ the run `partial` and the next run recomputes state rather than replaying a stal
 plan. External side effects are not transactionally rolled back.
 
 The continuous process survives integration failures, waits for the configured
-interval, and retries with a fresh snapshot. Its health check requires both a
-running process and a recent completed or partial run heartbeat. Logs and
+interval, and retries with a fresh snapshot. Its health check requires a recent
+completed, partial, or reconciliation heartbeat. Logs and
 reports redact credentials and never include request authorization headers.
 
 # CI
 
 GitHub Actions uses one `Movie CI` workflow for movie production paths. It runs:
 
-1. OKF validation.
+1. OKF validation and deployment-tool tests.
 2. Backend restore, Release build, API/application tests, and Mongo repository
    tests against a MongoDB service container.
 3. Worker dependency installation and the complete worker test suite.
@@ -191,8 +191,8 @@ lock:
    that exact commit.
 3. Fetch and check out the validated commit in the production checkout.
 4. Validate Compose and build commit-tagged backend and worker images.
-5. Start the backend, wait for health, then start the worker.
-6. Run backend, worker, and reconciliation smoke checks.
+5. Start the backend and let Compose start the worker after backend health.
+6. Require backend HTTP health and a recent accepted worker heartbeat/report.
 7. Record the successful release commit.
 8. On failure, restart the previously successful image set.
 9. Prune stale build cache and old release images while retaining rollback

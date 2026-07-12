@@ -7,4 +7,5 @@
 - [Homelab CD Boundary](homelab_cd_boundary.md)
 - [Monorepo Migration](monorepo_migration.md)
 - [OKF-First Docs](okf_first_docs.md)
+- [Sync Correctness Priority](sync_correctness_priority.md)
 

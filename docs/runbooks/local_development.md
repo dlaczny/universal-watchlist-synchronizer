@@ -1,72 +1,53 @@
 ---
 type: Runbook
 title: Local Development
-description: Commands for running the backend, Android client, and worker locally.
+description: Local backend, production movie-worker, and on-hold Android commands.
 tags:
   - local-development
   - backend
-  - android
   - worker
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
 # Backend
 
-Start MongoDB:
-
 ```powershell
 docker compose up -d mongo
-```
-
-Run the API:
-
-```powershell
 dotnet run --project backend\src\Watchlist.Api\Watchlist.Api.csproj --urls http://localhost:5000
-```
-
-Health check:
-
-```powershell
 Invoke-RestMethod http://localhost:5000/healthz
 ```
 
-# Android
+Use the ignored
+`backend/src/Watchlist.Api/appsettings.Development.Local.json` for local
+credentials. Set `Sync:ApiKey` there when testing authenticated mutation.
 
-Set Java when needed:
+# Movie Worker
 
-```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-$env:Path="$env:JAVA_HOME\bin;$env:Path"
-```
-
-Run tests and build:
-
-```powershell
-android\gradlew.bat -p android :app:testDebugUnitTest --no-daemon
-android\gradlew.bat -p android :app:assembleDebug --no-daemon
-```
-
-# Worker
-
-Run from `workers/vod-filter`:
+Run from `workers/vod-filter` after creating an ignored `.env`:
 
 ```powershell
 $env:WATCHLIST_SOURCE="watchlist_app"
 $env:WATCHLIST_APP_URL="http://localhost:5000"
-$env:WATCHLIST_APP_SYNC_FIRST="false"
-python run_all_syncs.py --dry-run --quiet
+$env:WATCHLIST_APP_SYNC_KEY="local-only-matching-backend-key"
+$env:MOVIE_SYNC_APPLY="false"
+python sync_movies.py --skip-backend-sync
 ```
 
-Compare direct and backend source modes:
+Review `data/reports/` before using `python sync_movies.py --apply`. The legacy
+direct-source commands are compatibility tools, not the production path.
+
+# Android TV
+
+Android TV feature work is on hold. For required contract-preserving changes:
 
 ```powershell
-$env:WATCHLIST_APP_URL="http://localhost:5000"
-python compare_watchlist_sources.py --skip-watchlist-app-sync
+$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
+android\gradlew.bat -p android :app:testDebugUnitTest --no-daemon
+android\gradlew.bat -p android :app:assembleDebug --no-daemon
 ```
 
 # Links
 
-- Validation: [Validation](validation.md)
-- Worker operations: [VOD Filter Operations](vod_filter_operations.md)
-
+- [Validation](validation.md)
+- [VOD Filter Operations](vod_filter_operations.md)

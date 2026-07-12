@@ -1,58 +1,41 @@
 ---
 type: Integration
 title: Plex
-description: Source of truth for current availability on the user's Plex server.
+description: Backend movie-inventory authority and worker-managed universal watchlist destination; library media is read-only.
 tags:
   - plex
   - availability
-  - matching
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+  - watchlist
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
-# Purpose
+# Backend Inventory
 
-Plex defines what is available now on the user's media server.
+The backend discovers movie libraries, reads inventory and GUID metadata,
+stores normalized rows in `plex_library_items`, and matches watchlist movies by
+IMDb ID, TMDB ID, then unique normalized title/year. Ambiguous fallback matches
+remain `unknown_match`.
 
-# Configuration
+Backend configuration uses `Plex:BaseUrl` and `Plex:Token`. The backend also
+proxies stored movie poster/backdrop paths through its image API.
 
-| Setting | Meaning |
-|---|---|
-| `Plex:BaseUrl` | Plex server base URL, for example `http://127.0.0.1:32400`. |
-| `Plex:Token` | Plex token. Keep out of committed files. |
+# Worker Watchlist
 
-# Movie Inventory Sync
+The worker reads the Plex watchlist and configured movie library. A movie is
+desired on the Plex watchlist when it is on an owned streaming service, is in
+the Plex library, or has a completed Radarr download. Existing desired rows are
+adopted; unrelated rows remain unmanaged.
 
-- Discover movie libraries through `/library/sections` by filtering type
-  `movie`.
-- Scan each movie section with `/library/sections/{key}/all?type=1`.
-- Fetch per-movie metadata from `/library/metadata/{ratingKey}`.
-- Read nested GUID IDs for IMDb, TMDB, and TVDB references.
-- Store normalized inventory in `plex_library_items`.
+Only worker-owned no-longer-desired watchlist rows can be removed. Plex library
+media is never removed or otherwise mutated by production sync. Watchlist add
+and remove operations require the exact expected TMDB identity; title/year is
+used only to narrow discovery results.
 
-# Matching
-
-The backend matches watchlist movies to Plex movies by:
-
-1. IMDb ID.
-2. TMDB ID.
-3. Unique normalized title and year fallback.
-
-Ambiguous title/year fallback results are represented as `unknown_match`, not
-hidden as unavailable.
-
-# Image Proxy
-
-The backend can proxy Plex images for Plex-only movies through:
-
-```text
-GET /api/images/plex/{ratingKey}/{kind}
-```
-
-`kind` must be `poster` or `backdrop`.
+Worker configuration uses `PLEX_URL`, `PLEX_TOKEN`, and optional
+`PLEX_LIBRARY_NAME`.
 
 # Links
 
-- Availability states: [Availability States](../data_models/availability_states.md)
-- Backend API: [Backend API](../apis/backend_api.md)
-
+- [Availability States](../data_models/availability_states.md)
+- [Production Movie Sync](../architecture/movie_sync_production.md)

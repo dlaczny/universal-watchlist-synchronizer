@@ -1,60 +1,59 @@
 ---
 type: Project
 title: Watchlist App
-description: Personal Android TV-first watchlist application backed by a .NET API, MongoDB read model, and local automation workers.
+description: Personal movie sync system backed by a .NET API, MongoDB read model, guarded local worker, and an on-hold Android TV client.
 tags:
   - watchlist
-  - android-tv
+  - sync
   - backend
   - plex
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
-# Overview
+# Current Product
 
-Watchlist App is a local-first personal application for deciding what to watch
-on an Android TV. The first client is Android TV; Android phone support is a
-later goal.
+Watchlist App keeps a Letterboxd movie watchlist aligned with TMDB metadata,
+Plex availability/watchlist state, and Radarr automation. The backend provides
+the normalized MongoDB read model and the worker executes a guarded local plan.
 
-Version 1 is read-only from the client UI. The Android app must not create,
-edit, delete, reorder, or mutate watchlist entries unless the product scope
-explicitly changes.
+The Android TV client remains read-only and is currently on hold. TV/Sonarr is
+not part of the deployable production movie path.
 
 # Goals
 
-- Show movies and TV shows the user wants to watch.
-- Mark what is available on the user's Plex server.
-- Preserve distinct states for unreleased items, missing Plex items, and
-  uncertain Plex matches.
-- Keep browsing fast by serving cached normalized data from the backend.
-- Keep destructive Radarr and Plex cleanup outside Android-facing flows.
+- Preserve Letterboxd as desired movie-watchlist authority.
+- Explain every destination add, keep, remove, skip, uncertainty, and failure.
+- Keep unrelated Radarr and Plex watchlist entries unchanged.
+- Never automatically delete downloaded files or Plex library media.
+- Serve cached browse data without depending on live integrations.
+- Deploy only tested, secret-free commits with rollback.
 
 # Sources Of Truth
 
 | Concern | Source |
 |---|---|
-| Movie watchlist | Letterboxd |
-| TV watchlist | TMDB account watchlist |
-| Metadata and artwork | TMDB |
-| Plex availability | User's Plex server |
-| Client read model | MongoDB through the .NET backend |
-| Radarr and Plex side effects | Python VOD Filter worker |
+| Desired movies | Letterboxd imported by backend |
+| Identity, metadata, owned-service availability | TMDB cached by backend |
+| Normalized desired state | MongoDB complete movie snapshot |
+| Existing downloads and monitoring | Live Radarr |
+| Existing media and universal watchlist | Live Plex |
+| Worker ownership and run history | Worker SQLite |
+| Deployed release | `/opt/watchlist-prod/state/last-successful.sha` |
 
 # Repository Areas
 
 | Path | Responsibility |
 |---|---|
-| `backend/` | .NET API, sync orchestration, integrations, MongoDB persistence, read-only endpoints. |
-| `android/` | Android TV client. |
-| `workers/vod-filter/` | Python automation worker for Radarr and Plex side effects. |
-| `deploy/` | Homelab deployment and Portainer notes. |
-| `docs/` | Active OKF knowledge base. |
+| `backend/` | .NET source sync, persistence, APIs, and complete movie export. |
+| `workers/vod-filter/` | Movie planning, policy, Radarr/Plex-watchlist actions, reports. |
+| `deploy/`, `scripts/` | Production containers, exact-SHA CI gate, systemd deployment. |
+| `android/` | Read-only Android TV client; on hold. |
+| `docs/` | Authoritative OKF knowledge layer. |
 
 # Links
 
-- Architecture: [System Boundaries](../architecture/system_boundaries.md)
-- Backend: [Backend Service](../systems/backend_service.md)
-- Android: [Android TV Client](../systems/android_tv_client.md)
-- Worker: [VOD Filter Worker](../systems/vod_filter_worker.md)
-- Decisions: [Android TV Read-Only V1](../decisions/android_tv_read_only_v1.md)
+- [Production Movie Sync](../architecture/movie_sync_production.md)
+- [System Boundaries](../architecture/system_boundaries.md)
+- [VOD Filter Operations](../runbooks/vod_filter_operations.md)
+- [Sync Correctness Priority](../decisions/sync_correctness_priority.md)

@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Backend Owns Integrations
-description: The backend is the only component that handles external integration credentials and sync logic for Android-facing data.
+description: The backend owns source integrations and read-model credentials; the worker separately owns local destination credentials.
 tags:
   - decision
   - backend
@@ -13,8 +13,9 @@ version: 0.1.0
 # Decision
 
 Android clients call only the backend API. The backend owns Letterboxd, TMDB,
-Plex, MongoDB, credentials, tokens, sync logic, caching, matching, and read-only
-client contracts.
+Plex inventory, MongoDB, source sync, caching, matching, and read-only client
+contracts. The movie worker separately owns host-local Radarr and Plex
+watchlist credentials and mutations.
 
 # Rationale
 
@@ -26,4 +27,6 @@ backend to serve cached data when third-party services are unavailable.
 - Android uses backend DTOs and backend image URLs.
 - Integration behavior should be testable behind interfaces or adapters.
 - Backend API docs must change with client contract changes.
+- Destination credentials remain in the worker host environment and never flow
+  through Android or GitHub Actions.
 

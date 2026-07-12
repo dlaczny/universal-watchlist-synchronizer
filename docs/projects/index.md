@@ -1,4 +1,4 @@
 # Projects
 
-- [Watchlist App](watchlist_app.md) - Personal Android TV-first watchlist app.
+- [Watchlist App](watchlist_app.md) - Personal backend-owned movie sync system.
 

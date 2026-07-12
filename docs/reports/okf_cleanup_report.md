@@ -1,54 +1,70 @@
 ---
 type: Report
 title: OKF Cleanup Report
-description: Cleanup report for converting repository knowledge to an OKF-first docs bundle.
+description: What repository knowledge was moved, removed, preserved, and left as a deliberate cleanup candidate.
 tags:
   - report
   - okf
   - cleanup
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
-# Summary
+# Result
 
-The repository was reorganized around an OKF-first knowledge layer in `docs/`.
-The previous non-OKF documentation was removed after useful content was moved
-into OKF concepts.
+`docs/` is the active OKF knowledge layer. `AGENTS.md` and `README.md` remain
+thin entry pointers. No `old-docs/` directory remains.
 
-# Converted Into OKF
+The 2026-07-11 pass removed stale descriptions of the overlapping
+`run_all_syncs.py` production path and Android APK deployment. Current concepts
+now document the implemented backend snapshot, worker plan/apply engine,
+secret-free CI, and exact-SHA homelab release.
 
-| Source | OKF concepts |
+# Moved Into OKF
+
+| Previous source | Current concepts |
 |---|---|
-| `AGENTS.md` | Agent onboarding, project, boundaries, decisions, validation. |
-| `README.md` | Project, local development, architecture, systems. |
-| `CICD.md` | Deployment tooling, homelab CD runbook, homelab CD decision. |
-| `knowledge-dump.md` | Migration context and monorepo migration decision. |
-| `okf.md` | OKF rules and knowledge system concepts. |
-| `workers/vod-filter/README.md` | VOD Filter worker and operations runbook. |
-| `deploy/portainer/README.md` | Deployment tooling and homelab CD boundary. |
-| Previous `docs/*.md` | Project, architecture, API, integrations, Android, roadmap concepts. |
-| Previous `docs/superpowers/` | Current requirements summarized into system, decision, backlog, and runbook concepts. |
+| `knowledge-dump.md` | Migration context and monorepo decision. |
+| `okf.md` | OKF rules and knowledge-system architecture. |
+| `CICD.md`, Portainer notes | Deployment system, homelab runbook, and deployment decision. |
+| Worker README and legacy docs | Worker system, operations runbook, integrations, and production architecture. |
+| Previous free-form `docs/` and `docs/superpowers/` | Project, architecture, systems, APIs, data models, decisions, backlog, and runbooks. |
+| Production movie implementation | Movie architecture, API contracts, worker/deployment systems, operations, validation, and roadmap. |
 
-# Deleted From Active Knowledge
+# Deleted Or Replaced
 
-| Deleted path | Replacement |
+| Path or knowledge | Disposition |
 |---|---|
-| `CICD.md` | [Deployment Tooling](../systems/deployment_tooling.md), [Homelab CD](../runbooks/homelab_cd.md) |
-| `knowledge-dump.md` | [Migration Context](../references/migration_context.md) |
-| `okf.md` | [OKF Rules](../references/okf_rules.md), [Knowledge System](../architecture/knowledge_system.md) |
-| `workers/vod-filter/README.md` | [VOD Filter Worker](../systems/vod_filter_worker.md), [VOD Filter Operations](../runbooks/vod_filter_operations.md) |
-| `deploy/portainer/README.md` | [Deployment Tooling](../systems/deployment_tooling.md), [Homelab CD Boundary](../decisions/homelab_cd_boundary.md) |
-| `old-docs/` | Deleted after the useful archive content was represented in OKF. |
+| `old-docs/` | Deleted after unique content was represented in OKF. |
+| Root `knowledge-dump.md`, `okf.md`, `CICD.md` | Deleted after conversion. |
+| Worker and deployment README duplicates | Deleted after conversion. |
+| `.github/workflows/backend-ci.yml` | Replaced by `Movie CI`. |
+| `.github/workflows/validate-okf.yml` | Replaced by the OKF job in `Movie CI`. |
+| Legacy worker flow as production documentation | Replaced by `sync_movies.py` plan-and-apply concepts. |
+| Android APK deployment as active CD documentation | Replaced by backend/movie-worker-only homelab delivery; Android is on hold. |
 
-# Preserved
+# Preserved Deliberately
 
-- `.github/workflows/backend-ci.yml` and `.github/workflows/android-ci.yml`.
-- Source code and behavior were not changed for the OKF conversion.
+- Android system and decision concepts because they contain unique read-only
+  client constraints, clearly marked on hold.
+- Migration context because it explains provenance without claiming current
+  behavior.
+- Legacy `/opt/watchlist-app` deployment files and old deploy script until the
+  new release completes its rollback-observation period.
+- Compatibility backend endpoints and direct-source worker code, documented as
+  outside the production path.
 
 # Remaining Cleanup Candidates
 
-- Add machine-readable JSON schemas only if API contract validation becomes a
-  real workflow need.
-- Split `android/app/src/main/java/com/watchlist/tv/MainActivity.java` into
-  smaller components as tracked in [Roadmap](../backlog/roadmap.md).
+- Remove `deploy/backend/` and `scripts/deploy-watchlist-local.sh` after the
+  production rollback-observation period.
+- Retire compatibility worker scripts after operating history confirms no
+  manual dependency on them.
+- Archive or remove the completed production implementation plan when it no
+  longer provides useful execution history.
+- Add schemas only when automated API-contract tooling requires them.
+
+# Links
+
+- [Roadmap](../backlog/roadmap.md)
+- [Knowledge System](../architecture/knowledge_system.md)

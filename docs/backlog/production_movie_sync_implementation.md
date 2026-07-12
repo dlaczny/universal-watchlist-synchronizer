@@ -507,13 +507,13 @@ git commit -m "deploy: gate homelab releases on movie ci"
 - Modify: `docs/backlog/roadmap.md`
 - Modify: `docs/log.md`
 
-- [ ] **Step 1: Update OKF to implemented behavior**
+- [x] **Step 1: Update OKF to implemented behavior**
 
 Document exact endpoints, decision reasons, environment variable names, safety
 limits, reports, CI workflow, deployment paths, rollback, and operator commands.
 Mark completed roadmap entries and list remaining manual-review work.
 
-- [ ] **Step 2: Run complete local verification**
+- [x] **Step 2: Run complete local verification**
 
 ```powershell
 python tests\validate_okf.py
@@ -527,12 +527,12 @@ docker compose -f deploy\production\compose.yaml build
 git diff --check
 ```
 
-- [ ] **Step 3: Run redacted secret scans**
+- [x] **Step 3: Run redacted secret scans**
 
 Scan the working tree and complete Git history. Report only rule, path, commit,
 and redacted fingerprint. Do not continue to push if a real credential is found.
 
-- [ ] **Step 4: Commit docs and push `main`**
+- [x] **Step 4: Commit docs and push `main`**
 
 Confirm all staged files match this plan, commit OKF updates, and push only after
 fresh verification succeeds.

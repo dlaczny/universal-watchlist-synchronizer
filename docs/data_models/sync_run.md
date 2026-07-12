@@ -1,35 +1,41 @@
 ---
 type: Data Model
 title: Sync Run
-description: Sync status and history data used to explain freshness, failures, and partial results.
+description: Backend freshness records plus worker run, report, ownership, and heartbeat state.
 tags:
   - data-model
   - sync
   - mongodb
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+  - sqlite
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
-# Overview
+# Backend State
 
-Sync run data records integration freshness, status, errors, timestamps, and
-counts. The backend uses `sync_runs`; the worker also maintains local SQLite run
-history under `workers/vod-filter/data/`.
+MongoDB `sync_runs` stores integration status, timestamps, errors, and counts.
+`GET /api/sync/status` returns the latest row. The complete movie snapshot uses
+the latest `plex_movies_completed` timestamp as
+`lastSuccessfulMovieSyncAt`, which is the production freshness reference.
 
-# Backend Usage
+# Worker State
 
-`GET /api/sync/status` reads latest backend sync status from MongoDB.
-`POST /api/sync/availability/refresh` uses the latest successful Plex movie
-sync timestamp to decide whether cached availability is fresh.
+SQLite stores `movie_sync` runs and `managed_destinations` keyed by destination
+and TMDB ID. Ownership records distinguish worker-managed rows from unrelated
+Radarr or Plex-watchlist content.
 
-# Worker Usage
+Every run writes a JSON/Markdown report pair with source counts, timestamps,
+blockers, decisions, reason codes, ownership, and execution status. The worker
+also atomically writes `last-run.json`; container health accepts only recent
+`completed`, `partial`, or `reconciliation` states.
 
-`run_all_syncs.py` wraps cleanup, main sync, and library sync in local run
-history entries. Interrupted or failed runs should be marked explicitly so
-future reviews can distinguish application failures from command timeouts.
+# Recovery Meaning
+
+An action failure makes a run partial; successful actions and ownership updates
+are retained. The next interval collects fresh state and replans instead of
+replaying a stale transaction.
 
 # Links
 
-- Sync pipeline: [Sync Pipeline](../architecture/sync_pipeline.md)
-- VOD Filter worker: [VOD Filter Worker](../systems/vod_filter_worker.md)
-
+- [Sync Pipeline](../architecture/sync_pipeline.md)
+- [VOD Filter Operations](../runbooks/vod_filter_operations.md)

@@ -1,15 +1,9 @@
 # Watchlist App
 
-Personal Android TV-first watchlist app with a .NET backend, MongoDB read model,
-and local VOD Filter worker.
+Personal movie synchronization across Letterboxd, TMDB, MongoDB, Radarr, and
+Plex. The Android TV client remains in the repository but is currently on hold.
 
-Active documentation lives in the OKF bundle under [docs](docs/index.md).
-
-Start here:
-
-- [Project overview](docs/projects/watchlist_app.md)
-- [System boundaries](docs/architecture/system_boundaries.md)
-- [Backend API](docs/apis/backend_api.md)
-- [Local development](docs/runbooks/local_development.md)
-- [Validation](docs/runbooks/validation.md)
-
+The OKF bundle in [docs](docs/index.md) is the authoritative knowledge layer.
+Start with [Agent Onboarding](docs/runbooks/agent_onboarding.md),
+[Production Movie Sync](docs/architecture/movie_sync_production.md), and
+[Validation](docs/runbooks/validation.md).

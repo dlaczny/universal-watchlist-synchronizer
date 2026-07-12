@@ -1,61 +1,55 @@
 ---
 type: API
 title: Export Endpoints
-description: Backend endpoints used by external automation workers instead of allowing workers to call source integrations directly.
+description: Cached backend contracts for the movie worker and legacy Radarr/Sonarr consumers.
 tags:
   - api
   - worker
   - radarr
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
-# Overview
+# Complete Movie Sync State
 
-Export endpoints provide cached backend read-model data to local automation
-tools. They do not call Letterboxd, TMDB, Plex, or MongoDB directly from the
-worker.
+`GET /api/export/movies/sync-state` is the production worker contract. It
+returns one object:
 
-# Radarr Movies
-
-`GET /api/export/radarr/movies`
-
-Returns Radarr/Letterboxd-style JSON for Letterboxd watchlist movies that are
-not already available on subscribed VOD services according to cached TMDB
-provider data.
-
-Example shape:
-
-```json
-[
-  {
-    "id": 1297842,
-    "imdb_id": "tt27613895",
-    "title": "GOAT",
-    "release_year": "2026",
-    "clean_title": "/film/goat-2026/",
-    "adult": false
-  }
-]
+```text
+generatedAt
+lastSuccessfulMovieSyncAt
+movies[]
+  tmdbId, imdbId, title, year, sourceId, metadataStatus,
+  availabilityStatus, ownedServiceAvailability,
+  radarrEligible, radarrEligibilityReason
 ```
 
-Filtering rules:
+The array contains every Letterboxd movie, including rows with missing identity
+or incomplete metadata so the worker can block unsafe plans rather than mistake
+them for removals. `tmdbId` is nullable. `radarrEligible` is true only when the
+TMDB identity is valid, metadata is enriched, and no configured owned service
+is available. Reason values are `invalid_tmdb_id`, `metadata_not_enriched`,
+`owned_service_available`, or `no_owned_service`.
 
-- Include Letterboxd movie watchlist items with no cached subscribed-service
-  availability.
-- Exclude movies with cached `OwnedServiceAvailability`.
-- Do not exclude movies just because TMDB enrichment has not run.
-- Plex availability does not filter this endpoint.
+`lastSuccessfulMovieSyncAt` is derived from the latest completed Plex movie
+sync and is the worker freshness reference. The endpoint is read-only and does
+not trigger source integrations.
 
-# Sonarr TV
+# Radarr Compatibility Export
 
-`GET /api/export/sonarr/tv`
+`GET /api/export/radarr/movies` returns Radarr-style rows with `id`, `imdb_id`,
+`title`, `release_year`, `clean_title`, and `adult`. It filters out movies with
+owned-service availability and rows whose source ID is not numeric.
 
-Returns an empty array in v1. TMDB TV watchlist sync exists, but a
-Sonarr-compatible TV export shape is not implemented yet.
+This endpoint is not a complete desired-state snapshot and must not drive
+production removals. It remains for compatibility and source comparison.
+
+# Sonarr Placeholder
+
+`GET /api/export/sonarr/tv` returns an empty array. Sonarr production behavior
+is not implemented.
 
 # Links
 
-- Worker: [VOD Filter Worker](../systems/vod_filter_worker.md)
-- Worker operations: [VOD Filter Operations](../runbooks/vod_filter_operations.md)
-
+- [VOD Filter Worker](../systems/vod_filter_worker.md)
+- [Production Movie Sync](../architecture/movie_sync_production.md)

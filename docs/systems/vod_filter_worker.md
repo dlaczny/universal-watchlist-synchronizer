@@ -1,78 +1,83 @@
 ---
 type: System
 title: VOD Filter Worker
-description: Python worker that consumes backend exports and performs local Radarr/Plex automation with dry-run safety.
+description: Python plan-and-apply worker for safe movie synchronization into Radarr and the Plex watchlist.
 tags:
   - worker
   - python
   - radarr
   - plex
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
-# Overview
+# Production Role
 
-The VOD Filter worker lives under `workers/vod-filter/`. It was migrated from
-`C:\NextCloud\plex-radarr-letterboxed-tmdb\vod-filter` into this monorepo.
+The worker under `workers/vod-filter/` is the only component that mutates
+Radarr or the Plex watchlist. Production requires
+`WATCHLIST_SOURCE=watchlist_app`; Letterboxd and TMDB credentials are not needed
+inside the production worker because the backend owns source ingestion.
 
-The worker is the destructive automation layer. It can add or remove Radarr
-movies, clean Plex watchlist entries, optionally delete library files, write
-dry-run reports, and persist local run history in SQLite.
+# Entry Points
 
-# Source Modes
-
-| Mode | Meaning |
+| File | Role |
 |---|---|
-| `WATCHLIST_SOURCE=watchlist_app` | Preferred monorepo mode. Optionally calls backend sync, then reads `GET /api/export/radarr/movies`. |
-| `WATCHLIST_SOURCE=letterboxd` | Fallback direct mode where the worker calls Letterboxd/TMDB itself. |
+| `sync_movies.py` | One collect, plan, policy, optional apply, report, and heartbeat run. |
+| `continuous_sync.py` | Runs `sync_movies.py` immediately and then at `SYNC_INTERVAL`. |
+| `healthcheck.py` | Accepts a recent `completed`, `partial`, or `reconciliation` heartbeat. |
+| `reconcile_sync.py` | Manual read-only report using the same complete snapshot and ownership state. |
 
-# Important Scripts
+Legacy direct-source and multi-script cleanup commands remain in the checkout
+for compatibility but are excluded from the production image and are not
+called by `continuous_sync.py`.
 
-| Script | Role |
+# Production Modules
+
+| Module | Responsibility |
 |---|---|
-| `run_all_syncs.py` | Runs cleanup, main sync, and library sync sequentially by default; parallel mode is manual. |
-| `src/main.py` | Main Letterboxd/backend-to-Radarr/Plex sync entry point. |
-| `cleanup_removed_movies.py` | Removes Radarr/Plex watchlist entries when source watchlist items disappear. |
-| `sync_library_to_watchlist.py` | Library-to-watchlist synchronization flow. |
-| `compare_watchlist_sources.py` | Compares direct Python source with backend export mode. |
-| `cache_inspect.py` | Inspects local SQLite cache/run history. |
-| `validate_providers.py` | Validates provider configuration. |
-| `continuous_sync.py` | Runs sync on an interval. |
+| `movie_sync_collector.py` | Reads backend snapshot, Radarr, Plex watchlist/library, and SQLite ownership; preserves every collection error. |
+| `sync_reconciliation.py` | Pure deterministic destination plan and reason codes. |
+| `movie_sync_policy.py` | Freshness, collection, identity, empty-source, apply-mode, and removal-volume gates. |
+| `movie_sync_executor.py` | Applies Radarr first, then Plex-watchlist decisions, recording independent failures. |
+| `movie_sync_report.py` | Redaction-safe JSON and Markdown reports. |
+| `cache_service.py` | SQLite run history and `managed_destinations` ownership. |
 
-# Important Modules
+# Ownership And Mutation
 
-| Module | Role |
-|---|---|
-| `src/config.py` | Environment loading and validation. |
-| `src/clients/watchlist_app_client.py` | Backend export client and mapper. |
-| `src/clients/letterboxd_client.py` | Direct Letterboxd client. |
-| `src/clients/tmdb_client.py` | TMDB provider availability client. |
-| `src/clients/radarr_client.py` | Radarr integration. |
-| `src/clients/plex_client.py` | Plex integration. |
-| `src/services/cache_service.py` | SQLite cache and run history. |
-| `src/services/radarr_service.py` | Radarr side-effect orchestration. |
-| `src/services/plex_service.py` | Plex side-effect orchestration. |
+- `add` records worker ownership after the external action succeeds.
+- `keep` adopts a desired pre-existing row or refreshes existing ownership.
+- `remove` is possible only for an owned destination row.
+- A no-longer-desired Radarr row with a file is skipped for manual review.
+- Radarr removal always passes `delete_files=false`.
+- Plex library state is read-only; only Plex watchlist add/remove is supported.
+- Unmanaged destination rows are reported and preserved.
 
 # Runtime Storage
 
-Runtime files stay under `workers/vod-filter/data/` and are ignored by git:
+The production volume is `/app/data`, mapped to
+`/opt/watchlist-prod/data/worker` on the host. It contains:
 
-- `vod-filter.db`
-- `reports/`
-- `logs/`
+- `vod-filter.db` for run and ownership state;
+- `reports/movie-sync-<run-id>.json` and `.md`;
+- `last-run.json` for container health.
 
-# Safety Rules
+# Configuration
 
-- Use `--dry-run` before production cleanup.
-- Production cleanup requires explicit confirmation flags.
-- Radarr file deletion is off by default for VOD-available cleanup.
-- Cache misses are skipped rather than deleted when cleanup cannot identify an
-  item safely.
+Core production settings are documented in
+[VOD Filter Operations](../runbooks/vod_filter_operations.md). The committed
+`worker.env.example` contains placeholders only. Real values stay in
+`/opt/watchlist-prod/config/worker.env` with mode `0600`.
+
+# Container Contract
+
+The worker image uses an exact production dependency lock, copies only the
+production entry points, and defaults to UID/GID `10001`. Homelab Compose
+overrides that identity with the `watchlist` service UID/GID so the private host
+bind mount remains writable. The root filesystem stays read-only and only
+`/app/data` is persisted.
 
 # Links
 
-- Operations: [VOD Filter Operations](../runbooks/vod_filter_operations.md)
-- Worker boundary decision: [VOD Filter Worker Boundary](../decisions/vod_filter_worker_boundary.md)
-- Export API: [Export Endpoints](../apis/export_endpoints.md)
-
+- [VOD Filter Operations](../runbooks/vod_filter_operations.md)
+- [Export Endpoints](../apis/export_endpoints.md)
+- [Production Movie Sync](../architecture/movie_sync_production.md)

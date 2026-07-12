@@ -26,6 +26,7 @@ an OKF concept document with YAML frontmatter and a non-empty `type` field.
 
 - Start with [Agent Onboarding](runbooks/agent_onboarding.md).
 - Use [System Boundaries](architecture/system_boundaries.md) before changing cross-component behavior.
-- Use [Backend API](apis/backend_api.md) before changing Android/backend contracts.
+- Use [Production Movie Sync](architecture/movie_sync_production.md) before changing movie sync behavior.
+- Use [Backend API](apis/backend_api.md) before changing HTTP contracts.
 - Use [Validation](runbooks/validation.md) before claiming work is complete.
 

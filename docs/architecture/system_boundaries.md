@@ -1,62 +1,62 @@
 ---
 type: Architecture
 title: System Boundaries
-description: Ownership boundaries between Android clients, the backend, MongoDB, external integrations, and workers.
+description: Ownership boundaries between clients, backend persistence, external integrations, the movie worker, and deployment tooling.
 tags:
   - architecture
   - boundaries
   - agents
-timestamp: 2026-07-08T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-11T00:00:00Z
+version: 0.2.0
 ---
 
 # Overview
 
-The repository is a monorepo with a .NET backend, Android clients, local
-automation workers, deployment tooling, and OKF documentation.
+The active production path is backend-owned movie ingestion followed by a
+worker-owned plan-and-apply process.
 
 ```text
-Letterboxd      TMDB Account/API      Plex Server
-    \                 |                  /
-     \                |                 /
-      +---------- .NET Backend --------+
-                    |
-                  MongoDB
-                    |
-              Read-only API
-                    |
-             Android TV Client
+Letterboxd --\
+TMDB --------+--> .NET backend --> MongoDB --> read APIs
+Plex library-/          |
+                       +--> complete movie snapshot
+                                  |
+                       Python movie worker <--> SQLite ownership
+                          |               |
+                       Radarr        Plex watchlist
 
-.NET Backend export API
-        |
- Python VOD Filter worker
-        |
-   Radarr / Plex mutations
+Android TV --> backend read APIs only (client work is on hold)
 ```
 
 # Rules
 
-- Android clients call only the backend API.
-- Android clients must not call Letterboxd, TMDB, Plex, Radarr, or MongoDB directly.
-- The backend owns integration credentials, API tokens, sync logic, caching,
-  matching, persistence, and read-only client contracts.
-- MongoDB stores the normalized read model used by clients.
-- The Python worker owns destructive Radarr and Plex side effects.
-- Destructive behavior must stay outside Android-facing API flows unless an
-  explicit safety design is added.
+- Letterboxd is the desired movie-watchlist source. The backend imports it and
+  owns TMDB enrichment, Plex inventory matching, and MongoDB persistence.
+- The deployed worker consumes the complete backend movie snapshot. It does not
+  infer desired state from the filtered Radarr compatibility export.
+- The worker reads live Radarr and Plex state, computes a deterministic plan,
+  applies policy gates, and owns only destination rows it added or adopted.
+- Automatic sync never deletes a downloaded Radarr file or Plex library media.
+- Unmanaged Radarr movies and Plex watchlist entries are preserved.
+- Android clients call only backend read APIs and contain no integration
+  credentials. Android TV feature work is on hold.
+- GitHub validates public code without production secrets. The homelab host
+  keeps runtime credentials outside its clean Git checkout.
 
 # Component Ownership
 
-| Component | Owns | Does Not Own |
+| Component | Owns | Does not own |
 |---|---|---|
-| Android TV client | Read-only browsing, focus behavior, state restoration, rendering backend DTOs. | External credentials, direct third-party calls, watchlist mutations. |
-| .NET backend | Syncs, matching, read model, export APIs, image proxying, integration credentials. | Radarr/Plex cleanup side effects. |
-| MongoDB | Cached normalized watchlist, Plex inventory, sync history. | Live third-party behavior. |
-| VOD Filter worker | Radarr import/removal, Plex watchlist/library cleanup, dry-run reports, local SQLite run history. | Android contracts and backend persistence. |
+| Android TV client | Read-only rendering and remote navigation. | External credentials, sync orchestration, mutations. |
+| .NET backend | Source ingestion, metadata, Plex inventory, MongoDB read model, sync and export contracts. | Radarr or Plex-watchlist mutations. |
+| MongoDB | Normalized watchlist, Plex inventory, backend sync history. | Live destination state. |
+| Movie worker | Live-state collection, planning, policy, Radarr/Plex-watchlist actions, SQLite ownership and reports. | Backend persistence, Plex library deletion, downloaded-file deletion. |
+| GitHub Actions | Tests, OKF validation, secret scanning, image-build validation. | Runtime credentials or deployment access. |
+| Homelab deployer | Exact-SHA CI gate, local image build, health checks, release state, rollback. | Editing the legacy `/opt/watchlist-app` checkout. |
 
 # Links
 
-- Project: [Watchlist App](../projects/watchlist_app.md)
-- Backend: [Backend Service](../systems/backend_service.md)
-- Worker boundary decision: [VOD Filter Worker Boundary](../decisions/vod_filter_worker_boundary.md)
-
+- [Production Movie Sync](movie_sync_production.md)
+- [Backend Service](../systems/backend_service.md)
+- [VOD Filter Worker](../systems/vod_filter_worker.md)
+- [Deployment Tooling](../systems/deployment_tooling.md)
