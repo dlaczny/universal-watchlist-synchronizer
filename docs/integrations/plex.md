@@ -27,8 +27,8 @@ desired on the Plex watchlist when it is on an owned streaming service, is in
 the Plex library, or has a completed Radarr download. Existing desired rows are
 adopted; unrelated rows remain unmanaged.
 
-Ordinary cleanup removes only worker-owned no-longer-desired watchlist rows.
-Two exact-TMDB authorizations can also remove a pre-existing watchlist row:
+Under the complete lifecycle snapshot, worker ownership alone is not deletion
+authority. Two exact-TMDB authorizations can remove a watchlist row:
 
 - a current published Letterboxd watched event;
 - a durable manual Radarr disappearance for an identity that is neither active
@@ -38,6 +38,10 @@ Both override Plex-library membership for the watchlist decision only. Plex
 library media is never removed or otherwise mutated by production sync.
 Watchlist add and remove operations require exact TMDB identity; title/year is
 used only to narrow discovery results.
+
+A stale worker-owned row without either authorization is preserved. The
+ownership-only removal rule exists only for compatibility reconciliation that
+does not have the complete lifecycle snapshot.
 
 Worker configuration uses `PLEX_URL`, `PLEX_TOKEN`, and optional
 `PLEX_LIBRARY_NAME`.

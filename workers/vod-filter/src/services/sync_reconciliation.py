@@ -286,6 +286,7 @@ def reconcile_sync_state(
             normal_plex_watchlist_by_id,
             normal_plex_library_by_id,
             managed_by_destination["plex_watchlist"],
+            allow_ordinary_removal=backend_snapshot_movies is None,
         )
     )
 
@@ -602,6 +603,7 @@ def _plex_watchlist_decisions(
     plex_watchlist_by_id: dict[int, ReconciliationMovie],
     plex_library_by_id: dict[int, ReconciliationMovie],
     managed_ids: set[int],
+    allow_ordinary_removal: bool = True,
 ) -> list[ReconciliationDecision]:
     decisions = []
     expected_plex: dict[int, tuple[ReconciliationMovie, str]] = {}
@@ -671,15 +673,29 @@ def _plex_watchlist_decisions(
     for tmdb_id, movie in plex_watchlist_by_id.items():
         if tmdb_id not in protected_plex_ids:
             if tmdb_id in managed_ids:
-                decisions.append(
-                    ReconciliationDecision(
-                        area="plex_watchlist",
-                        action="remove",
-                        movie=movie,
-                        reason="managed_plex_watchlist_movie_no_longer_desired",
-                        managed=True,
+                if allow_ordinary_removal:
+                    decisions.append(
+                        ReconciliationDecision(
+                            area="plex_watchlist",
+                            action="remove",
+                            movie=movie,
+                            reason="managed_plex_watchlist_movie_no_longer_desired",
+                            managed=True,
+                        )
                     )
-                )
+                else:
+                    decisions.append(
+                        ReconciliationDecision(
+                            area="plex_watchlist",
+                            action="skip",
+                            movie=movie,
+                            reason=(
+                                "plex_watchlist_movie_without_cleanup_"
+                                "authorization_preserved"
+                            ),
+                            managed=True,
+                        )
+                    )
             else:
                 decisions.append(
                     ReconciliationDecision(

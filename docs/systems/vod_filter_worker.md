@@ -46,7 +46,8 @@ called by `continuous_sync.py`.
 
 - `add` records worker ownership after the external action succeeds.
 - `keep` adopts a desired pre-existing row or refreshes existing ownership.
-- Ordinary `remove` is possible only for an owned destination row.
+- Compatibility ownership-only `remove` remains available outside the complete
+  snapshot path; production lifecycle planning requires source authorization.
 - Ordinary Radarr remove also requires the exact ID to remain active in the
   complete backend source. Stale ownership alone is never deletion authority.
 - A no-longer-desired Radarr row with a file is skipped for manual review.
@@ -59,6 +60,8 @@ called by `continuous_sync.py`.
   ownership or Plex-library membership.
 - A `manual` absent Radarr observation may remove only the exact Plex-watchlist
   row. It never creates a Radarr or Plex-library action.
+- Stale Plex ownership without a watched/manual authorization produces
+  `plex_watchlist_movie_without_cleanup_authorization_preserved`.
 - A Radarr exclusion is removed only for an exact TMDB add whose plan contains
   `desired_radarr_movie_missing_override_exclusion`.
 - A different TMDB identity with the same Radarr title/year is skipped for

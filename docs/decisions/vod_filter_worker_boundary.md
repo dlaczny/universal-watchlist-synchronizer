@@ -33,9 +33,9 @@ API.
 
 - The backend exposes a complete cached movie snapshot.
 - The production worker uses backend source mode and retains SQLite ownership.
-- Unmanaged destination rows are preserved except when an exact published
-  watched event or durable manual-Radarr-removal observation authorizes the
-  matching cleanup defined by the production architecture.
+- Destination ownership alone is not production deletion authority. Exact
+  published watched events and durable manual-Radarr-removal observations
+  authorize only the matching cleanup defined by the production architecture.
 - Legacy direct-source/file-cleanup settings are not authority for production
   movie behavior.
 - Any additional file-deletion category or any Plex-library mutation requires

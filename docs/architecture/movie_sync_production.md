@@ -153,16 +153,18 @@ A movie is desired on the Plex watchlist when at least one condition is true:
 - it is present in the Plex movie library;
 - it is a completed Radarr download.
 
-The worker adds or keeps desired movies and records ownership. Ordinary cleanup
-removes only worker-managed entries that are no longer desired. Two exact-TMDB
-exceptions override ownership and Plex-library protection:
+The worker adds or keeps desired movies and records ownership. Under the
+complete lifecycle snapshot, ownership alone is never Plex deletion authority.
+Two exact-TMDB authorizations can override ownership and Plex-library
+protection for the watchlist row:
 
 - a current published watched event uses
   `watched_letterboxd_movie_remove_from_plex_watchlist`;
 - a durable `manual` Radarr disappearance uses
   `manually_removed_radarr_movie_remove_from_plex_watchlist`.
 
-The manual event never authorizes a Radarr or Plex-library mutation. An active
+The manual event never authorizes a Radarr or Plex-library mutation. Without
+one of these authorizations, stale managed Plex rows are preserved. An active
 Letterboxd identity suppresses stale manual observation state, and reactivation
 removes the movie from the watched authorization set.
 

@@ -169,6 +169,22 @@ def test_complete_snapshot_preserves_managed_radarr_movie_without_source_authori
     assert decision.reason == "radarr_movie_without_source_authorization_preserved"
 
 
+def test_complete_snapshot_preserves_managed_plex_row_until_manual_radarr_removal():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[],
+        backend_watched_movies=[],
+        radarr_movies=[movie("Never In Letterboxd", 101, has_file=False)],
+        plex_watchlist_movies=[movie("Never In Letterboxd", 101)],
+        managed_destinations=[managed("plex_watchlist", 101)],
+    )
+
+    assert decision_titles(report, "plex_watchlist", "remove") == []
+    decision = find_decision(report, "plex_watchlist", "skip", 101)
+    assert decision.reason == (
+        "plex_watchlist_movie_without_cleanup_authorization_preserved"
+    )
+
+
 def test_reconcile_sync_state_skips_downloaded_managed_radarr_removal():
     report = reconcile_sync_state(
         backend_snapshot_movies=[
