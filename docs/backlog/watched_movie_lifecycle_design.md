@@ -104,16 +104,17 @@ the backend uses a publish-after-complete source generation:
 3. Upsert source metadata and append lifecycle events tagged with that snapshot
    ID.
 4. After every required document write succeeds, insert one immutable source
-   snapshot manifest containing the snapshot ID, completion time, and complete
-   active source-ID set.
+   snapshot manifest containing the snapshot ID, completion time, complete
+   active source-ID set, and complete current watched-state set with event IDs.
 5. Treat insertion of that manifest as the publication point. A generation
    that fails before publication is ignored by active reads, lifecycle history,
    and worker cleanup authorization.
 
-Browse, enrichment, matching, and export repositories derive active membership
-from the newest published non-empty manifest. Lifecycle history includes only
-events whose source snapshot was published. This prevents a partially failed
-multi-document write from hiding active movies or authorizing file deletion.
+Browse, enrichment, matching, and export repositories derive active and watched
+membership from the newest published non-empty manifest. Lifecycle history
+includes only events referenced by a published manifest. This prevents a
+partially failed multi-document write from hiding active movies or authorizing
+file deletion.
 
 The protected sync response returns the published source snapshot ID. The
 worker's following snapshot read must return the same ID; a mismatch or missing
