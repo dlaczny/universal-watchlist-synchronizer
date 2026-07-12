@@ -374,7 +374,7 @@ git commit -m "feat: export watched movie authorizations"
 - Test: `workers/vod-filter/tests/vod_filter/test_movie_sync_collector.py`
 - Create: `workers/vod-filter/tests/vod_filter/test_radarr_observations.py`
 
-- [ ] **Step 1: Write failing client contract tests**
+- [x] **Step 1: Write failing client contract tests**
 
 Test that `_sync_movies` returns the nested Letterboxd source snapshot ID, the
 following export must contain the same ID, and `watchedMovies` is strictly
@@ -387,7 +387,7 @@ assert snapshot["source_snapshot_id"] == "letterboxd-42"
 assert snapshot["watched_movies"][0]["lifecycle_event_id"] == "movie:42:watched"
 ```
 
-- [ ] **Step 2: Write failing SQLite observation tests**
+- [x] **Step 2: Write failing SQLite observation tests**
 
 Cover migration-safe initialization, baseline-only first observation, later
 manual disappearance, active-source disappearance, watched disappearance,
@@ -396,7 +396,7 @@ worker-marked removal, Radarr reappearance, and persistence across restart.
 Use observation states `manual`, `active_source`, and `watched`, with
 `present=false` only after a successful complete Radarr collection.
 
-- [ ] **Step 3: Verify RED**
+- [x] **Step 3: Verify RED**
 
 Run:
 
@@ -406,7 +406,7 @@ python -m pytest workers/vod-filter/tests/vod_filter/test_watchlist_app_client.p
 
 Expected: failures for missing source IDs, watched rows, and observation APIs.
 
-- [ ] **Step 4: Add migration-safe SQLite tables and methods**
+- [x] **Step 4: Add migration-safe SQLite tables and methods**
 
 Add:
 
@@ -458,14 +458,14 @@ Also implement `get_radarr_observations`,
 `mark_radarr_removed_by_worker`, and `record_cleanup_attempt`. A failed Radarr
 read must never advance observation state.
 
-- [ ] **Step 5: Extend collector state**
+- [x] **Step 5: Extend collector state**
 
 Add `source_snapshot_id`, `backend_watched_movies`, and
 `radarr_observations` to `CollectedMovieSyncState`. After successful backend and
 Radarr reads, classify disappearance using active and watched TMDB sets. The
 first successful read is baseline-only.
 
-- [ ] **Step 6: Verify GREEN and commit**
+- [x] **Step 6: Verify GREEN and commit**
 
 Run the three focused files and the managed-destination migration tests, then:
 

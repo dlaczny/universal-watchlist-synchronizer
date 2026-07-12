@@ -673,6 +673,258 @@ class CacheService:
             )
             conn.commit()
 
+    def observe_radarr_movies(
+        self,
+        movies: List[Dict[str, Any]],
+        active_tmdb_ids: set[int],
+        watched_events_by_tmdb: Dict[int, str],
+    ) -> List[Dict[str, Any]]:
+        """Persist one successful full Radarr observation and return all states."""
+        normalized_movies: Dict[int, tuple[str, Optional[int]]] = {}
+        for movie in movies:
+            if not isinstance(movie, dict):
+                raise ValueError("Radarr observation movie must be an object")
+            tmdb_id = self._positive_tmdb_id(
+                movie.get("tmdbId", movie.get("tmdb_id")),
+                "Radarr observation tmdb_id",
+            )
+            title = movie.get("title")
+            if not isinstance(title, str) or not title.strip():
+                raise ValueError("Radarr observation title is required")
+            year = movie.get("year")
+            if year is not None and (isinstance(year, bool) or not isinstance(year, int)):
+                raise ValueError("Radarr observation year must be an integer or null")
+            if tmdb_id in normalized_movies:
+                raise ValueError(f"Duplicate Radarr observation tmdb_id: {tmdb_id}")
+            normalized_movies[tmdb_id] = (title.strip(), year)
+
+        normalized_active_ids = {
+            self._positive_tmdb_id(tmdb_id, "active source tmdb_id")
+            for tmdb_id in active_tmdb_ids
+        }
+        normalized_watched_events: Dict[int, str] = {}
+        for raw_tmdb_id, event_id in watched_events_by_tmdb.items():
+            tmdb_id = self._positive_tmdb_id(raw_tmdb_id, "watched source tmdb_id")
+            if not isinstance(event_id, str) or not event_id.strip():
+                raise ValueError("watched source event ID is required")
+            normalized_watched_events[tmdb_id] = event_id.strip()
+
+        with self.get_connection() as conn:
+            state = conn.execute(
+                """
+                SELECT initialized
+                FROM radarr_observation_state
+                WHERE singleton_id = 1
+                """
+            ).fetchone()
+            initialized = bool(state["initialized"]) if state else False
+
+            for tmdb_id, (title, year) in normalized_movies.items():
+                conn.execute(
+                    """
+                    INSERT INTO radarr_observations (
+                        tmdb_id,
+                        title,
+                        year,
+                        present,
+                        disappearance_cause,
+                        source_event_id,
+                        first_seen_at,
+                        last_seen_at,
+                        last_transition_at
+                    )
+                    VALUES (
+                        ?, ?, ?, 1, NULL, NULL,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT(tmdb_id) DO UPDATE SET
+                        title = excluded.title,
+                        year = excluded.year,
+                        last_transition_at = CASE
+                            WHEN radarr_observations.present = 0
+                                THEN CURRENT_TIMESTAMP
+                            ELSE radarr_observations.last_transition_at
+                        END,
+                        present = 1,
+                        disappearance_cause = NULL,
+                        source_event_id = NULL,
+                        last_seen_at = CURRENT_TIMESTAMP
+                    """,
+                    (tmdb_id, title, year),
+                )
+
+            if initialized:
+                prior_rows = conn.execute(
+                    "SELECT tmdb_id FROM radarr_observations"
+                ).fetchall()
+                current_ids = set(normalized_movies)
+                for row in prior_rows:
+                    tmdb_id = int(row["tmdb_id"])
+                    if tmdb_id in current_ids:
+                        continue
+                    if tmdb_id in normalized_watched_events:
+                        cause = "watched"
+                        source_event_id = normalized_watched_events[tmdb_id]
+                    elif tmdb_id in normalized_active_ids:
+                        cause = "active_source"
+                        source_event_id = None
+                    else:
+                        cause = "manual"
+                        source_event_id = None
+
+                    conn.execute(
+                        """
+                        UPDATE radarr_observations
+                        SET last_transition_at = CASE
+                                WHEN present != 0
+                                    OR disappearance_cause IS NOT ?
+                                    OR source_event_id IS NOT ?
+                                    THEN CURRENT_TIMESTAMP
+                                ELSE last_transition_at
+                            END,
+                            present = 0,
+                            disappearance_cause = ?,
+                            source_event_id = ?
+                        WHERE tmdb_id = ?
+                        """,
+                        (
+                            cause,
+                            source_event_id,
+                            cause,
+                            source_event_id,
+                            tmdb_id,
+                        ),
+                    )
+
+            conn.execute(
+                """
+                INSERT INTO radarr_observation_state (singleton_id, initialized, updated_at)
+                VALUES (1, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT(singleton_id) DO UPDATE SET
+                    initialized = 1,
+                    updated_at = CURRENT_TIMESTAMP
+                """
+            )
+            conn.commit()
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM radarr_observations
+                ORDER BY tmdb_id ASC
+                """
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_radarr_observations(self) -> List[Dict[str, Any]]:
+        """Return the durable Radarr presence and disappearance ledger."""
+        with self.get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT *
+                FROM radarr_observations
+                ORDER BY tmdb_id ASC
+                """
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def mark_radarr_removed_by_worker(
+        self,
+        tmdb_id: int,
+        source_event_id: str,
+    ) -> None:
+        """Mark an observed Radarr movie removed under watched authorization."""
+        normalized_tmdb_id = self._positive_tmdb_id(tmdb_id, "tmdb_id")
+        if not isinstance(source_event_id, str) or not source_event_id.strip():
+            raise ValueError("source_event_id is required")
+        normalized_event_id = source_event_id.strip()
+
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE radarr_observations
+                SET last_transition_at = CASE
+                        WHEN present != 0
+                            OR disappearance_cause != 'watched'
+                            OR source_event_id IS NOT ?
+                            THEN CURRENT_TIMESTAMP
+                        ELSE last_transition_at
+                    END,
+                    present = 0,
+                    disappearance_cause = 'watched',
+                    source_event_id = ?
+                WHERE tmdb_id = ?
+                """,
+                (normalized_event_id, normalized_event_id, normalized_tmdb_id),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError(
+                    f"Radarr observation does not exist for tmdb_id {normalized_tmdb_id}"
+                )
+            conn.commit()
+
+    def record_cleanup_attempt(
+        self,
+        *,
+        authorization: str,
+        authorization_event_id: Optional[str],
+        destination: str,
+        tmdb_id: int,
+        delete_files: bool,
+        status: str,
+        error: Optional[str],
+    ) -> int:
+        """Append one credential-free cleanup audit row."""
+        if not isinstance(authorization, str) or not authorization.strip():
+            raise ValueError("authorization is required")
+        if authorization_event_id is not None and (
+            not isinstance(authorization_event_id, str)
+            or not authorization_event_id.strip()
+        ):
+            raise ValueError("authorization_event_id must be non-empty or null")
+        if destination not in {"radarr", "plex_watchlist"}:
+            raise ValueError(f"Unsupported cleanup destination: {destination}")
+        normalized_tmdb_id = self._positive_tmdb_id(tmdb_id, "tmdb_id")
+        if not isinstance(delete_files, bool):
+            raise ValueError("delete_files must be a boolean")
+        if not isinstance(status, str) or not status.strip():
+            raise ValueError("status is required")
+
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO movie_cleanup_history (
+                    authorization,
+                    authorization_event_id,
+                    destination,
+                    tmdb_id,
+                    delete_files,
+                    status,
+                    error,
+                    attempted_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (
+                    authorization.strip(),
+                    authorization_event_id.strip()
+                    if authorization_event_id is not None
+                    else None,
+                    destination,
+                    normalized_tmdb_id,
+                    delete_files,
+                    status.strip(),
+                    error,
+                ),
+            )
+            conn.commit()
+            return int(cursor.lastrowid)
+
+    @staticmethod
+    def _positive_tmdb_id(value: Any, field: str) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ValueError(f"{field} must be a positive integer")
+        return value
+
     def get_cache_metadata(self) -> List[Dict[str, Any]]:
         """Return cache metadata rows."""
         with self.get_connection() as conn:

@@ -96,8 +96,7 @@ class WatchlistAppClient:
 
     def fetch_movie_sync_snapshot(self, sync_first: bool = False) -> dict[str, Any]:
         """Fetch and strictly map the complete backend movie worker snapshot."""
-        if sync_first:
-            self._sync_movies()
+        expected_snapshot_id = self._sync_movies() if sync_first else None
 
         response = self.http_client.get(
             f"{self.base_url}/api/export/movies/sync-state"
@@ -116,9 +115,27 @@ class WatchlistAppClient:
                 "watchlist-app movie sync snapshot returned invalid JSON"
             ) from e
 
-        if not isinstance(payload, dict) or not isinstance(payload.get("movies"), list):
+        if (
+            not isinstance(payload, dict)
+            or not isinstance(payload.get("movies"), list)
+            or not isinstance(payload.get("watchedMovies"), list)
+        ):
             raise WatchlistAppError(
                 "watchlist-app movie sync snapshot returned invalid shape"
+            )
+
+        source_snapshot_id = payload.get("sourceSnapshotId")
+        if not isinstance(source_snapshot_id, str) or not source_snapshot_id.strip():
+            raise WatchlistAppError(
+                "watchlist-app movie sync snapshot has invalid sourceSnapshotId"
+            )
+        if (
+            expected_snapshot_id is not None
+            and source_snapshot_id != expected_snapshot_id
+        ):
+            raise WatchlistAppError(
+                "watchlist-app movie sync snapshot ID mismatch: "
+                f"sync published {expected_snapshot_id}, export returned {source_snapshot_id}"
             )
 
         generated_at = self._parse_datetime(payload.get("generatedAt"), "generatedAt")
@@ -129,13 +146,27 @@ class WatchlistAppClient:
             else None
         )
 
+        watched_movies = [
+            self._map_watched_snapshot_item(item)
+            for item in payload["watchedMovies"]
+        ]
+        lifecycle_event_ids = [
+            movie["lifecycle_event_id"] for movie in watched_movies
+        ]
+        if len(lifecycle_event_ids) != len(set(lifecycle_event_ids)):
+            raise WatchlistAppError(
+                "watchlist-app movie sync snapshot has duplicate lifecycleEventId"
+            )
+
         return {
+            "source_snapshot_id": source_snapshot_id,
             "generated_at": generated_at,
             "last_successful_movie_sync_at": last_successful_sync_at,
             "movies": [self._map_sync_snapshot_item(item) for item in payload["movies"]],
+            "watched_movies": watched_movies,
         }
 
-    def _sync_movies(self) -> None:
+    def _sync_movies(self) -> str:
         headers = (
             {"X-Watchlist-Sync-Key": self.sync_key}
             if self.sync_key
@@ -152,7 +183,27 @@ class WatchlistAppClient:
             raise WatchlistAppError(
                 f"watchlist-app sync failed: HTTP {response.status_code}"
             ) from e
-        logger.info("watchlist_app_sync_completed")
+        try:
+            payload = response.json()
+        except ValueError as e:
+            raise WatchlistAppError("watchlist-app sync returned invalid JSON") from e
+
+        letterboxd = payload.get("letterboxd") if isinstance(payload, dict) else None
+        source_snapshot_id = (
+            letterboxd.get("sourceSnapshotId")
+            if isinstance(letterboxd, dict)
+            else None
+        )
+        if not isinstance(source_snapshot_id, str) or not source_snapshot_id.strip():
+            raise WatchlistAppError(
+                "watchlist-app sync did not publish a Letterboxd sourceSnapshotId"
+            )
+
+        logger.info(
+            "watchlist_app_sync_completed",
+            source_snapshot_id=source_snapshot_id,
+        )
+        return source_snapshot_id
 
     @staticmethod
     def _parse_datetime(value: Any, field: str) -> datetime:
@@ -233,6 +284,69 @@ class WatchlistAppClient:
             "owned_service_availability": owned,
             "radarr_eligible": radarr_eligible,
             "radarr_eligibility_reason": eligibility_reason,
+        }
+
+    @classmethod
+    def _map_watched_snapshot_item(cls, item: Any) -> dict[str, Any]:
+        if not isinstance(item, dict):
+            raise WatchlistAppError(
+                "watchlist-app watched movie snapshot item is not an object"
+            )
+
+        title = item.get("title")
+        source_id = item.get("sourceId")
+        lifecycle_event_id = item.get("lifecycleEventId")
+        if not all(
+            isinstance(value, str) and value.strip()
+            for value in (title, source_id, lifecycle_event_id)
+        ):
+            raise WatchlistAppError(
+                "watchlist-app watched movie snapshot item is missing required text fields"
+            )
+
+        tmdb_id = item.get("tmdbId")
+        if tmdb_id is not None and (
+            isinstance(tmdb_id, bool)
+            or not isinstance(tmdb_id, int)
+            or tmdb_id <= 0
+        ):
+            raise WatchlistAppError(
+                "watchlist-app watched movie snapshot item has invalid tmdbId"
+            )
+
+        year = item.get("year")
+        if year is not None and (isinstance(year, bool) or not isinstance(year, int)):
+            raise WatchlistAppError(
+                "watchlist-app watched movie snapshot item has invalid year"
+            )
+
+        imdb_id = item.get("imdbId")
+        if imdb_id is not None and (
+            not isinstance(imdb_id, str) or not imdb_id.strip()
+        ):
+            raise WatchlistAppError(
+                "watchlist-app watched movie snapshot item has invalid imdbId"
+            )
+
+        lifecycle_version = item.get("lifecycleVersion")
+        if (
+            isinstance(lifecycle_version, bool)
+            or not isinstance(lifecycle_version, int)
+            or lifecycle_version <= 0
+        ):
+            raise WatchlistAppError(
+                "watchlist-app watched movie snapshot item has invalid lifecycleVersion"
+            )
+
+        return {
+            "tmdb_id": tmdb_id,
+            "imdb_id": imdb_id,
+            "title": title,
+            "year": year,
+            "source_id": source_id,
+            "watched_at": cls._parse_datetime(item.get("watchedAt"), "watchedAt"),
+            "lifecycle_version": lifecycle_version,
+            "lifecycle_event_id": lifecycle_event_id,
         }
 
     @staticmethod

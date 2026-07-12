@@ -122,6 +122,49 @@ CREATE TABLE IF NOT EXISTS managed_destinations (
     CHECK (length(last_action) > 0)
 );
 
+-- Durable Radarr inventory observations used to distinguish manual removals.
+CREATE TABLE IF NOT EXISTS radarr_observation_state (
+    singleton_id INTEGER PRIMARY KEY CHECK (singleton_id = 1),
+    initialized BOOLEAN NOT NULL DEFAULT 0,
+    updated_at TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS radarr_observations (
+    tmdb_id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    year INTEGER,
+    present BOOLEAN NOT NULL,
+    disappearance_cause TEXT,
+    source_event_id TEXT,
+    first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMP,
+    last_transition_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CHECK (tmdb_id > 0),
+    CHECK (length(title) > 0),
+    CHECK (present IN (0, 1)),
+    CHECK (
+        disappearance_cause IS NULL
+        OR disappearance_cause IN ('manual', 'active_source', 'watched')
+    )
+);
+
+CREATE TABLE IF NOT EXISTS movie_cleanup_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    authorization TEXT NOT NULL,
+    authorization_event_id TEXT,
+    destination TEXT NOT NULL,
+    tmdb_id INTEGER NOT NULL,
+    delete_files BOOLEAN NOT NULL DEFAULT 0,
+    status TEXT NOT NULL,
+    error TEXT,
+    attempted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CHECK (tmdb_id > 0),
+    CHECK (destination IN ('radarr', 'plex_watchlist')),
+    CHECK (delete_files IN (0, 1))
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_vod_availability_checked_at ON vod_availability(checked_at);
 CREATE INDEX IF NOT EXISTS idx_sync_state_last_synced ON sync_state(last_synced);
@@ -134,3 +177,7 @@ CREATE INDEX IF NOT EXISTS idx_run_history_started_at ON run_history(started_at)
 CREATE INDEX IF NOT EXISTS idx_run_history_workflow ON run_history(workflow);
 CREATE INDEX IF NOT EXISTS idx_managed_destinations_tmdb_id
     ON managed_destinations(tmdb_id);
+CREATE INDEX IF NOT EXISTS idx_radarr_observations_present
+    ON radarr_observations(present);
+CREATE INDEX IF NOT EXISTS idx_movie_cleanup_history_tmdb_id
+    ON movie_cleanup_history(tmdb_id, attempted_at);
