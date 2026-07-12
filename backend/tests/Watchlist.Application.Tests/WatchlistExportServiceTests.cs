@@ -12,7 +12,7 @@ public sealed class WatchlistExportServiceTests
     [Fact]
     public async Task GetMovieSyncSnapshotAsync_MapsEligibilityAndFreshness()
     {
-        WatchlistExportService service = CreateService([
+        IReadOnlyList<WatchlistExportMovieModel> activeMovies = [
             new WatchlistExportMovieModel(
                 "1297842",
                 "tt27613895",
@@ -43,12 +43,26 @@ public sealed class WatchlistExportServiceTests
                 TmdbId: 1418998,
                 MetadataStatus: "failed",
                 AvailabilityStatus: AvailabilityStatus.UnknownMatch)
-        ]);
+        ];
+        IReadOnlyList<WatchlistWatchedMovieModel> watchedMovies = [
+            new WatchlistWatchedMovieModel(
+                303,
+                "tt0000303",
+                "Watched Movie",
+                2023,
+                "303",
+                DateTimeOffset.Parse("2026-07-11T07:50:00Z"),
+                2,
+                "movie-303:watched:2")
+        ];
+        StubWatchlistExportRepository repository = new(activeMovies, watchedMovies);
+        WatchlistExportService service = CreateService(repository);
 
         WorkerMovieSnapshotDto result =
             await service.GetMovieSyncSnapshotAsync(CancellationToken.None);
 
         result.GeneratedAt.Should().Be(SnapshotTime);
+        result.SourceSnapshotId.Should().Be("letterboxd-snapshot-1");
         result.LastSuccessfulMovieSyncAt.Should().Be(
             DateTimeOffset.Parse("2026-07-11T07:55:00Z"));
         result.Movies.Should().ContainEquivalentOf(new
@@ -70,6 +84,17 @@ public sealed class WatchlistExportServiceTests
             RadarrEligible = false,
             RadarrEligibilityReason = "metadata_not_enriched"
         });
+        result.WatchedMovies.Should().ContainSingle().Which.Should().Be(
+            new WorkerWatchedMovieDto(
+                303,
+                "tt0000303",
+                "Watched Movie",
+                2023,
+                "303",
+                DateTimeOffset.Parse("2026-07-11T07:50:00Z"),
+                2,
+                "movie-303:watched:2"));
+        repository.LifecycleReadCallCount.Should().Be(1);
     }
 
     [Fact]
@@ -215,22 +240,41 @@ public sealed class WatchlistExportServiceTests
     }
 
     private static WatchlistExportService CreateService(
-        IReadOnlyList<WatchlistExportMovieModel> movies)
+        IReadOnlyList<WatchlistExportMovieModel> movies,
+        IReadOnlyList<WatchlistWatchedMovieModel>? watchedMovies = null)
+    {
+        return CreateService(new StubWatchlistExportRepository(movies, watchedMovies ?? []));
+    }
+
+    private static WatchlistExportService CreateService(
+        StubWatchlistExportRepository repository)
     {
         return new WatchlistExportService(
-            new StubWatchlistExportRepository(movies),
+            repository,
             new StubSyncStatusReadRepository(),
             new StubTimeProvider());
     }
 
     private sealed class StubWatchlistExportRepository(
-        IReadOnlyList<WatchlistExportMovieModel> movies) : IWatchlistExportRepository
+        IReadOnlyList<WatchlistExportMovieModel> movies,
+        IReadOnlyList<WatchlistWatchedMovieModel> watchedMovies) : IWatchlistExportRepository
     {
-        public Task<IReadOnlyList<WatchlistExportMovieModel>> GetLetterboxdMoviesAsync(
+        public int LifecycleReadCallCount { get; private set; }
+
+        public Task<WatchlistMovieLifecycleExport> GetMovieLifecycleAsync(
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(movies);
+            LifecycleReadCallCount++;
+            return Task.FromResult(new WatchlistMovieLifecycleExport(
+                new LetterboxdSourceSnapshot(
+                    "letterboxd-snapshot-1",
+                    DateTimeOffset.Parse("2026-07-11T07:50:00Z"),
+                    movies.Select(movie => movie.SourceId).ToHashSet(StringComparer.Ordinal),
+                    []),
+                movies,
+                watchedMovies));
         }
+
     }
 
     private sealed class StubSyncStatusReadRepository : ISyncStatusReadRepository

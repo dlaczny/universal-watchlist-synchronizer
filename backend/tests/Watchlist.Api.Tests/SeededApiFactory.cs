@@ -295,7 +295,7 @@ public sealed class SeededApiFactory(
 
     private sealed class SeededWatchlistExportRepository : IWatchlistExportRepository
     {
-        public Task<IReadOnlyList<WatchlistExportMovieModel>> GetLetterboxdMoviesAsync(
+        public Task<WatchlistMovieLifecycleExport> GetMovieLifecycleAsync(
             CancellationToken cancellationToken)
         {
             IReadOnlyList<WatchlistExportMovieModel> movies =
@@ -322,7 +322,31 @@ public sealed class SeededApiFactory(
                     Watchlist.Domain.AvailabilityStatus.AvailableOnPlex)
             ];
 
-            return Task.FromResult(movies);
+            IReadOnlyList<WatchlistWatchedMovieModel> watchedMovies = [
+                new WatchlistWatchedMovieModel(
+                    202,
+                    "tt0000202",
+                    "Watched Movie",
+                    2024,
+                    "202",
+                    DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+                    1,
+                    "movie-202:watched:1")
+            ];
+            LetterboxdSourceSnapshot snapshot = new(
+                "letterboxd-snapshot",
+                DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+                new HashSet<string>(["1297842", "4951"], StringComparer.Ordinal),
+                [new PublishedWatchedMovie(
+                    "202",
+                    "movie-202:watched:1",
+                    DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
+                    1)]);
+
+            return Task.FromResult(new WatchlistMovieLifecycleExport(
+                snapshot,
+                movies,
+                watchedMovies));
         }
     }
 

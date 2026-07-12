@@ -83,6 +83,62 @@ public sealed class MongoPlexMovieInventoryRepositoryTests : IAsyncLifetime
         run.Status.Should().Be("plex_movies_completed");
     }
 
+    [Fact]
+    public async Task GetWatchlistMoviesAsync_WhenManifestExists_ExcludesWatchedFromMatching()
+    {
+        IMongoCollection<MongoWatchlistItemDocument> watchlist =
+            database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
+        MongoWatchlistItemDocument active = MongoWatchlistItemDocument.FromDomain(
+            CreateWatchlistMovie());
+        MongoWatchlistItemDocument watched = new()
+        {
+            Id = "movie-letterboxd-202",
+            MediaType = MediaType.Movie,
+            Source = WatchlistSource.Letterboxd,
+            SourceId = "202",
+            Title = "Watched",
+            Year = 2024,
+            ReleaseStatus = ReleaseStatus.Released,
+            AvailabilityStatus = AvailabilityStatus.AvailableOnPlex,
+            PlexRatingKey = "watched-key",
+            AddedAt = DateTimeOffset.Parse("2026-07-12T09:00:00Z"),
+            UpdatedAt = DateTimeOffset.Parse("2026-07-12T09:00:00Z")
+        };
+        await watchlist.InsertManyAsync([active, watched]);
+        IMongoCollection<MongoPlexLibraryItemDocument> plexItems =
+            database.GetCollection<MongoPlexLibraryItemDocument>(options.PlexLibraryItemsCollectionName);
+        await plexItems.InsertOneAsync(CreatePlexDocument("watched-key", "1", "Watched"));
+        IMongoCollection<MongoLetterboxdSourceSnapshotDocument> snapshots =
+            database.GetCollection<MongoLetterboxdSourceSnapshotDocument>(
+                options.LetterboxdSourceSnapshotsCollectionName);
+        await snapshots.InsertOneAsync(new MongoLetterboxdSourceSnapshotDocument
+        {
+            Id = "snapshot-1",
+            PublishedAt = DateTimeOffset.Parse("2026-07-12T10:00:00Z"),
+            SourceIds = [active.SourceId],
+            WatchedMovies =
+            [
+                new MongoPublishedWatchedMovieDocument
+                {
+                    SourceId = watched.SourceId,
+                    LifecycleEventId = "movie-202:watched:1",
+                    WatchedAt = DateTimeOffset.Parse("2026-07-12T10:00:00Z"),
+                    LifecycleVersion = 1
+                }
+            ],
+            ItemCount = 1
+        });
+        MongoPlexMovieInventoryRepository repository = new(database, Options.Create(options));
+
+        IReadOnlyList<WatchlistItemWriteModel> activeMovies =
+            await repository.GetWatchlistMoviesAsync(CancellationToken.None);
+        IReadOnlyList<PlexMovieDto> unmatched =
+            await repository.GetUnmatchedMoviesAsync(CancellationToken.None);
+
+        activeMovies.Should().ContainSingle(item => item.Item.Id == active.Id);
+        unmatched.Should().ContainSingle(item => item.RatingKey == "watched-key");
+    }
+
     public Task InitializeAsync() => Task.CompletedTask;
 
     public async Task DisposeAsync()

@@ -297,14 +297,14 @@ git commit -m "feat: persist watched movie lifecycle"
 - Test: `backend/tests/Watchlist.Application.Tests/WatchlistExportServiceTests.cs`
 - Test: `backend/tests/Watchlist.Api.Tests/WatchlistApiTests.cs`
 
-- [ ] **Step 1: Write failing active-filter and snapshot tests**
+- [x] **Step 1: Write failing active-filter and snapshot tests**
 
 Prove that a watched document is absent from browse, details, TMDB enrichment,
 Plex matching, Radarr compatibility export, and `movies`, while it remains in
 `watchedMovies`. Prove that no manifest preserves legacy behavior by treating
 existing documents as active.
 
-- [ ] **Step 2: Verify RED**
+- [x] **Step 2: Verify RED**
 
 Run:
 
@@ -315,7 +315,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 Expected: watched documents still appear in active reads and the snapshot lacks
 the new contract.
 
-- [ ] **Step 3: Implement active membership from the published manifest**
+- [x] **Step 3: Implement active membership from the published manifest**
 
 Every active repository first reads the latest source manifest and adds its
 source-ID membership filter. Preserve all non-Letterboxd rows. Do not trust a
@@ -344,9 +344,10 @@ public sealed record WorkerMovieSnapshotDto(
 
 The latest manifest's complete watched set selects the retained documents and
 their authorizing event IDs. Existing watched documents without TMDB IDs remain
-visible with `TmdbId=null`.
+visible with `TmdbId=null`. The export repository reads the manifest once and
+derives active and watched rows from that same published snapshot.
 
-- [ ] **Step 4: Verify API and repository GREEN**
+- [x] **Step 4: Verify API and repository GREEN**
 
 Run all focused tests and the full API test project.
 
@@ -355,7 +356,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 dotnet test backend\tests\Watchlist.Api.Tests\Watchlist.Api.Tests.csproj
 ```
 
-- [ ] **Step 5: Commit published active-state reads**
+- [x] **Step 5: Commit published active-state reads**
 
 ```powershell
 git add backend/src backend/tests

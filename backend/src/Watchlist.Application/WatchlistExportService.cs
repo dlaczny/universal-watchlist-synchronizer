@@ -10,10 +10,10 @@ public sealed class WatchlistExportService(
     public async Task<IReadOnlyList<RadarrMovieExportItemDto>> GetRadarrMoviesAsync(
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<WatchlistExportMovieModel> movies =
-            await repository.GetLetterboxdMoviesAsync(cancellationToken);
+        WatchlistMovieLifecycleExport lifecycle =
+            await repository.GetMovieLifecycleAsync(cancellationToken);
 
-        return movies
+        return lifecycle.ActiveMovies
             .Where(movie => movie.OwnedServiceAvailability.Count == 0)
             .Select(ToRadarrItemOrNull)
             .Where(item => item is not null)
@@ -29,16 +29,18 @@ public sealed class WatchlistExportService(
     public async Task<WorkerMovieSnapshotDto> GetMovieSyncSnapshotAsync(
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<WatchlistExportMovieModel> movies =
-            await repository.GetLetterboxdMoviesAsync(cancellationToken);
+        WatchlistMovieLifecycleExport lifecycle =
+            await repository.GetMovieLifecycleAsync(cancellationToken);
         SyncStatusDto? latestMovieSync = await syncStatusRepository.GetLatestByStatusAsync(
             SyncRunStatuses.PlexMoviesCompleted,
             cancellationToken);
 
         return new WorkerMovieSnapshotDto(
+            lifecycle.SourceSnapshot?.SnapshotId ?? string.Empty,
             timeProvider.GetUtcNow(),
             latestMovieSync?.LastSuccessfulSyncAt,
-            movies.Select(ToWorkerMovie).ToList());
+            lifecycle.ActiveMovies.Select(ToWorkerMovie).ToList(),
+            lifecycle.WatchedMovies.Select(ToWorkerWatchedMovie).ToList());
     }
 
     private static RadarrMovieExportItemDto? ToRadarrItemOrNull(WatchlistExportMovieModel movie)
@@ -73,6 +75,20 @@ public sealed class WatchlistExportService(
             movie.OwnedServiceAvailability,
             eligible,
             reason);
+    }
+
+    private static WorkerWatchedMovieDto ToWorkerWatchedMovie(
+        WatchlistWatchedMovieModel movie)
+    {
+        return new WorkerWatchedMovieDto(
+            movie.TmdbId,
+            movie.ImdbId,
+            movie.Title,
+            movie.Year,
+            movie.SourceId,
+            movie.WatchedAt,
+            movie.LifecycleVersion,
+            movie.LifecycleEventId);
     }
 
     private static int? ResolveTmdbId(WatchlistExportMovieModel movie)

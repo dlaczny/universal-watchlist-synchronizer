@@ -218,6 +218,8 @@ public sealed class WatchlistApiTests
         document.RootElement.GetProperty("status").GetString().Should().Be("completed");
         document.RootElement.GetProperty("itemsFetched").GetInt32().Should().Be(2);
         document.RootElement.GetProperty("itemsUpserted").GetInt32().Should().Be(2);
+        document.RootElement.GetProperty("sourceSnapshotId").GetString()
+            .Should().Be("letterboxd-snapshot");
     }
 
     [Fact]
@@ -529,6 +531,8 @@ public sealed class WatchlistApiTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
+        document.RootElement.GetProperty("sourceSnapshotId").GetString()
+            .Should().Be("letterboxd-snapshot");
         document.RootElement.GetProperty("lastSuccessfulMovieSyncAt").GetString()
             .Should().Be("2026-06-05T12:00:00+00:00");
         JsonElement movies = document.RootElement.GetProperty("movies");
@@ -540,6 +544,11 @@ public sealed class WatchlistApiTests
             item.GetProperty("tmdbId").GetInt32() == 4951
             && item.GetProperty("radarrEligibilityReason").GetString()
                 == "owned_service_available");
+        JsonElement watchedMovies = document.RootElement.GetProperty("watchedMovies");
+        watchedMovies.EnumerateArray().Should().ContainSingle(item =>
+            item.GetProperty("tmdbId").GetInt32() == 202
+            && item.GetProperty("lifecycleEventId").GetString()
+                == "movie-202:watched:1");
     }
 
     [Fact]

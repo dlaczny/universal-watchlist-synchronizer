@@ -2,6 +2,6 @@ namespace Watchlist.Application;
 
 public interface IWatchlistExportRepository
 {
-    Task<IReadOnlyList<WatchlistExportMovieModel>> GetLetterboxdMoviesAsync(
+    Task<WatchlistMovieLifecycleExport> GetMovieLifecycleAsync(
         CancellationToken cancellationToken);
 }

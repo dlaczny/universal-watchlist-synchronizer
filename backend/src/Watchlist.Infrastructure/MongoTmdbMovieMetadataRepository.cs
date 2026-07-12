@@ -15,11 +15,16 @@ public sealed class MongoTmdbMovieMetadataRepository(
     private readonly IMongoCollection<MongoWatchlistItemDocument> watchlistItems =
         database.GetCollection<MongoWatchlistItemDocument>(options.Value.WatchlistItemsCollectionName);
 
+    private readonly ILetterboxdSourceSnapshotRepository sourceSnapshots =
+        new MongoLetterboxdSourceSnapshotRepository(database, options);
+
     public async Task<IReadOnlyList<WatchlistItemWriteModel>> GetLetterboxdMoviesAsync(
         CancellationToken cancellationToken)
     {
+        LetterboxdSourceSnapshot? snapshot = await sourceSnapshots.GetLatestAsync(
+            cancellationToken);
         List<MongoWatchlistItemDocument> documents = await watchlistItems
-            .Find(CreateLetterboxdMovieFilter())
+            .Find(CreateLetterboxdMovieFilter(snapshot))
             .ToListAsync(cancellationToken);
 
         return documents.Select(ToWriteModel).ToList();
@@ -29,8 +34,10 @@ public sealed class MongoTmdbMovieMetadataRepository(
         string id,
         CancellationToken cancellationToken)
     {
+        LetterboxdSourceSnapshot? snapshot = await sourceSnapshots.GetLatestAsync(
+            cancellationToken);
         FilterDefinition<MongoWatchlistItemDocument> filter =
-            CreateLetterboxdMovieFilter() & Builders<MongoWatchlistItemDocument>.Filter.Eq(
+            CreateLetterboxdMovieFilter(snapshot) & Builders<MongoWatchlistItemDocument>.Filter.Eq(
                 document => document.Id,
                 id);
 
@@ -46,8 +53,10 @@ public sealed class MongoTmdbMovieMetadataRepository(
         TmdbMovieMetadataUpdate update,
         CancellationToken cancellationToken)
     {
+        LetterboxdSourceSnapshot? snapshot = await sourceSnapshots.GetLatestAsync(
+            cancellationToken);
         FilterDefinition<MongoWatchlistItemDocument> filter =
-            CreateLetterboxdMovieFilter() & Builders<MongoWatchlistItemDocument>.Filter.Eq(
+            CreateLetterboxdMovieFilter(snapshot) & Builders<MongoWatchlistItemDocument>.Filter.Eq(
                 document => document.Id,
                 id);
 
@@ -57,12 +66,10 @@ public sealed class MongoTmdbMovieMetadataRepository(
             cancellationToken: cancellationToken);
     }
 
-    private static FilterDefinition<MongoWatchlistItemDocument> CreateLetterboxdMovieFilter()
+    private static FilterDefinition<MongoWatchlistItemDocument> CreateLetterboxdMovieFilter(
+        LetterboxdSourceSnapshot? snapshot)
     {
-        FilterDefinitionBuilder<MongoWatchlistItemDocument> filter = Builders<MongoWatchlistItemDocument>.Filter;
-
-        return filter.Eq(document => document.MediaType, MediaType.Movie)
-            & filter.Eq(document => document.Source, WatchlistSource.Letterboxd);
+        return MongoLetterboxdLifecycleFilters.ActiveLetterboxdMovies(snapshot);
     }
 
     private static UpdateDefinition<MongoWatchlistItemDocument> CreateTmdbMetadataUpdate(

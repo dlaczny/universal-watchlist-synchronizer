@@ -18,6 +18,9 @@ public sealed class MongoPlexMovieInventoryRepository(
     private readonly IMongoCollection<MongoSyncRunDocument> syncRuns =
         database.GetCollection<MongoSyncRunDocument>(options.Value.SyncRunsCollectionName);
 
+    private readonly ILetterboxdSourceSnapshotRepository sourceSnapshots =
+        new MongoLetterboxdSourceSnapshotRepository(database, options);
+
     public async Task<PlexInventoryApplyResult> ApplyMovieInventoryAsync(
         IReadOnlyList<PlexMovieDto> movies,
         IReadOnlySet<string> scannedSectionKeys,
@@ -58,10 +61,15 @@ public sealed class MongoPlexMovieInventoryRepository(
 
     public async Task<IReadOnlyList<PlexMovieDto>> GetUnmatchedMoviesAsync(CancellationToken cancellationToken)
     {
+        LetterboxdSourceSnapshot? snapshot = await sourceSnapshots.GetLatestAsync(
+            cancellationToken);
         List<MongoWatchlistItemDocument> matchedWatchlistItems = await watchlistItems
-            .Find(item => item.AvailabilityStatus == AvailabilityStatus.AvailableOnPlex
-                && item.PlexRatingKey != null
-                && item.PlexRatingKey != string.Empty)
+            .Find(MongoLetterboxdLifecycleFilters.ActiveLetterboxdMovies(snapshot)
+                & Builders<MongoWatchlistItemDocument>.Filter.Eq(
+                    item => item.AvailabilityStatus,
+                    AvailabilityStatus.AvailableOnPlex)
+                & Builders<MongoWatchlistItemDocument>.Filter.Ne(item => item.PlexRatingKey, null)
+                & Builders<MongoWatchlistItemDocument>.Filter.Ne(item => item.PlexRatingKey, string.Empty))
             .ToListAsync(cancellationToken);
 
         HashSet<string> matchedRatingKeys = matchedWatchlistItems
@@ -87,8 +95,10 @@ public sealed class MongoPlexMovieInventoryRepository(
 
     public async Task<IReadOnlyList<WatchlistItemWriteModel>> GetWatchlistMoviesAsync(CancellationToken cancellationToken)
     {
+        LetterboxdSourceSnapshot? snapshot = await sourceSnapshots.GetLatestAsync(
+            cancellationToken);
         List<MongoWatchlistItemDocument> documents = await watchlistItems
-            .Find(item => item.MediaType == MediaType.Movie && item.Source == WatchlistSource.Letterboxd)
+            .Find(MongoLetterboxdLifecycleFilters.ActiveLetterboxdMovies(snapshot))
             .ToListAsync(cancellationToken);
 
         return documents.Select(document => new WatchlistItemWriteModel(
@@ -104,12 +114,16 @@ public sealed class MongoPlexMovieInventoryRepository(
         DateTimeOffset completedAt,
         CancellationToken cancellationToken)
     {
+        LetterboxdSourceSnapshot? snapshot = await sourceSnapshots.GetLatestAsync(
+            cancellationToken);
+        FilterDefinition<MongoWatchlistItemDocument> activeMovies =
+            MongoLetterboxdLifecycleFilters.ActiveLetterboxdMovies(snapshot);
         foreach (PlexMovieMatchUpdate update in updates)
         {
             await watchlistItems.UpdateOneAsync(
-                item => item.Id == update.WatchlistItemId
-                    && item.MediaType == MediaType.Movie
-                    && item.Source == WatchlistSource.Letterboxd,
+                activeMovies & Builders<MongoWatchlistItemDocument>.Filter.Eq(
+                    item => item.Id,
+                    update.WatchlistItemId),
                 Builders<MongoWatchlistItemDocument>.Update
                     .Set(item => item.AvailabilityStatus, update.AvailabilityStatus)
                     .Set(item => item.PlexRatingKey, update.PlexRatingKey)

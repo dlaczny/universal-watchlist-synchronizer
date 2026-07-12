@@ -32,7 +32,7 @@ public sealed class MongoUnavailableApiFactory : WebApplicationFactory<Program>
 
     private sealed class ThrowingWatchlistExportRepository : IWatchlistExportRepository
     {
-        public Task<IReadOnlyList<WatchlistExportMovieModel>> GetLetterboxdMoviesAsync(
+        public Task<WatchlistMovieLifecycleExport> GetMovieLifecycleAsync(
             CancellationToken cancellationToken)
         {
             throw new MongoClientException("MongoDB is unavailable.");

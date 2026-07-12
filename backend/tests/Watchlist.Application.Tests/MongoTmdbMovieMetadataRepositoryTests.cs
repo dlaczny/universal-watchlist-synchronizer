@@ -237,6 +237,58 @@ public sealed class MongoTmdbMovieMetadataRepositoryTests : IAsyncLifetime
             && movie.TmdbId == 1297842);
     }
 
+    [Fact]
+    public async Task GetLetterboxdMoviesAsync_WhenManifestExists_ExcludesWatchedMovies()
+    {
+        IMongoCollection<MongoWatchlistItemDocument> items =
+            database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
+        MongoWatchlistItemDocument active = CreateLetterboxdMovie();
+        MongoWatchlistItemDocument watched = new()
+        {
+            Id = "movie-letterboxd-202",
+            MediaType = MediaType.Movie,
+            Source = WatchlistSource.Letterboxd,
+            SourceId = "202",
+            Title = "Watched",
+            Year = 2024,
+            ReleaseStatus = ReleaseStatus.Released,
+            AvailabilityStatus = AvailabilityStatus.NotOnPlex,
+            AddedAt = DateTimeOffset.Parse("2026-07-12T09:00:00Z"),
+            UpdatedAt = DateTimeOffset.Parse("2026-07-12T09:00:00Z")
+        };
+        await items.InsertManyAsync([active, watched]);
+        IMongoCollection<MongoLetterboxdSourceSnapshotDocument> snapshots =
+            database.GetCollection<MongoLetterboxdSourceSnapshotDocument>(
+                options.LetterboxdSourceSnapshotsCollectionName);
+        await snapshots.InsertOneAsync(new MongoLetterboxdSourceSnapshotDocument
+        {
+            Id = "snapshot-1",
+            PublishedAt = DateTimeOffset.Parse("2026-07-12T10:00:00Z"),
+            SourceIds = [active.SourceId],
+            WatchedMovies =
+            [
+                new MongoPublishedWatchedMovieDocument
+                {
+                    SourceId = watched.SourceId,
+                    LifecycleEventId = "movie-202:watched:1",
+                    WatchedAt = DateTimeOffset.Parse("2026-07-12T10:00:00Z"),
+                    LifecycleVersion = 1
+                }
+            ],
+            ItemCount = 1
+        });
+        MongoTmdbMovieMetadataRepository repository = new(database, Options.Create(options));
+
+        IReadOnlyList<WatchlistItemWriteModel> result =
+            await repository.GetLetterboxdMoviesAsync(CancellationToken.None);
+        WatchlistItemWriteModel? watchedResult = await repository.GetLetterboxdMovieAsync(
+            watched.Id,
+            CancellationToken.None);
+
+        result.Should().ContainSingle(item => item.Item.Id == active.Id);
+        watchedResult.Should().BeNull();
+    }
+
     public Task InitializeAsync()
     {
         return Task.CompletedTask;
