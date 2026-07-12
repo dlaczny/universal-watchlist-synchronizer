@@ -27,6 +27,12 @@ class ReconciliationMovie:
     sync_error: str | None = None
     metadata_status: str | None = None
     radarr_eligible: bool | None = None
+    watched_at: datetime | None = None
+    lifecycle_version: int | None = None
+    lifecycle_event_id: str | None = None
+    present: bool | None = None
+    disappearance_cause: str | None = None
+    source_event_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +45,9 @@ class ReconciliationDecision:
     reason: str
     managed: bool = False
     execution_status: str = "planned"
+    delete_files: bool = False
+    authorization: str | None = None
+    authorization_event_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +61,7 @@ class SyncReconciliationReport:
     source_last_successful_sync_at: datetime | None = None
     backend_snapshot_provided: bool = False
     managed_destination_count: int = 0
+    source_snapshot_id: str | None = None
 
 
 def reconcile_sync_state(
@@ -59,9 +69,11 @@ def reconcile_sync_state(
     backend_watchlist_movies: Iterable[Any] | None = None,
     backend_radarr_export_movies: Iterable[Any] | None = None,
     backend_snapshot_movies: Iterable[Any] | None = None,
+    backend_watched_movies: Iterable[Any] | None = None,
     cache_radarr_movies: Iterable[Any] | None = None,
     cache_sync_states: Iterable[Any] | None = None,
     radarr_movies: Iterable[Any] | None = None,
+    radarr_observations: Iterable[Any] | None = None,
     radarr_exclusions: Iterable[Any] | None = None,
     plex_watchlist_movies: Iterable[Any] | None = None,
     plex_library_movies: Iterable[Any] | None = None,
@@ -69,6 +81,7 @@ def reconcile_sync_state(
     collection_errors: Iterable[str] | None = None,
     source_snapshot_at: datetime | None = None,
     source_last_successful_sync_at: datetime | None = None,
+    source_snapshot_id: str | None = None,
 ) -> SyncReconciliationReport:
     """Build a read-only report of sync actions and uncertain state.
 
@@ -79,9 +92,11 @@ def reconcile_sync_state(
     backend_watchlist_raw = list(backend_watchlist_movies or [])
     backend_radarr_export_raw = list(backend_radarr_export_movies or [])
     backend_snapshot_raw = list(backend_snapshot_movies or [])
+    backend_watched_raw = list(backend_watched_movies or [])
     cache_radarr_raw = list(cache_radarr_movies or [])
     cache_sync_raw = list(cache_sync_states or [])
     radarr_raw = list(radarr_movies or [])
+    radarr_observation_raw = list(radarr_observations or [])
     radarr_exclusion_raw = list(radarr_exclusions or [])
     plex_watchlist_raw = list(plex_watchlist_movies or [])
     plex_library_raw = list(plex_library_movies or [])
@@ -101,9 +116,14 @@ def reconcile_sync_state(
         backend_radarr_export_raw,
         "backend_radarr_export",
     )
+    backend_watched = _coerce_collection(backend_watched_raw, "backend_watched")
     cache_radarr = _coerce_collection(cache_radarr_raw, "worker_cache_radarr")
     cache_sync = _coerce_collection(cache_sync_raw, "worker_cache_sync")
     radarr_live = _coerce_collection(radarr_raw, "radarr")
+    radarr_observation_state = _coerce_collection(
+        radarr_observation_raw,
+        "radarr_observations",
+    )
     plex_watchlist = _coerce_collection(plex_watchlist_raw, "plex_watchlist")
     plex_library = _coerce_collection(plex_library_raw, "plex_library")
 
@@ -111,9 +131,11 @@ def reconcile_sync_state(
         "backend_watchlist": len(backend_watchlist),
         "backend_radarr_export": len(backend_radarr_export),
         "backend_snapshot": len(backend_snapshot_raw),
+        "backend_watched": len(backend_watched),
         "worker_cache_radarr": len(cache_radarr),
         "worker_cache_sync": len(cache_sync),
         "radarr": len(radarr_live),
+        "radarr_observations": len(radarr_observation_state),
         "radarr_exclusions": len(radarr_exclusion_raw),
         "plex_watchlist": len(plex_watchlist),
         "plex_library": len(plex_library),
@@ -132,9 +154,32 @@ def reconcile_sync_state(
         "backend_radarr_export",
         decisions,
     )
+    backend_watched_by_id = _index_by_tmdb(
+        backend_watched,
+        "backend_watched",
+        decisions,
+        missing_reason="watched_movie_missing_tmdb_identity",
+    )
+    for tmdb_id, movie in list(backend_watched_by_id.items()):
+        if movie.lifecycle_event_id:
+            continue
+        decisions.append(
+            ReconciliationDecision(
+                area="source_identity",
+                action="skip",
+                movie=movie,
+                reason="watched_movie_missing_lifecycle_event_id",
+            )
+        )
+        backend_watched_by_id.pop(tmdb_id)
     cache_radarr_by_id = _index_by_tmdb(cache_radarr, "worker_cache_radarr", decisions)
     cache_sync_by_id = _index_by_tmdb(cache_sync, "worker_cache_sync", decisions)
     radarr_by_id = _index_by_tmdb(radarr_live, "radarr", decisions)
+    radarr_observations_by_id = _index_by_tmdb(
+        radarr_observation_state,
+        "radarr_observations",
+        decisions,
+    )
     radarr_excluded_ids = {
         tmdb_id
         for item in radarr_exclusion_raw
@@ -147,6 +192,72 @@ def reconcile_sync_state(
     )
     plex_library_by_id = _index_by_tmdb(plex_library, "plex_library", decisions)
 
+    active_tmdb_ids = set(backend_watchlist_by_id)
+    conflict_ids = active_tmdb_ids & set(backend_watched_by_id)
+    for tmdb_id in sorted(conflict_ids):
+        decisions.append(
+            ReconciliationDecision(
+                area="source_identity",
+                action="uncertain",
+                movie=backend_watched_by_id[tmdb_id],
+                reason="active_watched_tmdb_identity_conflict",
+            )
+        )
+        backend_watchlist_by_id.pop(tmdb_id, None)
+        backend_radarr_by_id.pop(tmdb_id, None)
+        backend_watched_by_id.pop(tmdb_id, None)
+
+    manual_disappearances_by_id = {
+        tmdb_id: observation
+        for tmdb_id, observation in radarr_observations_by_id.items()
+        if observation.present is False
+        and observation.disappearance_cause == "manual"
+        and tmdb_id not in active_tmdb_ids
+        and tmdb_id not in backend_watched_by_id
+        and tmdb_id not in conflict_ids
+    }
+    source_counts["watched_authorizations"] = len(backend_watched_by_id)
+    source_counts["manual_radarr_disappearances"] = len(
+        manual_disappearances_by_id
+    )
+
+    decisions.extend(
+        _watched_cleanup_decisions(
+            backend_watched_by_id,
+            radarr_by_id,
+            plex_watchlist_by_id,
+            managed_by_destination,
+        )
+    )
+    decisions.extend(
+        _manual_radarr_cleanup_decisions(
+            manual_disappearances_by_id,
+            plex_watchlist_by_id,
+            managed_by_destination["plex_watchlist"],
+        )
+    )
+
+    suppressed_destination_ids = (
+        set(backend_watched_by_id)
+        | set(manual_disappearances_by_id)
+        | conflict_ids
+    )
+    normal_radarr_by_id = {
+        tmdb_id: movie
+        for tmdb_id, movie in radarr_by_id.items()
+        if tmdb_id not in suppressed_destination_ids
+    }
+    normal_plex_watchlist_by_id = {
+        tmdb_id: movie
+        for tmdb_id, movie in plex_watchlist_by_id.items()
+        if tmdb_id not in suppressed_destination_ids
+    }
+    normal_plex_library_by_id = {
+        tmdb_id: movie
+        for tmdb_id, movie in plex_library_by_id.items()
+        if tmdb_id not in suppressed_destination_ids
+    }
+
     if backend_snapshot_movies is not None:
         decisions.extend(_metadata_decisions(backend_watchlist_by_id))
 
@@ -154,7 +265,7 @@ def reconcile_sync_state(
         decisions.extend(
             _radarr_decisions(
                 backend_radarr_by_id,
-                radarr_by_id,
+                normal_radarr_by_id,
                 managed_by_destination["radarr"],
                 radarr_excluded_ids,
             )
@@ -166,9 +277,9 @@ def reconcile_sync_state(
     decisions.extend(
         _plex_watchlist_decisions(
             backend_watchlist_by_id,
-            radarr_by_id,
-            plex_watchlist_by_id,
-            plex_library_by_id,
+            normal_radarr_by_id,
+            normal_plex_watchlist_by_id,
+            normal_plex_library_by_id,
             managed_by_destination["plex_watchlist"],
         )
     )
@@ -200,6 +311,7 @@ def reconcile_sync_state(
         source_last_successful_sync_at=source_last_successful_sync_at,
         backend_snapshot_provided=backend_snapshot_movies is not None,
         managed_destination_count=len(managed_destination_raw),
+        source_snapshot_id=source_snapshot_id,
     )
 
 
@@ -247,6 +359,94 @@ def write_markdown_report(report: SyncReconciliationReport, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_markdown_report(report), encoding="utf-8")
     return path
+
+
+def _watched_cleanup_decisions(
+    watched_by_id: dict[int, ReconciliationMovie],
+    radarr_by_id: dict[int, ReconciliationMovie],
+    plex_watchlist_by_id: dict[int, ReconciliationMovie],
+    managed_by_destination: dict[str, set[int]],
+) -> list[ReconciliationDecision]:
+    decisions: list[ReconciliationDecision] = []
+    for tmdb_id, movie in watched_by_id.items():
+        authorization_fields = {
+            "authorization": "letterboxd_watched",
+            "authorization_event_id": movie.lifecycle_event_id,
+        }
+        if tmdb_id in radarr_by_id:
+            decisions.append(
+                ReconciliationDecision(
+                    area="radarr",
+                    action="remove",
+                    movie=movie,
+                    reason="watched_letterboxd_movie_remove_from_radarr",
+                    managed=tmdb_id in managed_by_destination["radarr"],
+                    delete_files=True,
+                    **authorization_fields,
+                )
+            )
+        else:
+            decisions.append(
+                ReconciliationDecision(
+                    area="radarr",
+                    action="skip",
+                    movie=movie,
+                    reason="watched_letterboxd_movie_absent_from_radarr",
+                    managed=tmdb_id in managed_by_destination["radarr"],
+                    **authorization_fields,
+                )
+            )
+
+        if tmdb_id in plex_watchlist_by_id:
+            decisions.append(
+                ReconciliationDecision(
+                    area="plex_watchlist",
+                    action="remove",
+                    movie=movie,
+                    reason="watched_letterboxd_movie_remove_from_plex_watchlist",
+                    managed=tmdb_id in managed_by_destination["plex_watchlist"],
+                    **authorization_fields,
+                )
+            )
+        else:
+            decisions.append(
+                ReconciliationDecision(
+                    area="plex_watchlist",
+                    action="skip",
+                    movie=movie,
+                    reason="watched_letterboxd_movie_absent_from_plex_watchlist",
+                    managed=tmdb_id in managed_by_destination["plex_watchlist"],
+                    **authorization_fields,
+                )
+            )
+
+    return decisions
+
+
+def _manual_radarr_cleanup_decisions(
+    manual_disappearances_by_id: dict[int, ReconciliationMovie],
+    plex_watchlist_by_id: dict[int, ReconciliationMovie],
+    managed_ids: set[int],
+) -> list[ReconciliationDecision]:
+    decisions: list[ReconciliationDecision] = []
+    for tmdb_id, movie in manual_disappearances_by_id.items():
+        if tmdb_id in plex_watchlist_by_id:
+            action = "remove"
+            reason = "manually_removed_radarr_movie_remove_from_plex_watchlist"
+        else:
+            action = "skip"
+            reason = "manually_removed_radarr_movie_absent_from_plex_watchlist"
+        decisions.append(
+            ReconciliationDecision(
+                area="plex_watchlist",
+                action=action,
+                movie=movie,
+                reason=reason,
+                managed=tmdb_id in managed_ids,
+                authorization="manual_radarr_removal",
+            )
+        )
+    return decisions
 
 
 def _radarr_decisions(
@@ -593,6 +793,20 @@ def _coerce_movie(item: Any, source: str) -> ReconciliationMovie:
         radarr_eligible=_to_bool(
             _read(item, "radarr_eligible", "radarrEligible"),
         ),
+        watched_at=_to_datetime(_read(item, "watched_at", "watchedAt")),
+        lifecycle_version=_to_int(
+            _read(item, "lifecycle_version", "lifecycleVersion")
+        ),
+        lifecycle_event_id=_none_or_str(
+            _read(item, "lifecycle_event_id", "lifecycleEventId")
+        ),
+        present=_to_bool(_read(item, "present")),
+        disappearance_cause=_none_or_str(
+            _read(item, "disappearance_cause", "disappearanceCause")
+        ),
+        source_event_id=_none_or_str(
+            _read(item, "source_event_id", "sourceEventId")
+        ),
     )
     return movie
 
@@ -601,6 +815,7 @@ def _index_by_tmdb(
     movies: list[ReconciliationMovie],
     source_name: str,
     decisions: list[ReconciliationDecision],
+    missing_reason: str | None = None,
 ) -> dict[int, ReconciliationMovie]:
     by_id: dict[int, ReconciliationMovie] = {}
     seen: dict[int, list[ReconciliationMovie]] = {}
@@ -612,7 +827,7 @@ def _index_by_tmdb(
                     area="source_identity",
                     action="skip",
                     movie=movie,
-                    reason=f"missing_tmdb_id_in_{source_name}",
+                    reason=missing_reason or f"missing_tmdb_id_in_{source_name}",
                 )
             )
             continue
@@ -666,6 +881,17 @@ def _to_int(value: Any) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
+        return None
+
+
+def _to_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
         return None
 
 

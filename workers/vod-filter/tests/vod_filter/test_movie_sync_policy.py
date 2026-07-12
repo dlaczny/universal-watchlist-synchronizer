@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+
+import pytest
 
 
 VOD_FILTER_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(VOD_FILTER_ROOT))
 
 from src.services.movie_sync_policy import SyncPolicy, evaluate_plan
-from src.services.sync_reconciliation import reconcile_sync_state
+from src.services.sync_reconciliation import (
+    ReconciliationDecision,
+    ReconciliationMovie,
+    reconcile_sync_state,
+)
 
 
 NOW = datetime(2026, 7, 11, 8, 0, tzinfo=timezone.utc)
@@ -118,3 +125,86 @@ def test_evaluate_plan_blocks_removal_count_and_percentage_thresholds():
 
     assert "removal_count_exceeded" in blockers
     assert "removal_percentage_exceeded" in blockers
+
+
+def test_evaluate_plan_requires_explicit_gate_for_watched_file_deletion():
+    report = fresh_report(
+        backend_snapshot_movies=[],
+        backend_watched_movies=[
+            {
+                "title": "Watched",
+                "tmdb_id": 101,
+                "source_id": "101",
+                "watched_at": "2026-07-11T07:50:00+00:00",
+                "lifecycle_version": 2,
+                "lifecycle_event_id": "movie-101:watched:2",
+            }
+        ],
+        radarr_movies=[movie("Watched", 101, has_file=True)],
+    )
+
+    assert "watched_file_deletion_disabled" in evaluate_plan(
+        report,
+        policy(),
+        now=NOW,
+    )
+    assert evaluate_plan(
+        report,
+        policy(
+            allow_watched_file_deletion=True,
+            max_removal_percent=100.0,
+        ),
+        now=NOW,
+    ) == []
+
+
+def test_evaluate_plan_rejects_file_deletion_without_exact_watched_authorization():
+    report = fresh_report()
+    invalid = ReconciliationDecision(
+        area="plex_watchlist",
+        action="remove",
+        movie=ReconciliationMovie(title="Invalid", tmdb_id=101),
+        reason="invalid_test_decision",
+        delete_files=True,
+        authorization="letterboxd_watched",
+        authorization_event_id="movie-101:watched:2",
+    )
+    report = replace(report, decisions=[invalid])
+
+    blockers = evaluate_plan(
+        report,
+        policy(allow_watched_file_deletion=True),
+        now=NOW,
+    )
+
+    assert "invalid_file_deletion_authorization" in blockers
+    assert "watched_file_deletion_disabled" not in blockers
+
+
+@pytest.mark.parametrize(
+    ("tmdb_id", "event_id"),
+    [(0, "movie-0:watched:2"), (101, "   ")],
+)
+def test_evaluate_plan_rejects_malformed_watched_file_deletion_identity(
+    tmdb_id,
+    event_id,
+):
+    report = fresh_report()
+    malformed = ReconciliationDecision(
+        area="radarr",
+        action="remove",
+        movie=ReconciliationMovie(title="Invalid", tmdb_id=tmdb_id),
+        reason="watched_letterboxd_movie_remove_from_radarr",
+        delete_files=True,
+        authorization="letterboxd_watched",
+        authorization_event_id=event_id,
+    )
+    report = replace(report, decisions=[malformed])
+
+    blockers = evaluate_plan(
+        report,
+        policy(allow_watched_file_deletion=True),
+        now=NOW,
+    )
+
+    assert "invalid_file_deletion_authorization" in blockers

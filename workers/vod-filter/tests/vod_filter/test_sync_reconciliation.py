@@ -33,6 +33,28 @@ def decision_titles(report, area: str, action: str) -> list[str]:
     ]
 
 
+def find_decision(report, area: str, action: str, tmdb_id: int):
+    return next(
+        decision
+        for decision in report.decisions
+        if decision.area == area
+        and decision.action == action
+        and decision.movie.tmdb_id == tmdb_id
+    )
+
+
+def watched_movie(title: str, tmdb_id: int | None, event_id: str) -> dict:
+    return {
+        "title": title,
+        "year": 2024,
+        "tmdb_id": tmdb_id,
+        "source_id": str(tmdb_id or "missing"),
+        "watched_at": "2026-07-11T07:50:00+00:00",
+        "lifecycle_version": 2,
+        "lifecycle_event_id": event_id,
+    }
+
+
 def test_reconcile_sync_state_reports_radarr_add_keep_and_remove():
     report = reconcile_sync_state(
         backend_radarr_export_movies=[
@@ -146,6 +168,176 @@ def test_reconcile_sync_state_skips_downloaded_managed_radarr_removal():
         decision.reason == "downloaded_file_requires_manual_review"
         for decision in report.decisions
     )
+
+
+def test_watched_movie_authorizes_exact_radarr_and_plex_removal_despite_protections():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[],
+        backend_watched_movies=[
+            watched_movie("Watched", 101, "movie-101:watched:2")
+        ],
+        radarr_movies=[movie("Watched", 101, has_file=True)],
+        plex_watchlist_movies=[movie("Watched", 101)],
+        plex_library_movies=[movie("Watched", 101)],
+        managed_destinations=[],
+        source_snapshot_id="letterboxd-42",
+    )
+
+    radarr = find_decision(report, "radarr", "remove", 101)
+    assert radarr.reason == "watched_letterboxd_movie_remove_from_radarr"
+    assert radarr.delete_files is True
+    assert radarr.authorization == "letterboxd_watched"
+    assert radarr.authorization_event_id == "movie-101:watched:2"
+    assert radarr.managed is False
+
+    plex = find_decision(report, "plex_watchlist", "remove", 101)
+    assert plex.reason == "watched_letterboxd_movie_remove_from_plex_watchlist"
+    assert plex.delete_files is False
+    assert plex.authorization == "letterboxd_watched"
+    assert plex.authorization_event_id == "movie-101:watched:2"
+    assert report.source_snapshot_id == "letterboxd-42"
+    assert report.source_counts["watched_authorizations"] == 1
+
+
+def test_watched_movie_with_absent_targets_emits_converged_skips():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[],
+        backend_watched_movies=[
+            watched_movie("Already Gone", 101, "movie-101:watched:2")
+        ],
+        radarr_movies=[],
+        plex_watchlist_movies=[],
+    )
+
+    radarr = find_decision(report, "radarr", "skip", 101)
+    plex = find_decision(report, "plex_watchlist", "skip", 101)
+    assert radarr.reason == "watched_letterboxd_movie_absent_from_radarr"
+    assert plex.reason == "watched_letterboxd_movie_absent_from_plex_watchlist"
+    assert radarr.authorization_event_id == "movie-101:watched:2"
+    assert plex.authorization_event_id == "movie-101:watched:2"
+
+
+def test_watched_movie_without_tmdb_identity_cannot_authorize_mutation():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[],
+        backend_watched_movies=[
+            watched_movie("Missing Identity", None, "movie-missing:watched:2")
+        ],
+        radarr_movies=[],
+        plex_watchlist_movies=[],
+    )
+
+    assert any(
+        decision.area == "source_identity"
+        and decision.action == "skip"
+        and decision.reason == "watched_movie_missing_tmdb_identity"
+        and decision.movie.title == "Missing Identity"
+        for decision in report.decisions
+    )
+    assert not any(decision.authorization for decision in report.decisions)
+
+
+def test_active_and_watched_tmdb_conflict_blocks_destination_decisions():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[
+            movie("Active", 101, radarr_eligible=True, metadata_status="enriched")
+        ],
+        backend_watched_movies=[
+            watched_movie("Watched Alias", 101, "movie-alias:watched:2")
+        ],
+        radarr_movies=[movie("Live", 101, has_file=True)],
+        plex_watchlist_movies=[movie("Live", 101)],
+    )
+
+    assert any(
+        decision.area == "source_identity"
+        and decision.action == "uncertain"
+        and decision.reason == "active_watched_tmdb_identity_conflict"
+        for decision in report.decisions
+    )
+    assert not any(
+        decision.movie.tmdb_id == 101 and decision.area in {"radarr", "plex_watchlist"}
+        for decision in report.decisions
+    )
+
+
+def test_reactivated_movie_uses_active_rules_and_cancels_stale_watched_observation():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[
+            movie("Reactivated", 101, radarr_eligible=True, metadata_status="enriched")
+        ],
+        backend_watched_movies=[],
+        radarr_movies=[movie("Reactivated", 101, has_file=True)],
+        plex_watchlist_movies=[movie("Reactivated", 101)],
+        radarr_observations=[
+            movie(
+                "Reactivated",
+                101,
+                present=False,
+                disappearance_cause="watched",
+                source_event_id="movie-101:watched:1",
+            )
+        ],
+    )
+
+    assert find_decision(report, "radarr", "keep", 101).delete_files is False
+    assert not any(
+        decision.movie.tmdb_id == 101 and decision.action == "remove"
+        for decision in report.decisions
+    )
+
+
+def test_manual_radarr_disappearance_removes_only_exact_plex_watchlist_identity():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[],
+        backend_watched_movies=[],
+        radarr_movies=[],
+        plex_watchlist_movies=[movie("Manually Removed", 303)],
+        plex_library_movies=[movie("Manually Removed", 303)],
+        radarr_observations=[
+            movie(
+                "Manually Removed",
+                303,
+                present=False,
+                disappearance_cause="manual",
+            )
+        ],
+        managed_destinations=[],
+    )
+
+    plex = find_decision(report, "plex_watchlist", "remove", 303)
+    assert plex.reason == "manually_removed_radarr_movie_remove_from_plex_watchlist"
+    assert plex.authorization == "manual_radarr_removal"
+    assert plex.authorization_event_id is None
+    assert not any(
+        decision.area == "radarr" and decision.movie.tmdb_id == 303
+        for decision in report.decisions
+    )
+    assert report.source_counts["manual_radarr_disappearances"] == 1
+
+
+def test_manual_radarr_disappearance_does_not_suppress_active_letterboxd_movie():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[
+            movie("Still Active", 303, radarr_eligible=False, metadata_status="enriched")
+        ],
+        backend_watched_movies=[],
+        radarr_movies=[],
+        plex_watchlist_movies=[movie("Still Active", 303)],
+        plex_library_movies=[movie("Still Active", 303)],
+        radarr_observations=[
+            movie(
+                "Still Active",
+                303,
+                present=False,
+                disappearance_cause="manual",
+            )
+        ],
+    )
+
+    plex = find_decision(report, "plex_watchlist", "keep", 303)
+    assert plex.authorization is None
+    assert plex.reason != "manually_removed_radarr_movie_remove_from_plex_watchlist"
 
 
 def test_reconcile_sync_state_uses_snapshot_eligibility_for_radarr():

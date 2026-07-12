@@ -483,7 +483,7 @@ git commit -m "feat: track Radarr disappearance state"
 - Test: `workers/vod-filter/tests/vod_filter/test_movie_sync_policy.py`
 - Test: `workers/vod-filter/tests/vod_filter/test_movie_workflow_simulation.py`
 
-- [ ] **Step 1: Write failing watched planner tests**
+- [x] **Step 1: Write failing watched planner tests**
 
 Cover watched Radarr removal with a downloaded file, watched Plex removal while
 present in Plex library, unmanaged destination removal, absent-target skips,
@@ -498,14 +498,14 @@ assert decision.authorization == "letterboxd_watched"
 assert decision.authorization_event_id == "movie-101:watched:2"
 ```
 
-- [ ] **Step 2: Write failing manual-removal planner tests**
+- [x] **Step 2: Write failing manual-removal planner tests**
 
 Prove that an absent `manual` Radarr observation suppresses and removes the
 exact Plex-watchlist identity despite Plex-library membership. Prove that it
 never creates a Radarr decision and that an active Letterboxd identity is not
 suppressed.
 
-- [ ] **Step 3: Extend immutable decision types**
+- [x] **Step 3: Extend immutable decision types**
 
 Add lifecycle fields to `ReconciliationMovie`, plus these fields to
 `ReconciliationDecision`:
@@ -519,7 +519,7 @@ authorization_event_id: str | None = None
 Add `source_snapshot_id` to `SyncReconciliationReport` and watched/manual counts
 to `source_counts`.
 
-- [ ] **Step 4: Implement precedence and stable reason codes**
+- [x] **Step 4: Implement precedence and stable reason codes**
 
 Watched and manual suppression is applied before normal Radarr/Plex desired
 state. Watched exact IDs override downloaded-file, Plex-library, and worker
@@ -527,7 +527,7 @@ ownership protection. Manual Radarr removal overrides only Plex-watchlist
 protection. Missing watched TMDB emits `watched_movie_missing_tmdb_identity`
 without authorizing mutation.
 
-- [ ] **Step 5: Add policy defense in depth**
+- [x] **Step 5: Add policy defense in depth**
 
 Extend `SyncPolicy`:
 
@@ -541,7 +541,7 @@ Emit `watched_file_deletion_disabled` when a plan contains an authorized
 an exact Radarr remove with `authorization="letterboxd_watched"` and a non-empty
 event ID. Keep count and percentage gates unchanged.
 
-- [ ] **Step 6: Verify planner and policy GREEN**
+- [x] **Step 6: Verify planner and policy GREEN**
 
 Run:
 
@@ -549,7 +549,7 @@ Run:
 python -m pytest workers/vod-filter/tests/vod_filter/test_sync_reconciliation.py workers/vod-filter/tests/vod_filter/test_movie_sync_policy.py workers/vod-filter/tests/vod_filter/test_movie_workflow_simulation.py -q
 ```
 
-- [ ] **Step 7: Commit the authorized cleanup plan**
+- [x] **Step 7: Commit the authorized cleanup plan**
 
 ```powershell
 git add workers/vod-filter/src/services workers/vod-filter/tests/vod_filter

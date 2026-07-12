@@ -2,6 +2,7 @@
 
 import sys
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -10,6 +11,8 @@ sys.path.insert(0, str(VOD_FILTER_ROOT))
 
 from src.main import EXIT_SUCCESS, run_movie_sync_workflow
 from src.models.movie import Movie
+from src.services.movie_sync_policy import SyncPolicy, evaluate_plan
+from src.services.sync_reconciliation import reconcile_sync_state
 
 
 class FakeLogger:
@@ -193,4 +196,50 @@ def test_movie_workflow_reports_watchlist_source_in_summary():
     )
 
     assert result["summary"]["watchlist_source"] == "watchlist_app"
+
+
+def test_watched_and_manual_cleanup_plan_is_policy_approved_only_with_file_gate():
+    report = reconcile_sync_state(
+        backend_snapshot_movies=[],
+        backend_watched_movies=[
+            {
+                "title": "Watched",
+                "tmdb_id": 101,
+                "source_id": "101",
+                "watched_at": "2026-07-11T07:50:00+00:00",
+                "lifecycle_version": 2,
+                "lifecycle_event_id": "movie-101:watched:2",
+            }
+        ],
+        radarr_movies=[{"title": "Watched", "tmdbId": 101, "hasFile": True}],
+        plex_watchlist_movies=[
+            {"title": "Watched", "tmdb_id": 101},
+            {"title": "Manual", "tmdb_id": 202},
+        ],
+        radarr_observations=[
+            {
+                "title": "Manual",
+                "tmdb_id": 202,
+                "present": False,
+                "disappearance_cause": "manual",
+            }
+        ],
+        source_last_successful_sync_at=datetime.now(timezone.utc),
+    )
+
+    blockers = evaluate_plan(
+        report,
+        SyncPolicy(
+            allow_mutation=True,
+            allow_watched_file_deletion=True,
+            max_removal_percent=100.0,
+        ),
+    )
+
+    assert blockers == []
+    assert {
+        (decision.area, decision.movie.tmdb_id)
+        for decision in report.decisions
+        if decision.action == "remove"
+    } == {("radarr", 101), ("plex_watchlist", 101), ("plex_watchlist", 202)}
 

@@ -16,6 +16,7 @@ class SyncPolicy:
     max_removal_count: int = 10
     max_removal_percent: float = 25.0
     allow_mutation: bool = False
+    allow_watched_file_deletion: bool = False
 
     def __post_init__(self) -> None:
         if self.max_source_age_minutes < 1:
@@ -59,6 +60,26 @@ def evaluate_plan(
         for decision in report.decisions
     ):
         blockers.append("invalid_source_identity")
+
+    file_deletions = [
+        decision for decision in report.decisions if decision.delete_files
+    ]
+    valid_watched_file_deletions = [
+        decision
+        for decision in file_deletions
+        if decision.area == "radarr"
+        and decision.action == "remove"
+        and isinstance(decision.movie.tmdb_id, int)
+        and not isinstance(decision.movie.tmdb_id, bool)
+        and decision.movie.tmdb_id > 0
+        and decision.authorization == "letterboxd_watched"
+        and isinstance(decision.authorization_event_id, str)
+        and bool(decision.authorization_event_id.strip())
+    ]
+    if len(valid_watched_file_deletions) != len(file_deletions):
+        blockers.append("invalid_file_deletion_authorization")
+    if valid_watched_file_deletions and not policy.allow_watched_file_deletion:
+        blockers.append("watched_file_deletion_disabled")
 
     if (
         report.backend_snapshot_provided
