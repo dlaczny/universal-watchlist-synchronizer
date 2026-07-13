@@ -2,6 +2,15 @@
 
 ## 2026-07-13
 
+- Reviewed the TV integration design and decomposed it into an ordered,
+  test-driven five-phase implementation program covering the read model,
+  Plex-history-to-Trakt delivery, reversible destinations, concluded-season
+  cleanup, and terminal-series cleanup/revival. The review made apply a hard
+  environment gate, separated freshness from semantic hashes, and required new
+  current-manifest authorization for crash-recovery calls. It also requires a
+  non-extending backend claim revalidation immediately before every Sonarr
+  cleanup mutation so newly pending Plex-to-Trakt routing cancels stale
+  authority. No implementation or TV production mutation has started.
 - Recorded the approved design for Trakt-backed TV membership and progress,
   Plex-history-to-Trakt synchronization, caught-up Plex watchlist lifecycle,
   guarded Sonarr season and terminal cleanup, and Poland-specific provider

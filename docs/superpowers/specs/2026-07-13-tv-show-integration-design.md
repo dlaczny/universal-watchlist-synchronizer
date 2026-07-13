@@ -11,20 +11,24 @@ tags:
   - lifecycle
   - availability
 timestamp: 2026-07-13T00:00:00Z
-version: 0.1.0
+version: 0.4.0
 ---
 
 # Status
 
-This document captures the conversationally approved design and awaits review
-as a written specification. It selects TV and Sonarr integration as the next
-planned feature, but it does not yet authorize an implementation plan, code
-changes, or production behavior. Those remain held until this file is reviewed.
+This document is the reviewed and conversationally approved design for the TV
+and Sonarr integration. It authorizes the linked implementation planning
+program, but it does not by itself authorize code changes, production writes,
+or destructive behavior. Those remain held behind task-by-task execution,
+validation, rollout gates, and supervised production evidence.
 
 The existing Letterboxd, Radarr, and movie synchronization path remains
 unchanged. TV automation must remain disabled until its implementation, tests,
 operator-visible reports, durable OKF updates, rollout gates, and supervised
 production validation are complete.
+
+The ordered execution plans are indexed by
+[TV Integration Program](../plans/2026-07-13-tv-integration-program.md).
 
 # Goal
 
@@ -188,6 +192,13 @@ For an active season or any cleanup candidate, the backend also reads
 GET /shows/{id}/seasons/{season}?extended=full so episode air dates and the
 known season schedule are independent of watched-progress counts.
 
+For every tracked show it also reads
+GET /shows/{id}/seasons/0?extended=full and persists canonical positive
+episode identities in a separate identity-only list. This exists solely so a
+configured-account Plex S00 play can be resolved exactly in Phase 2. Specials
+never enter watched progress, aired/completed totals, provider claims,
+automatic search, or cleanup semantics.
+
 The tracked catalog is the union of the current watchlist, all returned watched
 progress rows, and previously retained lifecycle rows. Within that catalog:
 
@@ -340,9 +351,24 @@ When an older Plex response has no stable history key, the complete fallback
 key is Plex machine identifier + configured account ID + episode rating key +
 viewedAt normalized to a whole UTC second. A unique index prevents overlapping
 polls from creating a second event. Each ledger row is accepted or quarantined
-and may also carry the bootstrap outcome bootstrap_reconciled or
-bootstrap_superseded. A conflicting key or identity is quarantined with a
-stable reason and blocks mutation for the affected show.
+and independently carries a nullable bootstrap outcome: reconciled,
+superseded, selected_for_delivery, or not_applicable. Bootstrap never replaces
+the accepted/quarantined disposition. A conflicting key or identity is
+quarantined with a stable reason and blocks mutation for the affected show.
+
+Accepted rows also have an orthogonal nullable post-cutover routing state.
+Rows first inserted after a completed cutover start pending regardless of
+their viewedAt, so late overlap arrivals are not lost. A separate idempotent
+router creates deterministic outbox ID `trakt-history:{eventId}` and then CAS
+transitions pending to enqueued. An exact existing row recovers a crash between
+those writes; a conflicting payload blocks. Local-evidence-only specials
+transition pending to not_applicable without an outbox. Bootstrap outcome and
+post-cutover routing state cannot both be set.
+
+An exactly identified season-0 play is accepted as configured-account local
+evidence with delivery mode local_evidence_only_special. It is never sent to
+the Trakt outbox in the first implementation. Missing or conflicting special
+identity remains quarantined.
 
 Each legitimate post-bootstrap Plex rewatch is a distinct history event and is
 delivered to Trakt so later Trakt rewatch counts remain accurate.
@@ -368,14 +394,21 @@ predicate hash, UTC time, and redacted reason data.
 ## tv_cleanup_authorizations
 
 Lifecycle events remain immutable. This separate mutable projection provides
-the one-use operational state for a cleanup intent. One document per cleanup
-event stores pending, leased, converged, canceled, or expired status; the
-latest eligible manifest and predicate hash; a 30-minute expiresAt; worker and
-lease IDs; target binding; and redacted child-action results.
+the one-use operational state for a cleanup intent. The initial document uses
+the lifecycle event ID as its authorization ID and stores pending, leased,
+converged, canceled, or expired status; the latest eligible manifest and
+predicate hash; a 30-minute expiresAt; worker and lease IDs; target binding; and
+redacted child-action results.
 
 Before a claim, a later complete mutation-capable manifest may refresh the
 projection's manifest binding and expiry while the same lifecycle event stays
 eligible. Once claimed, canceled, or converged, it cannot be silently renewed.
+An expired lease is never reused. Crash recovery creates a separate explicit
+authorization document with a new authorization ID, a link to the expired
+authorization, the immutable original target, and a current mutation-capable
+manifest. Reconciliation-only recovery can report an already-absent target but
+cannot call Sonarr; any new Sonarr call requires a separately gated retry
+authorization.
 
 # Plex History To Trakt
 
@@ -397,14 +430,22 @@ years of rewatch counts:
 3. If Trakt already marks the episode watched, mark its historical Plex events
    bootstrap_reconciled without a Trakt write.
 4. If Trakt does not mark it watched, enqueue only the latest accepted Plex play
-   for that episode; mark older plays bootstrap_superseded.
-5. Record bootstrapCutoverAt and the final Plex watermark.
+   for that episode, mark it selected_for_delivery, and mark older plays
+   bootstrap_superseded.
+5. Mark accepted local-evidence-only specials not_applicable without an outbox
+   row.
+6. Record bootstrapCutoverAt and the final Plex watermark.
 
 Backfill is rate-limited and must finish successfully before any destructive TV
-cleanup can be enabled. After cutover, every new accepted Plex event, including
-a rewatch, is independently eligible for the outbox. Collection uses a durable
+cleanup can be enabled. After cutover, every new accepted Trakt-eligible Plex
+event, including a rewatch, is independently eligible for the outbox; accepted
+local-evidence-only specials remain ledger evidence only. Collection uses a durable
 watermark with a 24-hour overlap to catch late or reordered events. The
 watermark advances only after every fetched event is durably stored.
+
+Each run orders collection, any required bootstrap, post-cutover routing, then
+delivery. Routing runs even while Trakt writes are disabled. Pending or
+conflicting routing freezes mutation just like unresolved outbox work.
 
 Plex Play History availability is a required capability for this feature. If
 the server/account cannot expose it, including because the required Plex
@@ -592,6 +633,8 @@ of these predicates are true:
   than 30 minutes old;
 - no Trakt outbox row for the show is pending, leased, ambiguous, retry_wait,
   or dead_letter;
+- no accepted post-cutover Plex event for the show is pending routing or has a
+  routing conflict;
 - no plex_watch_events row for the show is quarantined;
 - the show and Sonarr series are an exact TVDB match and the series is owned or
   adopted; and
@@ -634,8 +677,8 @@ scheduled_full hourly generations, not rapid retries, both prove:
 - Trakt reports no next episode;
 - there is no explicit current Trakt watchlist membership;
 - exact TVDB identity is verified; and
-- no unresolved Plex-to-Trakt outbox event or quarantined Plex watch event
-  exists for the show.
+- no pending/conflicting post-cutover route, unresolved Plex-to-Trakt outbox
+  event, or quarantined Plex watch event exists for the show.
 
 The candidate must then accumulate seven complete days of eligible observed
 duration under the common two-hour continuity rule. Any changed predicate
@@ -661,6 +704,12 @@ before the Sonarr call, the worker must prove:
 - Sonarr's recycle-bin path is configured, unless the separate irreversible
   override is explicitly enabled; and
 - the final plan stays within the destructive run caps.
+
+The backend's seven-day terminal evaluator is source-scoped. It never treats a
+season observation as whole-series evidence. Publishing terminal deletion
+permission additionally requires a fresh, complete show-level worker
+observation that binds the exact Sonarr series and accounts for every numbered
+season file and downloaded special.
 
 An unwatched downloaded special blocks whole-series deletion. Season 0 is
 never independently cleaned.
@@ -703,8 +752,16 @@ tv_lifecycle_events record that binds:
 - published source generation;
 - lifecycle version and predicate hash;
 - candidate start and authorization time;
+- configured-account Plex evidence time, nullable history watermark,
+  collection complete/success flags, and binding-wide distinct observed-event
+  count;
 - expected source progress; and
 - the eligibility facts that created the intent.
+
+The watermark may be null only when the bound collection is complete and
+successful and its binding-wide observed-event count is exactly zero. A
+positive count requires a watermark; any other null combination rejects the
+intent before publication.
 
 Cancellation, expiry, leasing, and completion append lifecycle facts and update
 the separate tv_cleanup_authorizations projection. The export exposes pending
@@ -712,25 +769,65 @@ authorizations, but an immutable event is not permission to call Sonarr until
 its current projection is atomically claimed through:
 
 - POST /api/worker/tv/cleanup-authorizations/{eventId}/claim; and
-- POST /api/worker/tv/cleanup-authorizations/{eventId}/result.
+- POST /api/worker/tv/cleanup-authorizations/{authorizationId}/result.
 
 The claim includes worker ID, manifest ID, action type, Sonarr series ID,
 expected episode-file IDs or terminal path fingerprint, and the worker's live
 predicate hash. The backend grants one 10-minute lease only while the
-authorization remains current, pending, unexpired, and uncanceled and its
-manifest is no more than 30 minutes old. Result reporting records each child
+authorization remains current, unexpired, uncanceled, and its manifest is no
+more than 30 minutes old. A new claim requires pending state; an exact
+same-worker replay may revalidate the one already leased projection. Result reporting records each child
 action and marks the authorization converged only when the target has
-converged.
+converged. The live predicate hash contains stable semantic facts only;
+freshness timestamps are validated and audited separately so a safe final
+recollection can match the initial semantics.
+
+Every claim reads current Phase 2 history health in addition to the immutable
+manifest. For mutation-bearing initial or retry claims, a pending/conflicting
+post-cutover route, unresolved outbox row, or quarantined Plex event atomically
+cancels an active pending projection. If already leased, it immutably marks
+mutation revoked, retains the original lease only for result/audit recovery,
+and rejects further external-action permission. A strictly audit-only
+reconcile-only recovery may be created while the blocker remains, can report
+only independently confirmed absence/completion, and never grants a Sonarr
+call. The exact same worker may
+replay the exact claim as a pre-action live revalidation; it receives the same
+lease without an expiry extension only while every gate still passes. The
+worker performs that replay immediately before every Sonarr cleanup mutation.
+A canceled, revoked, or changed revalidation stops before the external call. This makes
+new routing blockers effective even when they appear after the authorizing
+manifest was published.
+
+Each claim response includes server `leaseIssuedAt`, current
+`leaseValidatedAt`, and fixed `leaseExpiresAt`. The worker computes conservative
+remaining time from validated-to-expiry using the monotonic timestamp captured
+before the request, then retains the minimum deadline for that authorization/
+lease across replays. A replay can only reduce the local budget; it cannot reset
+ten minutes. A restarted process derives a new conservative remainder from the
+server's current validation time because a host monotonic absolute value is not
+portable across boots.
+
+Mutation revocation does not discard an action that already occurred. Before
+the original lease expires, the result endpoint still accepts the exact
+same-worker append-only child audit and may record factual convergence from
+strict postconditions; that channel grants no new call. After expiry, a new
+reconcile-only authorization can record independently confirmed absence while
+the blocker remains. Retrying a still-present target requires the blocker
+resolved, a new current manifest, all gates, and a distinct retry authorization.
 
 The worker also holds a single-run SQLite lease, so overlapping local
-processes cannot bypass volume caps. If a process crashes after a Sonarr action
-but before result reporting, the lease expires. The next run recollects live
-state; an already absent file or series is reported as converged and the
-destructive call is not repeated blindly.
+processes cannot bypass volume caps, and renews it throughout collection and
+execution. Before every Sonarr mutation it also requires sufficient remaining
+backend lease time. If a process crashes after a Sonarr action but before
+result reporting, the old lease expires and is never extended. The next run
+recollects live state and obtains a current recovery authorization: an already
+absent file or series is reported without a new Sonarr call, while a still-
+present original target requires full current gates and an explicit retry
+authorization.
 
-SQLite retains the destination ownership record, live observations, event ID,
-lease ID, exact request fields, deleteFiles value, per-file results, and
-redacted failures.
+SQLite retains the destination ownership record, live observations, event and
+authorization IDs, recovery link/mode, lease ID, exact strict query booleans,
+per-child results, and redacted failures.
 
 # Plex Watchlist Lifecycle
 
@@ -792,7 +889,7 @@ The following routes are proposed:
 | GET /api/watchlist?collection=tv&state=retired | Terminal cleanup history. |
 | GET /api/watchlist/{id} | Existing detail route extended for TV with season/episode progress, lifecycle, availability, and last known destination status. |
 | POST /api/worker/tv/cleanup-authorizations/{eventId}/claim | Protected atomic cleanup lease. |
-| POST /api/worker/tv/cleanup-authorizations/{eventId}/result | Protected partial/final cleanup result and convergence record. |
+| POST /api/worker/tv/cleanup-authorizations/{authorizationId}/result | Protected partial/final cleanup result and convergence record. |
 | POST /api/worker/tv/runs | Protected redacted run summary for UI status and operations. |
 
 The public state query intentionally maps state=retired to the stored
@@ -888,6 +985,10 @@ enables backend Trakt writes. The irreversible override is named
 TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE; it is a fourth separate worker switch,
 also defaults false, and cannot be implied by global apply.
 
+A CLI `--apply` value is only a per-run request. Effective worker apply requires
+both that request and `TV_SYNC_APPLY=true`; command-line input cannot override a
+false environment gate.
+
 One run may plan at most two season cleanups and one terminal whole-series
 cleanup. If either proposed destructive count exceeds its cap, the worker
 executes zero destructive TV actions for the entire run. Reversible additions
@@ -906,6 +1007,7 @@ All destructive actions require:
 - seven days of continuously valid eligibility;
 - configured-account Plex evidence;
 - no unresolved history outbox event;
+- no pending or conflicting post-cutover routing event;
 - a final live recheck; and
 - durable SQLite and backend result audit.
 
@@ -1097,11 +1199,11 @@ terminal cleanup, and revival.
 - A fully watched ended or canceled show can produce exactly one cleanup event
   only after two qualifying hourly snapshots, seven days of continuous
   eligibility, and all source-side checks.
-- Missing identity, explicit watchlist membership, pending outbox, stale Plex
-  evidence, unwatched special, unknown mapping, untracked media, non-owned
-  series, missing recycle bin, path-verification failure, next-airing
-  disagreement, stale manifest, or cap overflow each blocks deletion with a
-  specific reason.
+- Missing identity, explicit watchlist membership, pending/conflicting
+  post-cutover routing, pending outbox, stale Plex evidence, unwatched special,
+  unknown mapping, untracked media, non-owned series, missing recycle bin,
+  path-verification failure, next-airing disagreement, stale manifest, or cap
+  overflow each blocks deletion with a specific reason.
 - A successful terminal action removes the exact Sonarr series with
   deleteFiles=true and addImportListExclusion=false, verifies absence, and
   never calls a Plex library deletion API.

@@ -6,7 +6,7 @@ tags:
   - backlog
   - roadmap
 timestamp: 2026-07-13T09:11:16Z
-version: 0.7.0
+version: 0.8.0
 ---
 
 # Completed Movie Foundation
@@ -60,11 +60,15 @@ version: 0.7.0
 
 # TV And Sonarr
 
-- Review the approved
-  [TV Show Integration Design](../superpowers/specs/2026-07-13-tv-show-integration-design.md),
-  then write its implementation plan.
-- Implement Trakt source/progress, Plex-history outbox, MongoDB safety ledger,
-  Polish provider enrichment, and read-only TV UI before destination mutation.
+- Execute the reviewed
+  [TV Integration Program](../superpowers/plans/2026-07-13-tv-integration-program.md)
+  task by task; the five phase plans are written but implementation has not
+  started.
+- Deliver Trakt source/progress, the MongoDB read model, Polish provider
+  enrichment, and read-only Android UI before Plex-history writes or
+  destination mutation.
+- Complete and review the configured-account Plex-history bootstrap and
+  effectively-once Trakt outbox before reversible Sonarr/Plex-watchlist work.
 - Roll out Sonarr additions and Plex-watchlist lifecycle before enabling the
   independently gated season-file and terminal-series deletion categories.
 - Keep every TV mutation disabled until its staged tests, reports, adoption
