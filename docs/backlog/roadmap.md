@@ -5,8 +5,8 @@ description: Completed production movie foundation and remaining operational, TV
 tags:
   - backlog
   - roadmap
-timestamp: 2026-07-13T05:54:04Z
-version: 0.6.0
+timestamp: 2026-07-13T09:11:16Z
+version: 0.7.0
 ---
 
 # Completed Movie Foundation
@@ -60,14 +60,21 @@ version: 0.6.0
 
 # TV And Sonarr
 
-- Add Plex TV inventory/matching only after movie sync is stable in operation.
-- Define and test the Sonarr export and ownership policy before any mutation.
+- Review the approved
+  [TV Show Integration Design](../superpowers/specs/2026-07-13-tv-show-integration-design.md),
+  then write its implementation plan.
+- Implement Trakt source/progress, Plex-history outbox, MongoDB safety ledger,
+  Polish provider enrichment, and read-only TV UI before destination mutation.
+- Roll out Sonarr additions and Plex-watchlist lifecycle before enabling the
+  independently gated season-file and terminal-series deletion categories.
+- Keep every TV mutation disabled until its staged tests, reports, adoption
+  review, grace periods, and supervised validation pass.
 
-# Android TV: On Hold
+# Android TV
 
 - Preserve read-only backend-only contracts.
-- Resume component extraction, lifecycle coverage, and connected focus tests
-  only after the hold decision changes.
+- Resume only the TV progress, lifecycle, and provider views covered by the
+  approved TV design. Broader Android component extraction remains on hold.
 
 # Documentation Candidates
 

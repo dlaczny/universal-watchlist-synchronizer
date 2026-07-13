@@ -2,6 +2,10 @@
 
 ## 2026-07-13
 
+- Recorded the approved design for Trakt-backed TV membership and progress,
+  Plex-history-to-Trakt synchronization, caught-up Plex watchlist lifecycle,
+  guarded Sonarr season and terminal cleanup, and Poland-specific provider
+  availability. Production TV mutation remains disabled.
 - Released watched lifecycle handling from exact SHA `63fbf58` after local
   release validation, two clean Gitleaks scans, and successful `Movie CI` run
   29226820025.
