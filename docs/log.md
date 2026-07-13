@@ -1,5 +1,18 @@
 # Change Log
 
+## 2026-07-13
+
+- Released watched lifecycle handling from exact SHA `63fbf58` after local
+  release validation, two clean Gitleaks scans, and successful `Movie CI` run
+  29226820025.
+- Established a 317-movie Radarr baseline from a non-empty 289-movie Letterboxd
+  source, with zero watched authorizations, conflicts, collection errors,
+  removals, or file-deletion decisions.
+- Enabled the mode-`0600` host-only watched-file gate and completed armed report
+  30 with a fresh successful heartbeat and no destructive decisions.
+- Recorded that the destructive path is test-covered and armed but not yet
+  live-exercised because no real watched transition occurred during rollout.
+
 ## 2026-07-12
 
 - Implemented publish-last Letterboxd active/watched/reactivated lifecycle

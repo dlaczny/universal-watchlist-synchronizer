@@ -6,8 +6,8 @@ tags:
   - report
   - okf
   - cleanup
-timestamp: 2026-07-12T00:00:00Z
-version: 0.4.0
+timestamp: 2026-07-13T05:54:04Z
+version: 0.5.0
 ---
 
 # Result
@@ -26,6 +26,10 @@ event may remove its Radarr row with files behind a separate default-off gate.
 OKF also records retained lifecycle documents, publish-last source manifests,
 manual Radarr observations, Plex-watchlist-only cleanup, audit rows, and the
 no-backfill boundary.
+
+The 2026-07-13 rollout pass added one evidence report for the exact-SHA
+lifecycle deployment, gated Radarr baseline, protected gate enablement, armed
+convergence, and explicit not-yet-live-exercised destructive path.
 
 # Moved Into OKF
 
@@ -62,7 +66,7 @@ no-backfill boundary.
 - Compatibility backend endpoints and direct-source worker code, documented as
   outside the production path.
 - The watched lifecycle design and implementation plan as execution history
-  until supervised rollout and its observation period are complete.
+  until the rollback-observation period is complete.
 
 # Remaining Cleanup Candidates
 
@@ -80,4 +84,5 @@ no-backfill boundary.
 # Links
 
 - [Roadmap](../backlog/roadmap.md)
+- [Watched Movie Lifecycle Rollout](watched_movie_lifecycle_rollout.md)
 - [Knowledge System](../architecture/knowledge_system.md)

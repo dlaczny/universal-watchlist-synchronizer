@@ -5,8 +5,8 @@ description: Completed production movie foundation and remaining operational, TV
 tags:
   - backlog
   - roadmap
-timestamp: 2026-07-12T00:00:00Z
-version: 0.5.0
+timestamp: 2026-07-13T05:54:04Z
+version: 0.6.0
 ---
 
 # Completed Movie Foundation
@@ -25,16 +25,16 @@ version: 0.5.0
   hourly apply, and active five-minute CI-gated deployment timer.
 - Production boundary handling for Radarr exclusions/folder collisions and
   exact-TMDB Plex discovery/manual skips.
+- Published Letterboxd active/watched/reactivated lifecycle, exact-TMDB watched
+  cleanup authorization, manual Radarr disappearance handling, reactivation,
+  and cleanup audit history.
+- Supervised watched-lifecycle rollout with 289 active movies, 317 Radarr
+  observations, gated baseline report 29, armed convergence report 30, and no
+  blockers, removals, or collection errors. Pre-feature disappearances are not
+  backfilled as watched history.
 
 # Operations Next
 
-- Roll out the implemented [Watched Movie Lifecycle Design](watched_movie_lifecycle_design.md):
-  deploy with watched file deletion disabled, establish the Radarr observation
-  baseline, review the first reconciliation, then enable the protected host
-  gate and supervise apply/convergence. The implementation is test-covered but
-  remains an operations item until this rollout is recorded.
-- Record explicitly that disappearances before the first published lifecycle
-  manifest are not backfilled as watched history.
 - Resolve the `Resurrection` (2025) Radarr folder collision: desired TMDB
   `878608` conflicts with existing TMDB `1279580`; automatic add remains
   skipped.
@@ -44,8 +44,9 @@ version: 0.5.0
   (2011), which have no TMDB GUID, as explicit report decisions instead of log
   warnings only.
 - Add notification/alerting for repeated blocked, partial, or unhealthy runs.
-- Add host disk alerts and a build-cache retention threshold; the first stable
-  rollout left about 2.1 GB free at 86% filesystem use before final cache prune.
+- Add host disk alerts and a build-cache retention threshold; the lifecycle
+  rollout retained 2.6 GB free at 82% use with current and rollback images
+  present, plus 2.538 GB of reclaimable unused image/build cache.
 - Decide a rollback-observation period, then remove legacy backend deployment
   files and `scripts/deploy-watchlist-local.sh` if no longer needed.
 - Consider retiring direct-source worker scripts after the production engine

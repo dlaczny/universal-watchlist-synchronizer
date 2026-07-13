@@ -8,8 +8,8 @@ tags:
   - radarr
   - plex
   - implementation
-timestamp: 2026-07-12T00:00:00Z
-version: 0.1.0
+timestamp: 2026-07-13T05:54:04Z
+version: 0.2.0
 ---
 
 # Watched Movie Lifecycle Implementation Plan
@@ -689,7 +689,7 @@ git commit -m "docs: document watched movie cleanup"
 - Review: all files changed by Tasks 1-7
 - Test: `.github/workflows/movie-ci.yml` through its local equivalent commands
 
-- [ ] **Step 1: Run complete backend verification**
+- [x] **Step 1: Run complete backend verification**
 
 Start MongoDB 8 on `localhost:27017`, then run:
 
@@ -702,7 +702,7 @@ dotnet test backend\Watchlist.sln --configuration Release --no-build
 Expected: restore, Release build, Application tests, and API tests all pass with
 zero failures.
 
-- [ ] **Step 2: Run complete worker and deployment verification**
+- [x] **Step 2: Run complete worker and deployment verification**
 
 ```powershell
 python -m pytest workers/vod-filter/tests/vod_filter -q
@@ -715,7 +715,7 @@ docker build -t watchlist-worker:watched-validation workers/vod-filter
 git diff --check
 ```
 
-- [ ] **Step 3: Run redacted secret scans**
+- [x] **Step 3: Run redacted secret scans**
 
 Run Gitleaks `v8.30.1` against full Git history and a clean exact-tree worktree:
 
@@ -726,20 +726,20 @@ docker run --rm -v "${PWD}:/repo" zricethezav/gitleaks:v8.30.1 dir --redact --no
 
 Do not print secret values. Any confirmed finding blocks integration and push.
 
-- [ ] **Step 4: Review behavior against the approved design**
+- [x] **Step 4: Review behavior against the approved design**
 
 Verify line by line that empty source results do nothing, only published
 watched events delete files, never-Letterboxd identities are not deleted from
 Radarr, manual Radarr disappearance suppresses Plex watchlist, reactivation
 cancels cleanup, limits remain active, and Plex library methods remain read-only.
 
-- [ ] **Step 5: Integrate into local `main` and push**
+- [x] **Step 5: Integrate into local `main` and push**
 
 After all checks pass, merge the feature branch without rewriting existing
 history, verify local `main` is clean, and push `main`. Do not push a failing or
 unreviewed tree.
 
-- [ ] **Step 6: Require exact-SHA Movie CI**
+- [x] **Step 6: Require exact-SHA Movie CI**
 
 Poll the public workflow for the pushed `main` SHA and require every Movie CI
 job to succeed. Do not bypass the gate on the homelab.
@@ -752,20 +752,20 @@ job to succeed. Do not bypass the gate on the homelab.
 - Host-only: `/opt/watchlist-prod/data/worker/reports/`
 - Verify: `/opt/watchlist-prod/state/last-successful.sha`
 
-- [ ] **Step 1: Let exact-SHA deployment install the release with deletion gated**
+- [x] **Step 1: Let exact-SHA deployment install the release with deletion gated**
 
 Keep `MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION=false`. Require the deploy timer to
 select the exact successful CI SHA, build both images, obtain a fresh worker
 heartbeat, and record the release.
 
-- [ ] **Step 2: Review the first migration reconciliation**
+- [x] **Step 2: Review the first migration reconciliation**
 
 Require a non-empty published source snapshot, zero active/watched conflicts,
 no collection errors, a baseline-only Radarr observation state, and no
 unexpected `delete_files=true` decisions. Confirm current Radarr and Plex counts
 without printing credentials.
 
-- [ ] **Step 3: Enable the host-only watched deletion gate**
+- [x] **Step 3: Enable the host-only watched deletion gate**
 
 Set:
 
@@ -773,10 +773,11 @@ Set:
 MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION=true
 ```
 
-in the protected worker env, retain mode `0600`, clear only the worker heartbeat
-for fresh-health validation, and restart the worker container.
+in the protected worker env, retain mode `0600`, and restart the worker
+container. Accept health only from a report and heartbeat written after the
+recreation; clearing the prior heartbeat is an equivalent stricter option.
 
-- [ ] **Step 4: Supervise one apply and one convergence run**
+- [x] **Step 4: Supervise one apply and one convergence run**
 
 Inspect reports, SQLite observations, MongoDB lifecycle state, Radarr, Plex
 watchlist, logs, and heartbeat. Do not manufacture a watched event or delete a
@@ -784,18 +785,25 @@ real file merely to exercise production. If no real watched transition exists,
 record that the destructive path is test-covered and armed but not yet live-
 exercised.
 
-- [ ] **Step 5: Verify continuous operation and rollback state**
+- [x] **Step 5: Verify continuous operation and rollback state**
 
 Confirm hourly apply, five-minute deploy timer, healthy read-only containers,
 current/previous SHA files, no leaked secrets, and enough host disk for current
 plus rollback images.
 
-- [ ] **Step 6: Complete roadmap and rollout records**
+- [x] **Step 6: Complete roadmap and rollout records**
 
 Update OKF with actual deployed SHA, observed baseline counts, feature-gate
 state, report IDs, any manual candidates, and the explicit live-exercise status.
 Run OKF validation, commit, push, require exact-SHA CI again, and verify the
 timer deploys the documentation SHA with a fresh worker heartbeat.
+
+Implementation release `63fbf5804f9b6c3d7d387f5e7f70ebcd2d63b41f`
+completed successful `Movie CI` run 29226820025 and the guarded homelab
+rollout. Reports 29 and 30 establish the gated baseline and armed convergence.
+See [Watched Movie Lifecycle Rollout](../reports/watched_movie_lifecycle_rollout.md)
+for counts, gate state, rollback evidence, and the explicit live-exercise
+boundary.
 
 # Links
 
