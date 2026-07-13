@@ -9,7 +9,7 @@ tags:
   - deployment
   - ci-cd
 timestamp: 2026-07-12T00:00:00Z
-version: 0.4.0
+version: 0.4.1
 ---
 
 # Purpose
@@ -52,11 +52,14 @@ whose overall status is `completed` or `partial`. A source or inventory failure
 returns an error and prevents the worker from collecting a fresh snapshot.
 
 Letterboxd import is publish-last. Empty, malformed, duplicate, or nonpositive
-source identities are rejected before repository access. A valid non-empty
-snapshot updates retained movie documents, appends `added`, `watched`, or
-`reactivated` lifecycle events, then publishes an immutable manifest containing
-the complete active ID and watched authorization sets. Interrupted writes
-without a manifest are not current authority.
+source identities are rejected before repository access. Before the first
+lifecycle write, the repository publishes a bootstrap manifest containing the
+existing Letterboxd IDs and no watched authorizations. This freezes the legacy
+migration baseline before documents can be partially updated. A valid non-empty
+snapshot then updates retained movie documents, appends `added`, `watched`, or
+`reactivated` lifecycle events, and publishes an immutable operational manifest
+containing the complete active ID and watched authorization sets. An interrupted
+write leaves the bootstrap or prior operational manifest as current authority.
 
 The backend also adds one worker-focused movie snapshot endpoint. One response
 contains:
@@ -286,8 +289,9 @@ Radarr, Plex, and TMDB credentials never enter GitHub Actions.
 - The homelab deploys only a commit with successful `Movie CI`.
 - Failed deployment returns to the previous healthy release.
 - Runtime secrets exist only in protected host-local files.
-- Pre-feature Letterboxd disappearances are not backfilled; lifecycle authority
-  begins with the first successfully published manifest after deployment.
+- Pre-feature Letterboxd disappearances are not backfilled; watched authority
+  begins with the first successfully published operational manifest after
+  deployment.
 
 # Links
 

@@ -8,7 +8,7 @@ tags:
   - mongodb
   - api
 timestamp: 2026-07-11T00:00:00Z
-version: 0.3.0
+version: 0.3.1
 ---
 
 # Structure
@@ -48,7 +48,10 @@ used by the production movie worker.
 history. Active-only repository filters use the latest manifest for browse,
 TMDB enrichment, Plex matching, and compatibility export. If no manifest exists
 during migration, existing Letterboxd documents are treated as the active
-baseline.
+baseline. Before its first document update, the lifecycle writer publishes a
+bootstrap manifest for that baseline with no watched authorizations. A failed
+first write therefore cannot expose partially updated documents as current
+source authority.
 
 MongoDB failures are not replaced with process-local fallback data. Seed data
 is inserted only when configured collections are empty.

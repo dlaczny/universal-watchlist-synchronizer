@@ -7,7 +7,7 @@ tags:
   - tests
   - okf
 timestamp: 2026-07-11T00:00:00Z
-version: 0.3.0
+version: 0.3.1
 ---
 
 # OKF And Deployment Tooling
@@ -39,8 +39,9 @@ The expected suite is 167 Application tests and 39 API tests. Mongo repository
 tests are part of the required result, not an optional timeout exclusion.
 
 Lifecycle coverage must include rejected empty/duplicate source snapshots,
-publish-last manifests, active/watched/reactivated transitions, active-only
-reads, and coherent watched export.
+the first-write bootstrap manifest, publish-last operational manifests,
+active/watched/reactivated transitions, active-only reads, and coherent watched
+export.
 
 # Worker
 

@@ -8,7 +8,7 @@ tags:
   - mongodb
   - sqlite
 timestamp: 2026-07-11T00:00:00Z
-version: 0.3.0
+version: 0.3.1
 ---
 
 # Backend State
@@ -21,7 +21,11 @@ the latest `plex_movies_completed` timestamp as
 MongoDB `letterboxd_source_snapshots` stores immutable publish-last manifests.
 Each row has a snapshot ID, publish time, complete active source IDs, current
 watched event references, and item count. `sync_runs` is operational history;
-the latest manifest is lifecycle authority.
+the latest manifest is lifecycle authority. During migration, reads with no
+manifest treat existing Letterboxd documents as active. The first lifecycle
+writer publishes a `letterboxd-bootstrap-*` manifest for that legacy active set
+before changing documents, with an empty watched set; later operational
+manifests remain publish-last.
 
 # Worker State
 

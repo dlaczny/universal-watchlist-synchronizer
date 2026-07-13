@@ -45,9 +45,15 @@ public sealed class MongoWatchlistWriteRepository(
             .SortByDescending(snapshot => snapshot.PublishedAt)
             .ThenByDescending(snapshot => snapshot.Id)
             .FirstOrDefaultAsync(cancellationToken);
-        HashSet<string> previousActiveIds = previousSnapshot is null
-            ? existingDocuments.Select(document => document.SourceId).ToHashSet(StringComparer.Ordinal)
-            : previousSnapshot.SourceIds.ToHashSet(StringComparer.Ordinal);
+        if (previousSnapshot is null)
+        {
+            previousSnapshot = CreateBootstrapSnapshot(existingDocuments, completedAt);
+            await sourceSnapshots.InsertOneAsync(
+                previousSnapshot,
+                cancellationToken: cancellationToken);
+        }
+        HashSet<string> previousActiveIds = previousSnapshot.SourceIds
+            .ToHashSet(StringComparer.Ordinal);
         Dictionary<string, MongoPublishedWatchedMovieDocument> previousWatchedBySourceId =
             (previousSnapshot?.WatchedMovies ?? [])
                 .ToDictionary(movie => movie.SourceId, StringComparer.Ordinal);
@@ -153,6 +159,29 @@ public sealed class MongoWatchlistWriteRepository(
         return new LetterboxdMovieSyncApplyResult(
             snapshotId,
             watchedCount);
+    }
+
+    private static MongoLetterboxdSourceSnapshotDocument CreateBootstrapSnapshot(
+        IReadOnlyList<MongoWatchlistItemDocument> existingDocuments,
+        DateTimeOffset completedAt)
+    {
+        DateTimeOffset publishedAt = completedAt > DateTimeOffset.MinValue
+            ? completedAt.AddTicks(-1)
+            : completedAt;
+        List<string> sourceIds = existingDocuments
+            .Select(document => document.SourceId)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        return new MongoLetterboxdSourceSnapshotDocument
+        {
+            Id = $"letterboxd-bootstrap-{completedAt:yyyyMMddHHmmssfffffff}-{Guid.NewGuid():N}",
+            PublishedAt = publishedAt,
+            SourceIds = sourceIds,
+            WatchedMovies = [],
+            ItemCount = sourceIds.Count
+        };
     }
 
     private static FilterDefinition<MongoWatchlistItemDocument> CreateLetterboxdMovieFilter()

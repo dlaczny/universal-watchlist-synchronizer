@@ -86,9 +86,18 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
         storedItems.Should().Contain(item => item.Id == "movie-tmdb-existing");
         storedItems.Should().Contain(item => item.Id == "tv-tmdb-existing");
 
-        MongoLetterboxdSourceSnapshotDocument snapshot = await snapshots
+        List<MongoLetterboxdSourceSnapshotDocument> published = await snapshots
             .Find(FilterDefinition<MongoLetterboxdSourceSnapshotDocument>.Empty)
-            .SingleAsync();
+            .SortBy(item => item.PublishedAt)
+            .ToListAsync();
+        published.Should().HaveCount(2);
+        MongoLetterboxdSourceSnapshotDocument bootstrap = published[0];
+        bootstrap.Id.Should().StartWith("letterboxd-bootstrap-");
+        bootstrap.SourceIds.Should().Equal("old");
+        bootstrap.ItemCount.Should().Be(1);
+        bootstrap.WatchedMovies.Should().BeEmpty();
+
+        MongoLetterboxdSourceSnapshotDocument snapshot = published[1];
         snapshot.Id.Should().Be(result.SourceSnapshotId);
         snapshot.PublishedAt.Should().Be(completedAt);
         snapshot.SourceIds.Should().Equal("1418998");
@@ -288,16 +297,21 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
             .Find(FilterDefinition<MongoLetterboxdSourceSnapshotDocument>.Empty)
             .SortBy(snapshot => snapshot.PublishedAt)
             .ToListAsync();
-        published.Should().HaveCount(4);
-        published[0].WatchedMovies.Should().ContainSingle(item => item.SourceId == "101");
-        published[1].WatchedMovies.Should().BeEquivalentTo(published[0].WatchedMovies);
-        published[2].WatchedMovies.Should().BeEmpty();
-        published[3].WatchedMovies.Should().ContainSingle().Which.LifecycleEventId
+        published.Should().HaveCount(5);
+        published[0].Id.Should().StartWith("letterboxd-bootstrap-");
+        published[0].SourceIds.Should().Equal("101");
+        published[0].WatchedMovies.Should().BeEmpty();
+
+        List<MongoLetterboxdSourceSnapshotDocument> operational = published[1..];
+        operational[0].WatchedMovies.Should().ContainSingle(item => item.SourceId == "101");
+        operational[1].WatchedMovies.Should().BeEquivalentTo(operational[0].WatchedMovies);
+        operational[2].WatchedMovies.Should().BeEmpty();
+        operational[3].WatchedMovies.Should().ContainSingle().Which.LifecycleEventId
             .Should().Be(stored.LifecycleEvents.Last().EventId);
     }
 
     [Fact]
-    public async Task ApplyLetterboxdMovieSyncAsync_WhenDocumentWritesDoNotComplete_DoesNotPublishManifest()
+    public async Task ApplyLetterboxdMovieSyncAsync_WhenFirstDocumentWritesDoNotComplete_PublishesOnlyBootstrapManifest()
     {
         string interruptedDatabaseName = $"watchlist_test_{Guid.NewGuid():N}";
         using CancellationTokenSource cancellation = new();
@@ -345,9 +359,21 @@ public sealed class MongoWatchlistWriteRepositoryTests : IAsyncLifetime
         IMongoCollection<MongoLetterboxdSourceSnapshotDocument> snapshots =
             interruptedDatabase.GetCollection<MongoLetterboxdSourceSnapshotDocument>(
                 interruptedOptions.LetterboxdSourceSnapshotsCollectionName);
-        long publishedCount = await snapshots.CountDocumentsAsync(
-            FilterDefinition<MongoLetterboxdSourceSnapshotDocument>.Empty);
-        publishedCount.Should().Be(0);
+        MongoLetterboxdSourceSnapshotDocument published = await snapshots
+            .Find(FilterDefinition<MongoLetterboxdSourceSnapshotDocument>.Empty)
+            .SingleAsync();
+        published.Id.Should().StartWith("letterboxd-bootstrap-");
+        published.SourceIds.Should().BeEmpty();
+        published.WatchedMovies.Should().BeEmpty();
+
+        MongoWatchlistExportRepository exportRepository = new(
+            interruptedDatabase,
+            Options.Create(interruptedOptions));
+        WatchlistMovieLifecycleExport lifecycle = await exportRepository
+            .GetMovieLifecycleAsync(CancellationToken.None);
+        lifecycle.SourceSnapshot!.SnapshotId.Should().Be(published.Id);
+        lifecycle.ActiveMovies.Should().BeEmpty();
+        lifecycle.WatchedMovies.Should().BeEmpty();
 
         await interruptedClient.DropDatabaseAsync(interruptedDatabaseName);
     }

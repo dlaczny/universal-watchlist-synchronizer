@@ -182,8 +182,9 @@ stored.LifecycleEvents.Select(item => item.EventType)
 stored.LifecycleVersion.Should().Be(3);
 ```
 
-Add a failure-path test in which a document update throws before manifest
-insertion. The newest published snapshot must remain unchanged and the failed
+Add failure-path coverage for interrupted document updates. An existing latest
+manifest must remain unchanged. On the first lifecycle write, only a bootstrap
+manifest describing the legacy active set may be published; the failed
 generation must not become authoritative.
 
 - [x] **Step 2: Run the MongoDB tests and verify RED**
@@ -246,10 +247,12 @@ Add `LastSeenInSourceAt`, `LastWatchedAt`, `LifecycleVersion`, and
 
 Read the latest manifest first. With no manifest, treat all existing
 Letterboxd movie documents as the initial active set and use an empty watched
-set. Generate a unique snapshot ID, perform every upsert/event update tagged
-with it, carry forward still-watched states, remove reactivated states, add new
-watched states, then insert the complete immutable manifest last. Never call
-`DeleteManyAsync` for missing Letterboxd movies.
+set. Publish an immutable bootstrap manifest for that legacy state before the
+first document update. Generate a unique operational snapshot ID, perform every
+upsert/event update tagged with it, carry forward still-watched states, remove
+reactivated states, add new watched states, then insert the complete immutable
+operational manifest last. Never call `DeleteManyAsync` for missing Letterboxd
+movies.
 
 The repository returns:
 
@@ -258,8 +261,9 @@ return new LetterboxdMovieSyncApplyResult(snapshotId, watchedCount);
 ```
 
 The manifest repository returns the newest manifest by `PublishedAt` and `Id`.
-An absent manifest is valid only during migration and means all current
-Letterboxd documents are active.
+An absent manifest is valid only before the first migration write and means all
+current Letterboxd documents are active. The bootstrap freezes that view before
+the writer changes any document.
 
 - [x] **Step 5: Verify lifecycle persistence and migration behavior**
 
