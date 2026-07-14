@@ -409,8 +409,9 @@ public string TvLifecycleEventsCollectionName { get; init; } = "tv_lifecycle_eve
 public string TraktConnectionsCollectionName { get; init; } = "trakt_connections";
 ```
 
-Add `Microsoft.AspNetCore.DataProtection` version `10.0.0` to
-`Watchlist.Infrastructure.csproj`; do not add a floating package version.
+Add `Microsoft.AspNetCore.DataProtection` version `10.0.9` to
+`Watchlist.Infrastructure.csproj`; do not add a floating package version. This
+servicing pin avoids GHSA-9mv3-2cwr-p262.
 
 - [ ] **Step 6: Run focused and existing enum tests**
 

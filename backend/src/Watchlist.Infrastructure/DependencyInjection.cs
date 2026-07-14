@@ -17,10 +17,20 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(LetterboxdOptions.SectionName))
             .Validate(IsValidWatchlistUrl, "Letterboxd:WatchlistUrl must be an absolute HTTP or HTTPS URL.")
             .ValidateOnStart();
+        IConfigurationSection tmdbSection = configuration.GetSection(TmdbOptions.SectionName);
         services.AddOptions<TmdbOptions>()
-            .Bind(configuration.GetSection(TmdbOptions.SectionName))
+            .Bind(tmdbSection)
             .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Tmdb:BaseUrl must be absolute.")
             .Validate(options => Uri.TryCreate(options.ImageBaseUrl, UriKind.Absolute, out _), "Tmdb:ImageBaseUrl must be absolute.");
+        services.PostConfigure<TmdbOptions>(options =>
+        {
+            IConfigurationSection providerIdsSection = tmdbSection.GetSection(nameof(TmdbOptions.OwnedProviderIds));
+            if (providerIdsSection.GetChildren().Any())
+            {
+                int[] configuredProviderIds = providerIdsSection.Get<int[]>() ?? [];
+                options.OwnedProviderIds = configuredProviderIds;
+            }
+        });
         services.AddSingleton<IMongoClient>(serviceProvider =>
         {
             MongoDbOptions options = serviceProvider.GetRequiredService<IOptions<MongoDbOptions>>().Value;

@@ -29,4 +29,27 @@ public sealed record TvShow(
     DateTimeOffset UpdatedAt,
     DateTimeOffset MetadataFetchedAt,
     string GenerationId,
-    string? LegacySourceId);
+    string? LegacySourceId)
+{
+    private IReadOnlyList<TvSeasonProgress> _seasons = Snapshot(Seasons);
+    private IReadOnlyList<TvSpecialEpisodeIdentity> _specialEpisodeIdentities =
+        Snapshot(SpecialEpisodeIdentities);
+
+    public IReadOnlyList<TvSeasonProgress> Seasons
+    {
+        get => _seasons;
+        init => _seasons = Snapshot(value);
+    }
+
+    public IReadOnlyList<TvSpecialEpisodeIdentity> SpecialEpisodeIdentities
+    {
+        get => _specialEpisodeIdentities;
+        init => _specialEpisodeIdentities = Snapshot(value);
+    }
+
+    private static IReadOnlyList<T> Snapshot<T>(IReadOnlyList<T> values)
+    {
+        ArgumentNullException.ThrowIfNull(values);
+        return Array.AsReadOnly(values.ToArray());
+    }
+}

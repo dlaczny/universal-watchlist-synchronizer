@@ -1,5 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Watchlist.Infrastructure;
 
 namespace Watchlist.Application.Tests;
@@ -44,7 +46,7 @@ public sealed class TvOptionsTests
     }
 
     [Fact]
-    public void TmdbOptions_EnvironmentStyleConfiguration_BindsProviderIds()
+    public void AddWatchlistInfrastructure_EnvironmentStyleConfiguration_ReplacesOwnedProviderIds()
     {
         Dictionary<string, string?> environmentValues = new()
         {
@@ -58,9 +60,36 @@ public sealed class TvOptionsTests
         IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(configurationValues)
             .Build();
-        TmdbOptions options = configuration
-            .GetSection(TmdbOptions.SectionName)
-            .Get<TmdbOptions>()!;
+        ServiceCollection services = new();
+        services.AddWatchlistInfrastructure(configuration);
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        TmdbOptions options = provider.GetRequiredService<IOptions<TmdbOptions>>().Value;
+
+        options.OwnedProviderIds.Should().Equal(8, 337, 531);
+    }
+
+    [Fact]
+    public void TmdbOptions_OwnedProviderIdsAssignment_PreservesAllConfiguredIds()
+    {
+        TmdbOptions options = new()
+        {
+            OwnedProviderIds = [119, 1899, 1773, 8]
+        };
+
+        options.OwnedProviderIds.Should().Equal(119, 1899, 1773, 8);
+    }
+
+    [Fact]
+    public void TmdbOptions_OwnedProviderIdsAssignment_SnapshotsCallerCollection()
+    {
+        List<int> providerIds = [8, 337, 531];
+        TmdbOptions options = new()
+        {
+            OwnedProviderIds = providerIds
+        };
+
+        providerIds.Add(1899);
 
         options.OwnedProviderIds.Should().Equal(8, 337, 531);
     }
