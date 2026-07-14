@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -13,6 +14,14 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.Configure<MongoDbOptions>(configuration.GetSection(MongoDbOptions.SectionName));
+        IConfigurationSection dataProtectionSection = configuration.GetSection(
+            DataProtectionKeyRingOptions.SectionName);
+        services.Configure<DataProtectionKeyRingOptions>(dataProtectionSection);
+        DataProtectionKeyRingOptions keyRing =
+            dataProtectionSection.Get<DataProtectionKeyRingOptions>() ?? new();
+        services.AddDataProtection()
+            .SetApplicationName(keyRing.ApplicationName)
+            .PersistKeysToFileSystem(new DirectoryInfo(keyRing.KeyRingPath));
         services.AddOptions<LetterboxdOptions>()
             .Bind(configuration.GetSection(LetterboxdOptions.SectionName))
             .Validate(IsValidWatchlistUrl, "Letterboxd:WatchlistUrl must be an absolute HTTP or HTTPS URL.")
@@ -42,6 +51,8 @@ public static class DependencyInjection
             IMongoClient client = serviceProvider.GetRequiredService<IMongoClient>();
             return client.GetDatabase(options.DatabaseName);
         });
+        services.AddSingleton<ITraktTokenProtector, DataProtectionTraktTokenProtector>();
+        services.AddSingleton<ITraktConnectionRepository, MongoTraktConnectionRepository>();
         services.AddSingleton<IWatchlistReadRepository, MongoWatchlistReadRepository>();
         services.AddSingleton<IWatchlistExportRepository, MongoWatchlistExportRepository>();
         services.AddSingleton<IWatchlistWriteRepository, MongoWatchlistWriteRepository>();
@@ -89,6 +100,7 @@ public static class DependencyInjection
             httpClient.BaseAddress = new Uri(options.BaseUrl);
         });
         services.AddScoped<ITmdbTvWatchlistSyncService, TmdbTvWatchlistSyncService>();
+        services.AddHostedService<DataProtectionKeyRingHostedService>();
         services.AddHostedService<MongoBootstrapHostedService>();
 
         return services;
