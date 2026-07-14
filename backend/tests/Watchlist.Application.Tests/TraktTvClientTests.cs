@@ -401,6 +401,75 @@ public sealed class TraktTvClientTests
         await action.Should().ThrowAsync<TraktParseException>();
     }
 
+    [Theory]
+    [InlineData("next_episode")]
+    [InlineData("last_episode")]
+    public async Task GetWatchedProgressAsync_WhenNullableEpisodeMarkerIsMissing_ThrowsParseException(
+        string missingProperty)
+    {
+        string remainingMarker = missingProperty == "next_episode"
+            ? "\"last_episode\": null"
+            : "\"next_episode\": null";
+        string json = $$"""
+            [
+              {
+                "show": {
+                  "title": "Show",
+                  "year": 2020,
+                  "ids": { "trakt": 10 }
+                },
+                "progress": {
+                  "aired": 0,
+                  "completed": 0,
+                  {{remainingMarker}}
+                }
+              }
+            ]
+            """;
+        RecordingHandler handler = new(_ => PaginatedJsonResponse(json, 1));
+        TraktTvClient client = CreateClient(handler);
+
+        Func<Task> action = async () => await client.GetWatchedProgressAsync(
+            AccessToken,
+            CancellationToken.None);
+
+        TraktParseException exception = (await action.Should()
+            .ThrowAsync<TraktParseException>())
+            .Which;
+        AssertSanitizedParseException(exception);
+    }
+
+    [Fact]
+    public async Task GetWatchedProgressAsync_WhenBothEpisodeMarkersAreExplicitNull_AcceptsRow()
+    {
+        RecordingHandler handler = new(_ => PaginatedJsonResponse("""
+            [
+              {
+                "show": {
+                  "title": "Show",
+                  "year": 2020,
+                  "ids": { "trakt": 10 }
+                },
+                "progress": {
+                  "aired": 0,
+                  "completed": 0,
+                  "next_episode": null,
+                  "last_episode": null
+                }
+              }
+            ]
+            """, 1));
+        TraktTvClient client = CreateClient(handler);
+
+        IReadOnlyList<TraktWatchedShowProgress> result = await client.GetWatchedProgressAsync(
+            AccessToken,
+            CancellationToken.None);
+
+        result.Should().ContainSingle();
+        result[0].NextEpisode.Should().BeNull();
+        result[0].LastEpisode.Should().BeNull();
+    }
+
     [Fact]
     public async Task GetDetailedProgressAsync_MapsCanonicalSeasonsAndEpisodes()
     {
@@ -618,7 +687,7 @@ public sealed class TraktTvClientTests
     }
 
     [Fact]
-    public async Task GetShowMetadataAsync_MapsFullMetadataAndNormalizesIdentity()
+    public async Task GetShowMetadataAsync_MapsMetadataAndPreservesUpstreamStatusVerbatim()
     {
         RecordingHandler handler = new(_ => JsonResponse("""
             {
@@ -646,7 +715,34 @@ public sealed class TraktTvClientTests
             "Example Show",
             2024,
             "Overview",
-            "returning series"));
+            "  RETURNING SERIES  "));
+    }
+
+    [Theory]
+    [InlineData("ended")]
+    [InlineData("canceled")]
+    [InlineData("Ended")]
+    [InlineData("CANCELED")]
+    [InlineData(" ended ")]
+    public async Task GetShowMetadataAsync_PreservesStatusOrdinally(string status)
+    {
+        string json = $$"""
+            {
+              "title": "Show",
+              "year": 2024,
+              "status": "{{status}}",
+              "ids": { "trakt": 42 }
+            }
+            """;
+        RecordingHandler handler = new(_ => JsonResponse(json));
+        TraktTvClient client = CreateClient(handler);
+
+        TraktShowMetadata result = await client.GetShowMetadataAsync(
+            AccessToken,
+            42,
+            CancellationToken.None);
+
+        result.Status.Should().Be(status);
     }
 
     [Fact]

@@ -189,7 +189,7 @@ public sealed class TraktTvClient(
             NormalizeRequired(result.Title),
             ValidateYear(result.Year),
             NormalizeOptional(result.Overview),
-            NormalizeOptional(result.Status)?.ToLowerInvariant());
+            result.Status);
     }
 
     public async Task<IReadOnlyList<TraktSeasonEpisode>> GetSeasonAsync(
@@ -617,8 +617,8 @@ public sealed class TraktTvClient(
     private sealed record ProgressResponse(
         [property: JsonPropertyName("aired")] int? Aired,
         [property: JsonPropertyName("completed")] int? Completed,
-        [property: JsonPropertyName("next_episode")] EpisodeResponse? NextEpisode,
-        [property: JsonPropertyName("last_episode")] EpisodeResponse? LastEpisode);
+        [property: JsonPropertyName("next_episode"), JsonRequired] EpisodeResponse? NextEpisode,
+        [property: JsonPropertyName("last_episode"), JsonRequired] EpisodeResponse? LastEpisode);
 
     private sealed record DetailedProgressResponse(
         [property: JsonPropertyName("aired")] int? Aired,
