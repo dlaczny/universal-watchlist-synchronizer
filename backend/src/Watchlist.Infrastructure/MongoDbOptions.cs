@@ -16,4 +16,12 @@ public sealed class MongoDbOptions
 
     public string LetterboxdSourceSnapshotsCollectionName { get; init; } =
         "letterboxd_source_snapshots";
+
+    public string TvShowsCollectionName { get; init; } = "tv_shows";
+
+    public string TvSyncManifestsCollectionName { get; init; } = "tv_sync_manifests";
+
+    public string TvLifecycleEventsCollectionName { get; init; } = "tv_lifecycle_events";
+
+    public string TraktConnectionsCollectionName { get; init; } = "trakt_connections";
 }
