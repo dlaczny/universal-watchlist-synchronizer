@@ -56,11 +56,12 @@ public static class DependencyInjection
         });
         services.AddSingleton<ITraktTokenProtector, DataProtectionTraktTokenProtector>();
         services.AddSingleton<ITraktConnectionRepository, MongoTraktConnectionRepository>();
-        services.AddHttpClient<ITraktOAuthClient, TraktOAuthClient>((serviceProvider, httpClient) =>
+        services.AddHttpClient(TraktOAuthClient.HttpClientName, (serviceProvider, httpClient) =>
         {
             TraktOptions options = serviceProvider.GetRequiredService<IOptions<TraktOptions>>().Value;
             httpClient.BaseAddress = new Uri(options.BaseUrl);
         });
+        services.AddSingleton<ITraktOAuthClient, TraktOAuthClient>();
         services.AddSingleton<TraktConnectionService>(serviceProvider =>
         {
             TraktOptions traktOptions = serviceProvider

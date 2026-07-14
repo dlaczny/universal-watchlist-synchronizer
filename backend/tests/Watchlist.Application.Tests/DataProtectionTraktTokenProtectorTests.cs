@@ -96,6 +96,20 @@ public sealed class DataProtectionTraktTokenProtectorTests : IDisposable
         actualProperties.Should().BeEquivalentTo(expectedProperties);
     }
 
+    [Fact]
+    public void TraktConnectionUnreadableException_HasOnlyFixedSanitizedDiagnostics()
+    {
+        Type exceptionType = typeof(TraktConnectionUnreadableException);
+
+        exceptionType.GetConstructors().Should().ContainSingle(constructor =>
+            constructor.GetParameters().Length == 0);
+        TraktConnectionUnreadableException exception =
+            (TraktConnectionUnreadableException)Activator.CreateInstance(exceptionType)!;
+        exception.Message.Should().Be("The stored Trakt connection cannot be decrypted.");
+        exception.InnerException.Should().BeNull();
+        exception.ToString().Should().NotContain("inner-secret-diagnostic-sentinel");
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(tempDirectory))

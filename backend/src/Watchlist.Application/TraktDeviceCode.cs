@@ -8,4 +8,10 @@ public sealed record TraktDeviceCode(
     string UserCode,
     string VerificationUrl,
     TimeSpan ExpiresIn,
-    TimeSpan Interval);
+    TimeSpan Interval)
+{
+    public override string ToString()
+    {
+        return "TraktDeviceCode { Values = [REDACTED] }";
+    }
+}

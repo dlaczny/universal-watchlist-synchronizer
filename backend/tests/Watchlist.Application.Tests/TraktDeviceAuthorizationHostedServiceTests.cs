@@ -119,7 +119,7 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenOperationalErrorOccurs_LogsStableCodeAndKeepsPolling()
+    public async Task ExecuteAsync_WhenOperationalErrorPersistsBackoff_DoesNotPollBeforeDurableTimestamp()
     {
         string protectedSentinel = "protected-device-sentinel-5c137d";
         HostedRepository repository = new(PendingConnection(Now, Now.AddMinutes(10)) with
@@ -129,7 +129,17 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
         });
         HostedConnectionService connectionService = new()
         {
-            FailuresBeforeSuccess = 1
+            FailuresBeforeSuccess = 1,
+            BeforePollResult = callCount =>
+            {
+                if (callCount == 1)
+                {
+                    repository.SetConnection(PendingConnection(
+                        Now.AddSeconds(2),
+                        Now.AddMinutes(10),
+                        TimeSpan.FromSeconds(2)));
+                }
+            }
         };
         ManualTimeProvider timeProvider = new(Now);
         CapturingLogger logger = new();
@@ -145,8 +155,12 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
         timeProvider.Advance(TimeSpan.FromSeconds(1));
         timer.Fire();
 
+        ManualTimer secondTimer = await timeProvider.WaitForTimerAsync()
+            .WaitAsync(TimeSpan.FromSeconds(1));
+        connectionService.PollCallCount.Should().Be(1);
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        secondTimer.Fire();
         await connectionService.WaitForPollCountAsync(2).WaitAsync(TimeSpan.FromSeconds(1));
-        connectionService.PollCallCount.Should().Be(2);
         logger.Messages.Should().ContainSingle(message => message.Contains(
             "trakt_unavailable",
             StringComparison.Ordinal));
@@ -154,6 +168,46 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
         logs.Should().NotContain(protectedSentinel);
         logs.Should().NotContain("user-code-sentinel-82e957");
         logs.Should().NotContain("TraktConnection {");
+        await hostedService.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenInternalPersistenceCancellationOccurs_LogsStableCodeAndKeepsPolling()
+    {
+        string cancellationSecret = "persistence-timeout-secret-sentinel-b8d214";
+        HostedRepository repository = new(PendingConnection(Now, Now.AddMinutes(10)));
+        HostedConnectionService connectionService = new()
+        {
+            BeforePollResult = callCount =>
+            {
+                if (callCount == 1)
+                {
+                    throw new OperationCanceledException(cancellationSecret);
+                }
+            }
+        };
+        ManualTimeProvider timeProvider = new(Now);
+        CapturingLogger logger = new();
+        TraktDeviceAuthorizationHostedService hostedService = new(
+            repository,
+            connectionService,
+            timeProvider,
+            logger);
+
+        await hostedService.StartAsync(CancellationToken.None);
+        await connectionService.WaitForPollCountAsync(1).WaitAsync(TimeSpan.FromSeconds(1));
+        ManualTimer timer = await timeProvider.WaitForTimerAsync().WaitAsync(TimeSpan.FromSeconds(1));
+        logger.Messages.Should().ContainSingle(message => message.Contains(
+            "persistence_timeout",
+            StringComparison.Ordinal));
+        string logs = string.Join(Environment.NewLine, logger.Messages);
+        logs.Should().NotContain(cancellationSecret);
+
+        timeProvider.Advance(TimeSpan.FromSeconds(1));
+        timer.Fire();
+
+        await connectionService.WaitForPollCountAsync(2).WaitAsync(TimeSpan.FromSeconds(1));
+        connectionService.PollCallCount.Should().Be(2);
         await hostedService.StopAsync(CancellationToken.None);
     }
 
@@ -271,6 +325,11 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
             connection = null;
             return Task.CompletedTask;
         }
+
+        public void SetConnection(TraktConnection savedConnection)
+        {
+            connection = savedConnection;
+        }
     }
 
     private sealed class HostedConnectionService : ITraktConnectionService
@@ -281,6 +340,8 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
         public int PollCallCount { get; private set; }
 
         public int FailuresBeforeSuccess { get; init; }
+
+        public Action<int>? BeforePollResult { get; init; }
 
         public Task<TraktDeviceStartDto> StartDeviceAsync(CancellationToken cancellationToken)
         {
@@ -302,6 +363,8 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
                     pollWaiters.Remove(waiter.Key);
                 }
             }
+
+            BeforePollResult?.Invoke(callCount);
 
             if (callCount <= FailuresBeforeSuccess)
             {

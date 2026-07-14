@@ -7,4 +7,10 @@ public sealed record TraktTokenGrant(
     string AccessToken,
     string RefreshToken,
     TimeSpan ExpiresIn,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt)
+{
+    public override string ToString()
+    {
+        return "TraktTokenGrant { Values = [REDACTED] }";
+    }
+}

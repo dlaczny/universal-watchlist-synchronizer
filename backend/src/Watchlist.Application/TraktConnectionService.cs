@@ -12,6 +12,7 @@ public sealed class TraktConnectionService(
 {
     private static readonly TimeSpan SlowDownIncrement = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DefaultDevicePollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan CriticalSaveTimeout = TimeSpan.FromSeconds(10);
     private readonly SemaphoreSlim gate = new(1, 1);
 
     public async Task<TraktDeviceStartDto> StartDeviceAsync(
@@ -30,8 +31,16 @@ public sealed class TraktConnectionService(
             }
 
             TraktDeviceCode deviceCode = await oauthClient.StartDeviceAsync(cancellationToken);
+            DateTimeOffset completedAt = timeProvider.GetUtcNow();
+            if (deviceCode.ExpiresIn <= TimeSpan.Zero)
+            {
+                throw new TraktParseException();
+            }
+
+            int pollIntervalSeconds = ValidatePollInterval(deviceCode.Interval);
+            DateTimeOffset expiresAt = AddTimestamp(completedAt, deviceCode.ExpiresIn);
+            DateTimeOffset nextPollAt = AddTimestamp(completedAt, deviceCode.Interval);
             string protectedDeviceCode = tokenProtector.Protect(deviceCode.DeviceCode);
-            DateTimeOffset expiresAt = now.Add(deviceCode.ExpiresIn);
             TraktConnection pending = new(
                 "pending",
                 protectedDeviceCode,
@@ -39,18 +48,18 @@ public sealed class TraktConnectionService(
                 deviceCode.VerificationUrl,
                 expiresAt,
                 deviceCode.Interval,
-                now.Add(deviceCode.Interval),
+                nextPollAt,
                 null,
                 null,
                 null,
-                now);
-            await repository.SaveAsync(pending, cancellationToken);
+                completedAt);
+            await SaveCriticalAsync(pending);
 
             return new TraktDeviceStartDto(
                 deviceCode.UserCode,
                 deviceCode.VerificationUrl,
                 expiresAt,
-                checked((int)Math.Ceiling(deviceCode.Interval.TotalSeconds)));
+                pollIntervalSeconds);
         }
         finally
         {
@@ -92,7 +101,7 @@ public sealed class TraktConnectionService(
 
             if (string.IsNullOrWhiteSpace(connection.ProtectedDeviceCode))
             {
-                return UnreadableStatus();
+                return await PersistUnreadablePendingAsync(connection, cancellationToken);
             }
 
             string deviceCode;
@@ -102,44 +111,27 @@ public sealed class TraktConnectionService(
             }
             catch (TraktConnectionUnreadableException)
             {
-                return UnreadableStatus();
+                return await PersistUnreadablePendingAsync(connection, cancellationToken);
             }
 
+            TraktTokenGrant? grant;
             try
             {
-                TraktTokenGrant? grant = await oauthClient.PollDeviceAsync(
-                    deviceCode,
-                    cancellationToken);
-                if (grant is null)
-                {
-                    TimeSpan interval = connection.DevicePollInterval
-                        ?? DefaultDevicePollInterval;
-                    TraktConnection scheduled = connection with
-                    {
-                        DevicePollInterval = interval,
-                        NextDevicePollAt = now.Add(interval),
-                        UpdatedAt = now
-                    };
-                    await repository.SaveAsync(scheduled, cancellationToken);
-                    return new TraktConnectionStatusDto("pending", null, null, null);
-                }
-
-                TraktConnection connected = CreateConnected(grant, now);
-                await repository.SaveAsync(connected, cancellationToken);
-                return GetPublicStatus(connected);
+                grant = await oauthClient.PollDeviceAsync(deviceCode, cancellationToken);
             }
             catch (TraktDeviceAuthorizationException exception)
                 when (exception.Code == "slow_down")
             {
+                DateTimeOffset completedAt = timeProvider.GetUtcNow();
                 TimeSpan interval = (connection.DevicePollInterval
                     ?? DefaultDevicePollInterval).Add(SlowDownIncrement);
                 TraktConnection slowed = connection with
                 {
                     DevicePollInterval = interval,
-                    NextDevicePollAt = now.Add(interval),
-                    UpdatedAt = now
+                    NextDevicePollAt = AddTimestamp(completedAt, interval),
+                    UpdatedAt = completedAt
                 };
-                await repository.SaveAsync(slowed, cancellationToken);
+                await SaveCriticalAsync(slowed);
                 return new TraktConnectionStatusDto(
                     "pending",
                     null,
@@ -149,14 +141,51 @@ public sealed class TraktConnectionService(
             catch (TraktDeviceAuthorizationException exception)
                 when (exception.Code is "denied" or "expired" or "invalid" or "already_used")
             {
-                TraktConnection revoked = ClearPendingState(connection, "revoked", now);
-                await repository.SaveAsync(revoked, cancellationToken);
+                DateTimeOffset completedAt = timeProvider.GetUtcNow();
+                TraktConnection revoked = ClearPendingState(
+                    connection,
+                    "revoked",
+                    completedAt);
+                await SaveCriticalAsync(revoked);
                 return new TraktConnectionStatusDto(
                     "revoked",
                     null,
                     null,
                     exception.Code);
             }
+            catch (TraktUnavailableException)
+            {
+                await PersistTransientBackoffAsync(
+                    connection,
+                    timeProvider.GetUtcNow());
+                throw;
+            }
+            catch (TraktParseException)
+            {
+                await PersistTransientBackoffAsync(
+                    connection,
+                    timeProvider.GetUtcNow());
+                throw;
+            }
+
+            DateTimeOffset responseCompletedAt = timeProvider.GetUtcNow();
+            if (grant is null)
+            {
+                TimeSpan interval = connection.DevicePollInterval
+                    ?? DefaultDevicePollInterval;
+                TraktConnection scheduled = connection with
+                {
+                    DevicePollInterval = interval,
+                    NextDevicePollAt = AddTimestamp(responseCompletedAt, interval),
+                    UpdatedAt = responseCompletedAt
+                };
+                await SaveCriticalAsync(scheduled);
+                return new TraktConnectionStatusDto("pending", null, null, null);
+            }
+
+            TraktConnection connected = CreateConnected(grant, responseCompletedAt);
+            await SaveCriticalAsync(connected);
+            return GetPublicStatus(connected);
         }
         finally
         {
@@ -210,7 +239,7 @@ public sealed class TraktConnectionService(
                 return UnprotectConnectedValue(connection.ProtectedAccessToken);
             }
 
-            return await RefreshAsync(connection, now, cancellationToken);
+            return await RefreshAsync(connection, cancellationToken);
         }
         finally
         {
@@ -224,10 +253,7 @@ public sealed class TraktConnectionService(
         try
         {
             TraktConnection connection = await GetConnectedAsync(cancellationToken);
-            return await RefreshAsync(
-                connection,
-                timeProvider.GetUtcNow(),
-                cancellationToken);
+            return await RefreshAsync(connection, cancellationToken);
         }
         finally
         {
@@ -246,9 +272,35 @@ public sealed class TraktConnectionService(
         return connection;
     }
 
+    private async Task<TraktConnectionStatusDto> PersistUnreadablePendingAsync(
+        TraktConnection connection,
+        CancellationToken cancellationToken)
+    {
+        TraktConnection refreshRequired = connection with
+        {
+            State = "refresh_required",
+            UpdatedAt = timeProvider.GetUtcNow()
+        };
+        await repository.SaveAsync(refreshRequired, cancellationToken);
+        return UnreadableStatus();
+    }
+
+    private async Task PersistTransientBackoffAsync(
+        TraktConnection connection,
+        DateTimeOffset completedAt)
+    {
+        TimeSpan interval = connection.DevicePollInterval ?? DefaultDevicePollInterval;
+        TraktConnection scheduled = connection with
+        {
+            DevicePollInterval = interval,
+            NextDevicePollAt = AddTimestamp(completedAt, interval),
+            UpdatedAt = completedAt
+        };
+        await SaveCriticalAsync(scheduled);
+    }
+
     private async Task<string> RefreshAsync(
         TraktConnection connection,
-        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         string refreshToken = UnprotectConnectedValue(connection.ProtectedRefreshToken);
@@ -259,18 +311,26 @@ public sealed class TraktConnectionService(
         }
         catch (TraktRefreshRejectedException)
         {
+            DateTimeOffset completedAt = timeProvider.GetUtcNow();
             TraktConnection refreshRequired = connection with
             {
                 State = "refresh_required",
-                UpdatedAt = now
+                UpdatedAt = completedAt
             };
-            await repository.SaveAsync(refreshRequired, cancellationToken);
+            await SaveCriticalAsync(refreshRequired);
             throw new TraktNotConnectedException();
         }
 
-        TraktConnection refreshed = CreateConnected(grant, now);
-        await repository.SaveAsync(refreshed, cancellationToken);
+        DateTimeOffset responseCompletedAt = timeProvider.GetUtcNow();
+        TraktConnection refreshed = CreateConnected(grant, responseCompletedAt);
+        await SaveCriticalAsync(refreshed);
         return grant.AccessToken;
+    }
+
+    private async Task SaveCriticalAsync(TraktConnection connection)
+    {
+        using CancellationTokenSource timeout = new(CriticalSaveTimeout, timeProvider);
+        await repository.SaveAsync(connection, timeout.Token);
     }
 
     private string UnprotectConnectedValue(string? ciphertext)
@@ -292,6 +352,12 @@ public sealed class TraktConnectionService(
 
     private TraktConnection CreateConnected(TraktTokenGrant grant, DateTimeOffset now)
     {
+        if (grant.ExpiresIn <= TimeSpan.Zero)
+        {
+            throw new TraktParseException();
+        }
+
+        DateTimeOffset expiresAt = AddTimestamp(grant.CreatedAt, grant.ExpiresIn);
         string protectedAccessToken = tokenProtector.Protect(grant.AccessToken);
         string protectedRefreshToken = tokenProtector.Protect(grant.RefreshToken);
         return new TraktConnection(
@@ -304,8 +370,41 @@ public sealed class TraktConnectionService(
             null,
             protectedAccessToken,
             protectedRefreshToken,
-            grant.CreatedAt.Add(grant.ExpiresIn),
+            expiresAt,
             now);
+    }
+
+    private static int ValidatePollInterval(TimeSpan interval)
+    {
+        long ticks = interval.Ticks;
+        if (ticks <= 0 || ticks % TimeSpan.TicksPerSecond != 0)
+        {
+            throw new TraktParseException();
+        }
+
+        long seconds = ticks / TimeSpan.TicksPerSecond;
+        if (seconds > int.MaxValue)
+        {
+            throw new TraktParseException();
+        }
+
+        return (int)seconds;
+    }
+
+    private static DateTimeOffset AddTimestamp(DateTimeOffset timestamp, TimeSpan duration)
+    {
+        try
+        {
+            return timestamp.Add(duration);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new TraktParseException();
+        }
+        catch (OverflowException)
+        {
+            throw new TraktParseException();
+        }
     }
 
     private TraktConnectionStatusDto GetPublicStatus(TraktConnection connection)

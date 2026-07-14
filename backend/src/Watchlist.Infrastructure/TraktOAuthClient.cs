@@ -11,13 +11,17 @@ namespace Watchlist.Infrastructure;
 /// Performs the Trakt device and refresh-token OAuth exchanges.
 /// </summary>
 public sealed class TraktOAuthClient(
-    HttpClient httpClient,
+    IHttpClientFactory httpClientFactory,
     IOptions<TraktOptions> options) : ITraktOAuthClient
 {
+    public const string HttpClientName = "TraktOAuth";
+
     public async Task<TraktDeviceCode> StartDeviceAsync(CancellationToken cancellationToken)
     {
+        using HttpClient httpClient = httpClientFactory.CreateClient(HttpClientName);
         DeviceCodeRequest payload = new(options.Value.ClientId);
         using HttpResponseMessage response = await PostAsync(
+            httpClient,
             "/oauth/device/code",
             payload,
             cancellationToken);
@@ -46,11 +50,13 @@ public sealed class TraktOAuthClient(
         string deviceCode,
         CancellationToken cancellationToken)
     {
+        using HttpClient httpClient = httpClientFactory.CreateClient(HttpClientName);
         DeviceTokenRequest payload = new(
             deviceCode,
             options.Value.ClientId,
             options.Value.ClientSecret);
         using HttpResponseMessage response = await PostAsync(
+            httpClient,
             "/oauth/device/token",
             payload,
             cancellationToken);
@@ -82,6 +88,7 @@ public sealed class TraktOAuthClient(
         string refreshToken,
         CancellationToken cancellationToken)
     {
+        using HttpClient httpClient = httpClientFactory.CreateClient(HttpClientName);
         RefreshTokenRequest payload = new(
             refreshToken,
             options.Value.ClientId,
@@ -89,6 +96,7 @@ public sealed class TraktOAuthClient(
             options.Value.RedirectUri,
             "refresh_token");
         using HttpResponseMessage response = await PostAsync(
+            httpClient,
             "/oauth/token",
             payload,
             cancellationToken);
@@ -103,6 +111,7 @@ public sealed class TraktOAuthClient(
     }
 
     private async Task<HttpResponseMessage> PostAsync<TPayload>(
+        HttpClient httpClient,
         string path,
         TPayload payload,
         CancellationToken cancellationToken)
@@ -201,30 +210,60 @@ public sealed class TraktOAuthClient(
     }
 
     private sealed record DeviceCodeRequest(
-        [property: JsonPropertyName("client_id")] string ClientId);
+        [property: JsonPropertyName("client_id")] string ClientId)
+    {
+        public override string ToString()
+        {
+            return "DeviceCodeRequest { Values = [REDACTED] }";
+        }
+    }
 
     private sealed record DeviceTokenRequest(
         [property: JsonPropertyName("code")] string Code,
         [property: JsonPropertyName("client_id")] string ClientId,
-        [property: JsonPropertyName("client_secret")] string ClientSecret);
+        [property: JsonPropertyName("client_secret")] string ClientSecret)
+    {
+        public override string ToString()
+        {
+            return "DeviceTokenRequest { Values = [REDACTED] }";
+        }
+    }
 
     private sealed record RefreshTokenRequest(
         [property: JsonPropertyName("refresh_token")] string RefreshToken,
         [property: JsonPropertyName("client_id")] string ClientId,
         [property: JsonPropertyName("client_secret")] string ClientSecret,
         [property: JsonPropertyName("redirect_uri")] string RedirectUri,
-        [property: JsonPropertyName("grant_type")] string GrantType);
+        [property: JsonPropertyName("grant_type")] string GrantType)
+    {
+        public override string ToString()
+        {
+            return "RefreshTokenRequest { Values = [REDACTED] }";
+        }
+    }
 
     private sealed record DeviceCodeResponse(
         [property: JsonPropertyName("device_code")] string? DeviceCode,
         [property: JsonPropertyName("user_code")] string? UserCode,
         [property: JsonPropertyName("verification_url")] string? VerificationUrl,
         [property: JsonPropertyName("expires_in")] long ExpiresIn,
-        [property: JsonPropertyName("interval")] long Interval);
+        [property: JsonPropertyName("interval")] long Interval)
+    {
+        public override string ToString()
+        {
+            return "DeviceCodeResponse { Values = [REDACTED] }";
+        }
+    }
 
     private sealed record TokenResponse(
         [property: JsonPropertyName("access_token")] string? AccessToken,
         [property: JsonPropertyName("refresh_token")] string? RefreshToken,
         [property: JsonPropertyName("expires_in")] long ExpiresIn,
-        [property: JsonPropertyName("created_at")] long CreatedAt);
+        [property: JsonPropertyName("created_at")] long CreatedAt)
+    {
+        public override string ToString()
+        {
+            return "TokenResponse { Values = [REDACTED] }";
+        }
+    }
 }

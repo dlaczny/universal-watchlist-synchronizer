@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Watchlist.Application;
 using Watchlist.Infrastructure;
@@ -10,6 +11,38 @@ namespace Watchlist.Application.Tests;
 
 public sealed class TraktOAuthClientTests
 {
+    [Fact]
+    public async Task SingletonClient_CreatesAndDisposesNamedFactoryClientForEachOperation()
+    {
+        RecordingHandler handler = new(_ => JsonResponse("""
+            {
+              "device_code": "device-code",
+              "user_code": "ABCD1234",
+              "verification_url": "https://trakt.tv/activate",
+              "expires_in": 600,
+              "interval": 5
+            }
+            """));
+        RecordingHttpClientFactory factory = new(handler);
+        ServiceCollection services = new();
+        services.AddSingleton<IHttpClientFactory>(factory);
+        services.AddSingleton<IOptions<TraktOptions>>(Options.Create(CreateOptions()));
+        services.AddSingleton<ITraktOAuthClient, TraktOAuthClient>();
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        ITraktOAuthClient client = provider.GetRequiredService<ITraktOAuthClient>();
+        ITraktOAuthClient secondResolution = provider.GetRequiredService<ITraktOAuthClient>();
+        await client.StartDeviceAsync(CancellationToken.None);
+        await client.StartDeviceAsync(CancellationToken.None);
+
+        secondResolution.Should().BeSameAs(client);
+        factory.RequestedNames.Should().Equal("TraktOAuth", "TraktOAuth");
+        factory.CreatedClients.Should().HaveCount(2)
+            .And.OnlyContain(createdClient => createdClient.IsDisposed);
+        handler.Requests.Select(request => request.PathAndQuery)
+            .Should().Equal("/oauth/device/code", "/oauth/device/code");
+    }
+
     [Fact]
     public async Task StartDeviceAsync_SendsExactJsonRequestAndParsesDeviceCode()
     {
@@ -363,18 +396,20 @@ public sealed class TraktOAuthClientTests
 
     private static TraktOAuthClient CreateClient(HttpMessageHandler handler)
     {
-        HttpClient httpClient = new(handler)
-        {
-            BaseAddress = new Uri("https://api.trakt.tv")
-        };
-        TraktOptions options = new()
+        return new TraktOAuthClient(
+            new RecordingHttpClientFactory(handler),
+            Options.Create(CreateOptions()));
+    }
+
+    private static TraktOptions CreateOptions()
+    {
+        return new TraktOptions
         {
             BaseUrl = "https://api.trakt.tv",
             ClientId = "client-id",
             ClientSecret = "client-secret",
             RedirectUri = "urn:ietf:wg:oauth:2.0:oob"
         };
-        return new TraktOAuthClient(httpClient, Options.Create(options));
     }
 
     private static HttpResponseMessage JsonResponse(string json)
@@ -437,6 +472,37 @@ public sealed class TraktOAuthClientTests
         {
             await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
             throw new InvalidOperationException("Unreachable.");
+        }
+    }
+
+    private sealed class RecordingHttpClientFactory(HttpMessageHandler handler)
+        : IHttpClientFactory
+    {
+        public List<string> RequestedNames { get; } = [];
+
+        public List<TrackingHttpClient> CreatedClients { get; } = [];
+
+        public HttpClient CreateClient(string name)
+        {
+            RequestedNames.Add(name);
+            TrackingHttpClient client = new(handler)
+            {
+                BaseAddress = new Uri("https://api.trakt.tv")
+            };
+            CreatedClients.Add(client);
+            return client;
+        }
+    }
+
+    private sealed class TrackingHttpClient(HttpMessageHandler handler)
+        : HttpClient(handler, disposeHandler: false)
+    {
+        public bool IsDisposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            IsDisposed = true;
+            base.Dispose(disposing);
         }
     }
 }

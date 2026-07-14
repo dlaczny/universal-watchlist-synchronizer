@@ -7,4 +7,10 @@ public sealed record TraktDeviceStartDto(
     string UserCode,
     string VerificationUrl,
     DateTimeOffset ExpiresAt,
-    int PollIntervalSeconds);
+    int PollIntervalSeconds)
+{
+    public override string ToString()
+    {
+        return "TraktDeviceStartDto { Values = [REDACTED] }";
+    }
+}

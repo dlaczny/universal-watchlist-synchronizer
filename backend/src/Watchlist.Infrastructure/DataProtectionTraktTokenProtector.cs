@@ -21,9 +21,9 @@ public sealed class DataProtectionTraktTokenProtector(IDataProtectionProvider pr
         {
             return protector.Unprotect(ciphertext);
         }
-        catch (CryptographicException exception)
+        catch (CryptographicException)
         {
-            throw new TraktConnectionUnreadableException(exception);
+            throw new TraktConnectionUnreadableException();
         }
     }
 }

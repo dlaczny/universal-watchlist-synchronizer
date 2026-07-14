@@ -56,6 +56,8 @@ public sealed class DataProtectionKeyRingHostedServiceTests : IDisposable
                 provider.GetRequiredService<ITraktConnectionService>();
             ITraktAccessTokenProvider accessTokenProvider =
                 provider.GetRequiredService<ITraktAccessTokenProvider>();
+            ITraktOAuthClient oauthClient =
+                provider.GetRequiredService<ITraktOAuthClient>();
             tokenProtector.Should().BeOfType<DataProtectionTraktTokenProtector>();
             tokenProtector.Should().BeSameAs(
                 provider.GetRequiredService<ITraktTokenProtector>());
@@ -66,8 +68,9 @@ public sealed class DataProtectionKeyRingHostedServiceTests : IDisposable
             accessTokenProvider.Should().BeSameAs(connectionService);
             connectionService.Should().BeSameAs(
                 provider.GetRequiredService<ITraktConnectionService>());
-            provider.GetRequiredService<ITraktOAuthClient>()
-                .Should().BeOfType<TraktOAuthClient>();
+            oauthClient.Should().BeOfType<TraktOAuthClient>();
+            oauthClient.Should().BeSameAs(
+                provider.GetRequiredService<ITraktOAuthClient>());
             DataProtectionKeyRingOptions boundOptions = provider
                 .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
                 .Value;

@@ -50,6 +50,10 @@ public sealed class TraktDeviceAuthorizationHostedService(
                 {
                     LogOperationalError("mongo_unavailable");
                 }
+                catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+                {
+                    LogOperationalError("persistence_timeout");
+                }
 
                 await Task.Delay(PollCadence, timeProvider, stoppingToken);
             }
