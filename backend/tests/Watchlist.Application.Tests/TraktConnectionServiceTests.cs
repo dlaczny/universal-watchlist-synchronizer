@@ -397,6 +397,60 @@ public sealed class TraktConnectionServiceTests
     }
 
     [Fact]
+    public async Task GetStatusAsync_WhenRefreshRequiredCiphertextBecomesUnreadable_ReportsTokenUnreadableWithoutMutation()
+    {
+        TraktConnection refreshRequired = ConnectedConnection(Now.AddMinutes(1)) with
+        {
+            State = "refresh_required",
+            ProtectedAccessToken = "unreadable-ciphertext",
+            ProtectedRefreshToken = "unreadable-ciphertext"
+        };
+        FakeRepository repository = new(refreshRequired);
+        TrackingProtector protector = new();
+        TraktConnectionService service = CreateService(
+            repository,
+            new FakeOAuthClient(),
+            protector);
+
+        TraktConnectionStatusDto status = await service.GetStatusAsync(CancellationToken.None);
+
+        status.Status.Should().Be("refresh_required");
+        status.LastErrorCode.Should().Be("token_unreadable");
+        protector.UnprotectedCiphertexts.Should().Contain("unreadable-ciphertext");
+        repository.SaveCallCount.Should().Be(0);
+        repository.DeleteCallCount.Should().Be(0);
+        repository.Stored.Should().BeSameAs(refreshRequired);
+        repository.Stored!.ProtectedAccessToken.Should().Be("unreadable-ciphertext");
+        repository.Stored.ProtectedRefreshToken.Should().Be("unreadable-ciphertext");
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_WhenRefreshRequiredCiphertextIsReadable_ReportsRefreshRejectedWithoutMutation()
+    {
+        TraktConnection refreshRequired = ConnectedConnection(Now.AddMinutes(1)) with
+        {
+            State = "refresh_required"
+        };
+        FakeRepository repository = new(refreshRequired);
+        TrackingProtector protector = new();
+        TraktConnectionService service = CreateService(
+            repository,
+            new FakeOAuthClient(),
+            protector);
+
+        TraktConnectionStatusDto status = await service.GetStatusAsync(CancellationToken.None);
+
+        status.Status.Should().Be("refresh_required");
+        status.LastErrorCode.Should().Be("refresh_rejected");
+        protector.UnprotectedCiphertexts.Should().Equal(
+            "protected:plain-access-token",
+            "protected:plain-refresh-token");
+        repository.SaveCallCount.Should().Be(0);
+        repository.DeleteCallCount.Should().Be(0);
+        repository.Stored.Should().BeSameAs(refreshRequired);
+    }
+
+    [Fact]
     public async Task GetStatusAsync_WhenConnected_UsesUpdatedAtAsConnectedAt()
     {
         TraktConnection connection = ConnectedConnection(Now.AddHours(1)) with

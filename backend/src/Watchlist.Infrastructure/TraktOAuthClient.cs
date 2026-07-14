@@ -38,8 +38,8 @@ public sealed class TraktOAuthClient(
             result.DeviceCode,
             result.UserCode,
             result.VerificationUrl,
-            TimeSpan.FromSeconds(result.ExpiresIn),
-            TimeSpan.FromSeconds(result.Interval));
+            ConvertDuration(result.ExpiresIn),
+            ConvertDuration(result.Interval));
     }
 
     public async Task<TraktTokenGrant?> PollDeviceAsync(
@@ -120,7 +120,7 @@ public sealed class TraktOAuthClient(
         {
             throw new TraktUnavailableException();
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
             throw new TraktUnavailableException();
         }
@@ -160,8 +160,24 @@ public sealed class TraktOAuthClient(
         return new TraktTokenGrant(
             result.AccessToken,
             result.RefreshToken,
-            TimeSpan.FromSeconds(result.ExpiresIn),
+            ConvertDuration(result.ExpiresIn),
             createdAt);
+    }
+
+    private static TimeSpan ConvertDuration(long seconds)
+    {
+        try
+        {
+            return TimeSpan.FromSeconds(seconds);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            throw new TraktParseException();
+        }
+        catch (OverflowException)
+        {
+            throw new TraktParseException();
+        }
     }
 
     private static async Task<TResponse> ReadJsonAsync<TResponse>(

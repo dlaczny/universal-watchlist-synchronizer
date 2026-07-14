@@ -310,7 +310,7 @@ public sealed class TraktConnectionService(
 
     private TraktConnectionStatusDto GetPublicStatus(TraktConnection connection)
     {
-        if (connection.State == "connected")
+        if (connection.State is "connected" or "refresh_required")
         {
             if (string.IsNullOrWhiteSpace(connection.ProtectedAccessToken)
                 || string.IsNullOrWhiteSpace(connection.ProtectedRefreshToken))
@@ -326,6 +326,15 @@ public sealed class TraktConnectionService(
             catch (TraktConnectionUnreadableException)
             {
                 return UnreadableStatus();
+            }
+
+            if (connection.State == "refresh_required")
+            {
+                return new TraktConnectionStatusDto(
+                    "refresh_required",
+                    null,
+                    connection.AccessTokenExpiresAt,
+                    "refresh_rejected");
             }
 
             return new TraktConnectionStatusDto(
@@ -356,11 +365,6 @@ public sealed class TraktConnectionService(
 
         return connection.State switch
         {
-            "refresh_required" => new TraktConnectionStatusDto(
-                "refresh_required",
-                null,
-                connection.AccessTokenExpiresAt,
-                "refresh_rejected"),
             "revoked" => new TraktConnectionStatusDto("revoked", null, null, "revoked"),
             _ => DisconnectedStatus()
         };

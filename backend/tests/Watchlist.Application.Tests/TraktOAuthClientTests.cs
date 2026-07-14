@@ -164,6 +164,86 @@ public sealed class TraktOAuthClientTests
     }
 
     [Theory]
+    [InlineData("expires_in")]
+    [InlineData("interval")]
+    public async Task StartDeviceAsync_WhenSuccessfulDurationIsOutsideTimeSpanRange_ThrowsSanitizedParseException(
+        string outOfRangeField)
+    {
+        const string outOfRangeValue = "9223372036854775807";
+        string json = outOfRangeField == "expires_in"
+            ? """
+              {
+                "device_code": "device-code-secret-sentinel",
+                "user_code": "ABCD1234",
+                "verification_url": "https://trakt.tv/activate",
+                "expires_in": 9223372036854775807,
+                "interval": 5
+              }
+              """
+            : """
+              {
+                "device_code": "device-code-secret-sentinel",
+                "user_code": "ABCD1234",
+                "verification_url": "https://trakt.tv/activate",
+                "expires_in": 600,
+                "interval": 9223372036854775807
+              }
+              """;
+        RecordingHandler handler = new(_ => JsonResponse(json));
+        TraktOAuthClient client = CreateClient(handler);
+
+        Func<Task> action = () => client.StartDeviceAsync(CancellationToken.None);
+
+        TraktParseException exception = (await action.Should()
+            .ThrowAsync<TraktParseException>())
+            .Which;
+        exception.Message.Should().Be("The Trakt response could not be parsed.");
+        exception.ToString().Should().NotContain(outOfRangeValue);
+        exception.ToString().Should().NotContain("device-code-secret-sentinel");
+    }
+
+    [Theory]
+    [InlineData("poll")]
+    [InlineData("refresh")]
+    public async Task TokenGrant_WhenSuccessfulExpiryIsOutsideTimeSpanRange_ThrowsSanitizedParseException(
+        string operation)
+    {
+        const string outOfRangeValue = "9223372036854775807";
+        const string accessToken = "overflow-access-secret-sentinel";
+        const string refreshToken = "overflow-refresh-secret-sentinel";
+        RecordingHandler handler = new(_ => JsonResponse("""
+            {
+              "access_token": "overflow-access-secret-sentinel",
+              "refresh_token": "overflow-refresh-secret-sentinel",
+              "expires_in": 9223372036854775807,
+              "created_at": 1784023200
+            }
+            """));
+        TraktOAuthClient client = CreateClient(handler);
+
+        async Task InvokeAsync()
+        {
+            if (operation == "poll")
+            {
+                await client.PollDeviceAsync("device-code", CancellationToken.None);
+                return;
+            }
+
+            await client.RefreshAsync("refresh-token", CancellationToken.None);
+        }
+
+        Func<Task> action = InvokeAsync;
+
+        TraktParseException exception = (await action.Should()
+            .ThrowAsync<TraktParseException>())
+            .Which;
+        exception.Message.Should().Be("The Trakt response could not be parsed.");
+        exception.ToString().Should().NotContain(outOfRangeValue);
+        exception.ToString().Should().NotContain(accessToken);
+        exception.ToString().Should().NotContain(refreshToken);
+    }
+
+    [Theory]
     [InlineData(HttpStatusCode.Unauthorized)]
     [InlineData(HttpStatusCode.InternalServerError)]
     [InlineData(HttpStatusCode.ServiceUnavailable)]
@@ -214,6 +294,35 @@ public sealed class TraktOAuthClientTests
         Func<Task> action = () => client.StartDeviceAsync(CancellationToken.None);
 
         await action.Should().ThrowAsync<TraktUnavailableException>();
+    }
+
+    [Fact]
+    public async Task StartDeviceAsync_WhenPlainNonCallerCancellationOccurs_ThrowsSanitizedUnavailable()
+    {
+        string cancellationSecret = "operation-cancelled-secret-sentinel-f50ec8";
+        ThrowingHandler handler = new(new OperationCanceledException(cancellationSecret));
+        TraktOAuthClient client = CreateClient(handler);
+
+        Func<Task> action = () => client.StartDeviceAsync(CancellationToken.None);
+
+        TraktUnavailableException exception = (await action.Should()
+            .ThrowAsync<TraktUnavailableException>())
+            .Which;
+        exception.Message.Should().Be("Trakt is temporarily unavailable.");
+        exception.ToString().Should().NotContain(cancellationSecret);
+    }
+
+    [Fact]
+    public async Task StartDeviceAsync_WhenPlainCancellationHasCancelledCallerToken_PreservesCancellation()
+    {
+        ThrowingHandler handler = new(new OperationCanceledException("caller-cancelled"));
+        TraktOAuthClient client = CreateClient(handler);
+        using CancellationTokenSource cancellation = new();
+        cancellation.Cancel();
+
+        Func<Task> action = () => client.StartDeviceAsync(cancellation.Token);
+
+        await action.Should().ThrowAsync<OperationCanceledException>();
     }
 
     [Fact]
