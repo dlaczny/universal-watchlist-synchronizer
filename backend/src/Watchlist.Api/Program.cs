@@ -286,6 +286,8 @@ syncApi.MapPost("/movies", async (
     return Results.Ok(result);
 });
 
+app.MapTvEndpoints();
+
 app.Run();
 
 static bool TryParseCollection(string? value, out WatchlistCollection collection)

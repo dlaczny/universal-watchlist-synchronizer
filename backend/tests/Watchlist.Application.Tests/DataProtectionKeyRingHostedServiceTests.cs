@@ -52,12 +52,22 @@ public sealed class DataProtectionKeyRingHostedServiceTests : IDisposable
                 provider.GetRequiredService<ITraktTokenProtector>();
             ITraktConnectionRepository repository =
                 provider.GetRequiredService<ITraktConnectionRepository>();
+            ITraktConnectionService connectionService =
+                provider.GetRequiredService<ITraktConnectionService>();
+            ITraktAccessTokenProvider accessTokenProvider =
+                provider.GetRequiredService<ITraktAccessTokenProvider>();
             tokenProtector.Should().BeOfType<DataProtectionTraktTokenProtector>();
             tokenProtector.Should().BeSameAs(
                 provider.GetRequiredService<ITraktTokenProtector>());
             repository.Should().BeOfType<MongoTraktConnectionRepository>();
             repository.Should().BeSameAs(
                 provider.GetRequiredService<ITraktConnectionRepository>());
+            connectionService.Should().BeOfType<TraktConnectionService>();
+            accessTokenProvider.Should().BeSameAs(connectionService);
+            connectionService.Should().BeSameAs(
+                provider.GetRequiredService<ITraktConnectionService>());
+            provider.GetRequiredService<ITraktOAuthClient>()
+                .Should().BeOfType<TraktOAuthClient>();
             DataProtectionKeyRingOptions boundOptions = provider
                 .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
                 .Value;
@@ -65,6 +75,8 @@ public sealed class DataProtectionKeyRingHostedServiceTests : IDisposable
             boundOptions.ApplicationName.Should().Be("registered-app");
             provider.GetServices<IHostedService>()
                 .Should().Contain(service => service is DataProtectionKeyRingHostedService);
+            provider.GetServices<IHostedService>()
+                .Should().Contain(service => service is TraktDeviceAuthorizationHostedService);
             ciphertext = tokenProtector.Protect(plaintext);
         }
 

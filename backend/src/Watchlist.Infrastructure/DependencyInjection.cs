@@ -31,6 +31,9 @@ public static class DependencyInjection
             .Bind(tmdbSection)
             .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Tmdb:BaseUrl must be absolute.")
             .Validate(options => Uri.TryCreate(options.ImageBaseUrl, UriKind.Absolute, out _), "Tmdb:ImageBaseUrl must be absolute.");
+        services.AddOptions<TraktOptions>()
+            .Bind(configuration.GetSection(TraktOptions.SectionName))
+            .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Trakt:BaseUrl must be absolute.");
         services.PostConfigure<TmdbOptions>(options =>
         {
             IConfigurationSection providerIdsSection = tmdbSection.GetSection(nameof(TmdbOptions.OwnedProviderIds));
@@ -53,6 +56,27 @@ public static class DependencyInjection
         });
         services.AddSingleton<ITraktTokenProtector, DataProtectionTraktTokenProtector>();
         services.AddSingleton<ITraktConnectionRepository, MongoTraktConnectionRepository>();
+        services.AddHttpClient<ITraktOAuthClient, TraktOAuthClient>((serviceProvider, httpClient) =>
+        {
+            TraktOptions options = serviceProvider.GetRequiredService<IOptions<TraktOptions>>().Value;
+            httpClient.BaseAddress = new Uri(options.BaseUrl);
+        });
+        services.AddSingleton<TraktConnectionService>(serviceProvider =>
+        {
+            TraktOptions traktOptions = serviceProvider
+                .GetRequiredService<IOptions<TraktOptions>>()
+                .Value;
+            return new TraktConnectionService(
+                serviceProvider.GetRequiredService<ITraktConnectionRepository>(),
+                serviceProvider.GetRequiredService<ITraktOAuthClient>(),
+                serviceProvider.GetRequiredService<ITraktTokenProtector>(),
+                serviceProvider.GetRequiredService<TimeProvider>(),
+                traktOptions.TokenRefreshSkew);
+        });
+        services.AddSingleton<ITraktConnectionService>(serviceProvider =>
+            serviceProvider.GetRequiredService<TraktConnectionService>());
+        services.AddSingleton<ITraktAccessTokenProvider>(serviceProvider =>
+            serviceProvider.GetRequiredService<TraktConnectionService>());
         services.AddSingleton<IWatchlistReadRepository, MongoWatchlistReadRepository>();
         services.AddSingleton<IWatchlistExportRepository, MongoWatchlistExportRepository>();
         services.AddSingleton<IWatchlistWriteRepository, MongoWatchlistWriteRepository>();
@@ -101,6 +125,7 @@ public static class DependencyInjection
         });
         services.AddScoped<ITmdbTvWatchlistSyncService, TmdbTvWatchlistSyncService>();
         services.AddHostedService<DataProtectionKeyRingHostedService>();
+        services.AddHostedService<TraktDeviceAuthorizationHostedService>();
         services.AddHostedService<MongoBootstrapHostedService>();
 
         return services;

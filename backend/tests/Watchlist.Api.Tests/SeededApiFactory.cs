@@ -17,7 +17,8 @@ public sealed class SeededApiFactory(
     Exception? combinedSyncException = null,
     Exception? availabilityRefreshException = null,
     Exception? tmdbTvSyncException = null,
-    string? syncApiKey = null) : WebApplicationFactory<Program>
+    string? syncApiKey = null,
+    Exception? traktStartException = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -38,7 +39,11 @@ public sealed class SeededApiFactory(
             services.RemoveAll<ITmdbTvWatchlistSyncService>();
             services.RemoveAll<IAvailabilityRefreshService>();
             services.RemoveAll<IWatchlistExportRepository>();
+            services.RemoveAll<TraktConnectionService>();
+            services.RemoveAll<ITraktConnectionService>();
+            services.RemoveAll<ITraktAccessTokenProvider>();
             RemoveBootstrapHostedService(services);
+            RemoveTraktHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
             services.AddSingleton<ISyncStatusReadRepository, SeededSyncStatusReadRepository>();
             services.AddSingleton<ILetterboxdMovieSyncService>(
@@ -58,6 +63,12 @@ public sealed class SeededApiFactory(
             services.AddSingleton<IAvailabilityRefreshService>(
                 _ => new SeededAvailabilityRefreshService(availabilityRefreshException));
             services.AddSingleton<IWatchlistExportRepository, SeededWatchlistExportRepository>();
+            services.AddSingleton<SeededTraktConnectionService>(
+                _ => new SeededTraktConnectionService(traktStartException));
+            services.AddSingleton<ITraktConnectionService>(serviceProvider =>
+                serviceProvider.GetRequiredService<SeededTraktConnectionService>());
+            services.AddSingleton<ITraktAccessTokenProvider>(serviceProvider =>
+                serviceProvider.GetRequiredService<SeededTraktConnectionService>());
         });
     }
 
@@ -70,6 +81,76 @@ public sealed class SeededApiFactory(
         if (bootstrapDescriptor is not null)
         {
             services.Remove(bootstrapDescriptor);
+        }
+    }
+
+    private static void RemoveTraktHostedService(IServiceCollection services)
+    {
+        ServiceDescriptor? traktDescriptor = services.FirstOrDefault(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(TraktDeviceAuthorizationHostedService));
+
+        if (traktDescriptor is not null)
+        {
+            services.Remove(traktDescriptor);
+        }
+    }
+
+    private sealed class SeededTraktConnectionService(Exception? startException)
+        : ITraktConnectionService, ITraktAccessTokenProvider
+    {
+        public Task<TraktDeviceStartDto> StartDeviceAsync(CancellationToken cancellationToken)
+        {
+            if (startException is not null)
+            {
+                return Task.FromException<TraktDeviceStartDto>(startException);
+            }
+
+            return Task.FromResult(new TraktDeviceStartDto(
+                "ABCD1234",
+                "https://trakt.tv/activate",
+                DateTimeOffset.Parse("2026-07-14T10:10:00Z"),
+                5));
+        }
+
+        public Task<TraktConnectionStatusDto> PollPendingAsync(
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new TraktConnectionStatusDto(
+                "connected",
+                DateTimeOffset.Parse("2026-07-14T10:00:00Z"),
+                DateTimeOffset.Parse("2026-10-14T10:00:00Z"),
+                null));
+        }
+
+        public Task<TraktConnectionStatusDto> GetStatusAsync(
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new TraktConnectionStatusDto(
+                "connected",
+                DateTimeOffset.Parse("2026-07-14T10:00:00Z"),
+                DateTimeOffset.Parse("2026-10-14T10:00:00Z"),
+                null));
+        }
+
+        public Task<TraktConnectionStatusDto> DisconnectAsync(
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new TraktConnectionStatusDto(
+                "disconnected",
+                null,
+                null,
+                null));
+        }
+
+        public Task<string> GetValidAccessTokenAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult("seeded-access-token");
+        }
+
+        public Task<string> ForceRefreshAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult("seeded-access-token");
         }
     }
 
