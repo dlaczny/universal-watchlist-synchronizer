@@ -37,36 +37,60 @@ public sealed class DataProtectionKeyRingHostedServiceTests : IDisposable
     }
 
     [Fact]
-    public void AddWatchlistInfrastructure_RegistersKeyRingProtectionAndSingletonRepository()
+    public void AddWatchlistInfrastructure_ConfiguresPersistentPurposeScopedSingletonServices()
     {
         string keyRingPath = Path.Combine(tempDirectory, "registered-keys");
-        IConfiguration configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [$"{DataProtectionKeyRingOptions.SectionName}:KeyRingPath"] = keyRingPath,
-                [$"{DataProtectionKeyRingOptions.SectionName}:ApplicationName"] = "registered-app",
-                [$"{MongoDbOptions.SectionName}:ConnectionString"] = "mongodb://localhost:27017",
-                [$"{MongoDbOptions.SectionName}:DatabaseName"] = "registration-tests"
-            })
-            .Build();
-        ServiceCollection services = new();
-        services.AddLogging();
-        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment());
+        Directory.CreateDirectory(keyRingPath);
+        IConfiguration configuration = BuildInfrastructureConfiguration(
+            keyRingPath,
+            "registered-app");
+        string plaintext = "registered-token-sentinel-08af53";
+        string ciphertext;
+        using (ServiceProvider provider = BuildInfrastructureProvider(configuration))
+        {
+            ITraktTokenProtector tokenProtector =
+                provider.GetRequiredService<ITraktTokenProtector>();
+            ITraktConnectionRepository repository =
+                provider.GetRequiredService<ITraktConnectionRepository>();
+            tokenProtector.Should().BeOfType<DataProtectionTraktTokenProtector>();
+            tokenProtector.Should().BeSameAs(
+                provider.GetRequiredService<ITraktTokenProtector>());
+            repository.Should().BeOfType<MongoTraktConnectionRepository>();
+            repository.Should().BeSameAs(
+                provider.GetRequiredService<ITraktConnectionRepository>());
+            DataProtectionKeyRingOptions boundOptions = provider
+                .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
+                .Value;
+            boundOptions.KeyRingPath.Should().Be(keyRingPath);
+            boundOptions.ApplicationName.Should().Be("registered-app");
+            provider.GetServices<IHostedService>()
+                .Should().Contain(service => service is DataProtectionKeyRingHostedService);
+            ciphertext = tokenProtector.Protect(plaintext);
+        }
 
-        services.AddWatchlistInfrastructure(configuration);
-        using ServiceProvider provider = services.BuildServiceProvider();
+        using (ServiceProvider restartedProvider = BuildInfrastructureProvider(configuration))
+        {
+            ITraktTokenProtector restartedProtector =
+                restartedProvider.GetRequiredService<ITraktTokenProtector>();
+            restartedProtector.Unprotect(ciphertext).Should().Be(plaintext);
+        }
 
-        provider.GetRequiredService<ITraktTokenProtector>()
-            .Should().BeOfType<DataProtectionTraktTokenProtector>();
-        provider.GetRequiredService<ITraktConnectionRepository>()
-            .Should().BeOfType<MongoTraktConnectionRepository>();
-        DataProtectionKeyRingOptions boundOptions = provider
-            .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
-            .Value;
-        boundOptions.KeyRingPath.Should().Be(keyRingPath);
-        boundOptions.ApplicationName.Should().Be("registered-app");
-        provider.GetServices<IHostedService>()
-            .Should().Contain(service => service is DataProtectionKeyRingHostedService);
+        IConfiguration differentApplicationConfiguration = BuildInfrastructureConfiguration(
+            keyRingPath,
+            "different-app");
+        using ServiceProvider differentApplicationProvider =
+            BuildInfrastructureProvider(differentApplicationConfiguration);
+        ITraktTokenProtector differentApplicationProtector =
+            differentApplicationProvider.GetRequiredService<ITraktTokenProtector>();
+
+        Action action = () => differentApplicationProtector.Unprotect(ciphertext);
+
+        TraktConnectionUnreadableException exception = action.Should()
+            .Throw<TraktConnectionUnreadableException>()
+            .Which;
+        exception.Message.Should().Be("The stored Trakt connection cannot be decrypted.");
+        exception.Message.Should().NotContain(plaintext);
+        exception.Message.Should().NotContain(ciphertext);
     }
 
     [Fact]
@@ -159,6 +183,30 @@ public sealed class DataProtectionKeyRingHostedServiceTests : IDisposable
             Options.Create(options),
             environment,
             protector);
+    }
+
+    private static ServiceProvider BuildInfrastructureProvider(IConfiguration configuration)
+    {
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddSingleton<IHostEnvironment>(new TestHostEnvironment());
+        services.AddWatchlistInfrastructure(configuration);
+        return services.BuildServiceProvider();
+    }
+
+    private static IConfiguration BuildInfrastructureConfiguration(
+        string keyRingPath,
+        string applicationName)
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"{DataProtectionKeyRingOptions.SectionName}:KeyRingPath"] = keyRingPath,
+                [$"{DataProtectionKeyRingOptions.SectionName}:ApplicationName"] = applicationName,
+                [$"{MongoDbOptions.SectionName}:ConnectionString"] = "mongodb://localhost:27017",
+                [$"{MongoDbOptions.SectionName}:DatabaseName"] = "registration-tests"
+            })
+            .Build();
     }
 
     private sealed class RecordingTokenProtector : ITraktTokenProtector

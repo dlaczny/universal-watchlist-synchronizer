@@ -44,7 +44,9 @@ public sealed class MongoTraktConnectionRepositoryTests : IAsyncLifetime
     [Fact]
     public async Task SaveAsync_PendingThenConnected_ReplacesSingletonAndClearsPendingSecrets()
     {
-        IDataProtectionProvider provider = BuildProtectionProvider(keyRingPath);
+        using ServiceProvider protectionServices = BuildProtectionServiceProvider(keyRingPath);
+        IDataProtectionProvider provider =
+            protectionServices.GetRequiredService<IDataProtectionProvider>();
         DataProtectionTraktTokenProtector protector = new(provider);
         MongoTraktConnectionRepository repository = CreateRepository();
         string deviceCode = "device-code-plaintext";
@@ -180,13 +182,12 @@ public sealed class MongoTraktConnectionRepositoryTests : IAsyncLifetime
         return await collection.Find(FilterDefinition<BsonDocument>.Empty).SingleAsync();
     }
 
-    private static IDataProtectionProvider BuildProtectionProvider(string path)
+    private static ServiceProvider BuildProtectionServiceProvider(string path)
     {
         ServiceCollection services = new();
         services.AddDataProtection()
             .SetApplicationName("watchlist-trakt-repository-tests")
             .PersistKeysToFileSystem(Directory.CreateDirectory(path));
-        ServiceProvider serviceProvider = services.BuildServiceProvider();
-        return serviceProvider.GetRequiredService<IDataProtectionProvider>();
+        return services.BuildServiceProvider();
     }
 }

@@ -2,7 +2,8 @@ namespace Watchlist.Application;
 
 /// <summary>
 /// Represents the persisted state of the single Trakt account connection.
-/// Sensitive values in this record are protected before persistence.
+/// Protected device and token properties contain ciphertext before persistence;
+/// <see cref="UserCode"/> is transient plaintext used during device authorization.
 /// </summary>
 public sealed record TraktConnection(
     string State,
@@ -15,4 +16,10 @@ public sealed record TraktConnection(
     string? ProtectedAccessToken,
     string? ProtectedRefreshToken,
     DateTimeOffset? AccessTokenExpiresAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    public override string ToString()
+    {
+        return $"TraktConnection {{ State = {State} }}";
+    }
+}

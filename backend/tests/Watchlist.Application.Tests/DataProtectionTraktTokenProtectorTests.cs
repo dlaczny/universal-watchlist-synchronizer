@@ -18,11 +18,18 @@ public sealed class DataProtectionTraktTokenProtectorTests : IDisposable
     public void ProtectAndUnprotect_WithPersistedKeyRing_SurvivesProviderRestart()
     {
         string keyRingPath = Path.Combine(tempDirectory, "restart-keys");
-        IDataProtectionProvider firstProvider = BuildProvider(keyRingPath);
-        DataProtectionTraktTokenProtector firstProtector = new(firstProvider);
+        string ciphertext;
+        using (ServiceProvider firstServices = BuildServiceProvider(keyRingPath))
+        {
+            IDataProtectionProvider firstProvider =
+                firstServices.GetRequiredService<IDataProtectionProvider>();
+            DataProtectionTraktTokenProtector firstProtector = new(firstProvider);
+            ciphertext = firstProtector.Protect("access-token");
+        }
 
-        string ciphertext = firstProtector.Protect("access-token");
-        IDataProtectionProvider restartedProvider = BuildProvider(keyRingPath);
+        using ServiceProvider restartedServices = BuildServiceProvider(keyRingPath);
+        IDataProtectionProvider restartedProvider =
+            restartedServices.GetRequiredService<IDataProtectionProvider>();
         DataProtectionTraktTokenProtector restartedProtector = new(restartedProvider);
 
         restartedProtector.Unprotect(ciphertext).Should().Be("access-token");
@@ -32,7 +39,9 @@ public sealed class DataProtectionTraktTokenProtectorTests : IDisposable
     [Fact]
     public void ProtectAndUnprotect_UsesTheSingleAccountPurposeExactly()
     {
-        IDataProtectionProvider provider = BuildProvider(Path.Combine(tempDirectory, "purpose-keys"));
+        using ServiceProvider services = BuildServiceProvider(
+            Path.Combine(tempDirectory, "purpose-keys"));
+        IDataProtectionProvider provider = services.GetRequiredService<IDataProtectionProvider>();
         DataProtectionTraktTokenProtector traktProtector = new(provider);
         IDataProtector exactPurposeProtector = provider.CreateProtector(ProtectorPurpose);
 
@@ -46,12 +55,18 @@ public sealed class DataProtectionTraktTokenProtectorTests : IDisposable
     [Fact]
     public void Unprotect_WithDifferentKeyRing_ThrowsSanitizedUnreadableConnectionException()
     {
-        DataProtectionTraktTokenProtector firstProtector = new(BuildProvider(
-            Path.Combine(tempDirectory, "first-keys")));
+        using ServiceProvider firstServices = BuildServiceProvider(
+            Path.Combine(tempDirectory, "first-keys"));
+        IDataProtectionProvider firstProvider =
+            firstServices.GetRequiredService<IDataProtectionProvider>();
+        DataProtectionTraktTokenProtector firstProtector = new(firstProvider);
         string plaintext = "access-token-that-must-not-leak";
         string ciphertext = firstProtector.Protect(plaintext);
-        DataProtectionTraktTokenProtector unrelatedProtector = new(BuildProvider(
-            Path.Combine(tempDirectory, "second-keys")));
+        using ServiceProvider unrelatedServices = BuildServiceProvider(
+            Path.Combine(tempDirectory, "second-keys"));
+        IDataProtectionProvider unrelatedProvider =
+            unrelatedServices.GetRequiredService<IDataProtectionProvider>();
+        DataProtectionTraktTokenProtector unrelatedProtector = new(unrelatedProvider);
 
         Action action = () => unrelatedProtector.Unprotect(ciphertext);
 
@@ -89,14 +104,13 @@ public sealed class DataProtectionTraktTokenProtectorTests : IDisposable
         }
     }
 
-    private static IDataProtectionProvider BuildProvider(string keyRingPath)
+    private static ServiceProvider BuildServiceProvider(string keyRingPath)
     {
         DirectoryInfo keyRing = Directory.CreateDirectory(keyRingPath);
         ServiceCollection services = new();
         services.AddDataProtection()
             .SetApplicationName(ApplicationName)
             .PersistKeysToFileSystem(keyRing);
-        ServiceProvider serviceProvider = services.BuildServiceProvider();
-        return serviceProvider.GetRequiredService<IDataProtectionProvider>();
+        return services.BuildServiceProvider();
     }
 }
