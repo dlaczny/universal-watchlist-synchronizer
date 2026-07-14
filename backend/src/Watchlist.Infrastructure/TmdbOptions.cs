@@ -2,6 +2,9 @@ namespace Watchlist.Infrastructure;
 
 public sealed class TmdbOptions
 {
+    private static readonly int[] s_defaultOwnedProviderIds = [119, 1899, 1773];
+    private IReadOnlyList<int> _ownedProviderIds = [.. s_defaultOwnedProviderIds];
+
     public const string SectionName = "Tmdb";
 
     public string AccessToken { get; init; } = string.Empty;
@@ -18,7 +21,21 @@ public sealed class TmdbOptions
 
     public string ProviderRegion { get; init; } = "PL";
 
-    public IReadOnlyList<int> OwnedProviderIds { get; init; } = [119, 1899, 1773];
+    public IReadOnlyList<int> OwnedProviderIds
+    {
+        get => _ownedProviderIds;
+        init => _ownedProviderIds = ReplaceBinderAppendedDefaults(value);
+    }
 
     public TimeSpan ProviderCacheLifetime { get; init; } = TimeSpan.FromHours(24);
+
+    private static IReadOnlyList<int> ReplaceBinderAppendedDefaults(IReadOnlyList<int> values)
+    {
+        bool hasAppendedConfiguration = values.Count > s_defaultOwnedProviderIds.Length
+            && values.Take(s_defaultOwnedProviderIds.Length).SequenceEqual(s_defaultOwnedProviderIds);
+
+        return hasAppendedConfiguration
+            ? values.Skip(s_defaultOwnedProviderIds.Length).ToArray()
+            : values;
+    }
 }

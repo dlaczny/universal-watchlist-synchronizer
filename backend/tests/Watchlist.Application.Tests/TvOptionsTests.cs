@@ -58,13 +58,9 @@ public sealed class TvOptionsTests
         IConfiguration configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(configurationValues)
             .Build();
-        IReadOnlyList<int> configuredProviderIds = configuration
-            .GetSection($"{TmdbOptions.SectionName}:OwnedProviderIds")
-            .Get<int[]>()!;
-        TmdbOptions options = new()
-        {
-            OwnedProviderIds = configuredProviderIds
-        };
+        TmdbOptions options = configuration
+            .GetSection(TmdbOptions.SectionName)
+            .Get<TmdbOptions>()!;
 
         options.OwnedProviderIds.Should().Equal(8, 337, 531);
     }
