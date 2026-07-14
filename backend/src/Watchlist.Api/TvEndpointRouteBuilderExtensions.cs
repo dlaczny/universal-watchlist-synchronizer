@@ -45,6 +45,16 @@ public static class TvEndpointRouteBuilderExtensions
                     },
                     statusCode: StatusCodes.Status503ServiceUnavailable);
             }
+            catch (TraktPersistenceUnavailableException)
+            {
+                return Results.Json(
+                    new
+                    {
+                        code = "trakt_persistence_unavailable",
+                        error = "Trakt connection persistence is temporarily unavailable."
+                    },
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
         });
 
         integrations.MapGet("/trakt/status", async (

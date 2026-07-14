@@ -7,8 +7,8 @@ tags:
   - dotnet
   - mongodb
   - api
-timestamp: 2026-07-11T00:00:00Z
-version: 0.3.1
+timestamp: 2026-07-14T00:00:00Z
+version: 0.4.0
 ---
 
 # Structure
@@ -36,6 +36,16 @@ The backend under `backend/` targets .NET 10.
 `CombinedSyncService` and TMDB TV synchronization remain available but are not
 used by the production movie worker.
 
+# Trakt Connection
+
+The backend owns the singleton Trakt device-authorization state, encrypts its
+device and OAuth credentials with the persistent ASP.NET Data Protection key
+ring, and advances pending authorization from a hosted poller. Successful
+credential responses are saved with a bounded token independent of request or
+host cancellation. Malformed successful device grants become non-pollable;
+malformed successful refresh grants become `refresh_required` so a consumed or
+rotated credential is not retried indefinitely.
+
 # Persistence
 
 - `watchlist_items`: normalized movie and TV records.
@@ -43,6 +53,7 @@ used by the production movie worker.
 - `sync_runs`: source and integration status used for freshness.
 - `letterboxd_source_snapshots`: immutable active and watched lifecycle
   manifests; written last and read once per worker export.
+- `trakt_connections`: one protected device/OAuth connection state document.
 
 `watchlist_items` retains watched Letterboxd movie documents and their event
 history. Active-only repository filters use the latest manifest for browse,
@@ -65,6 +76,8 @@ is inserted only when configured collections are empty.
 | `Letterboxd` | Watchlist proxy URL. |
 | `Tmdb` | Access token, base URL, image base URL; TV account fields are optional for movie-only operation. |
 | `Plex` | Base URL and token. |
+| `Trakt` | Client ID, client secret, API base URL, redirect URI, token refresh skew, and device-poll settings. |
+| `DataProtection` | Persistent key-ring path and application name used to decrypt Trakt state after restart. |
 
 ASP.NET environment overrides use double underscores, for example
 `Sync__ApiKey` and `MongoDb__ConnectionString`. Local secrets belong in the

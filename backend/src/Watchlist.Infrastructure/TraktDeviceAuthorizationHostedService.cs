@@ -50,15 +50,17 @@ public sealed class TraktDeviceAuthorizationHostedService(
                 {
                     LogOperationalError("mongo_unavailable");
                 }
-                catch (OperationCanceledException) when (!stoppingToken.IsCancellationRequested)
+                catch (TraktPersistenceUnavailableException)
                 {
-                    LogOperationalError("persistence_timeout");
+                    LogOperationalError("trakt_persistence_unavailable");
                 }
 
                 await Task.Delay(PollCadence, timeProvider, stoppingToken);
             }
         }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        catch (OperationCanceledException exception)
+            when (stoppingToken.IsCancellationRequested
+                && exception.CancellationToken == stoppingToken)
         {
         }
     }

@@ -172,9 +172,8 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_WhenInternalPersistenceCancellationOccurs_LogsStableCodeAndKeepsPolling()
+    public async Task ExecuteAsync_WhenPersistenceUnavailableOccurs_LogsStableCodeAndKeepsPolling()
     {
-        string cancellationSecret = "persistence-timeout-secret-sentinel-b8d214";
         HostedRepository repository = new(PendingConnection(Now, Now.AddMinutes(10)));
         HostedConnectionService connectionService = new()
         {
@@ -182,7 +181,7 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
             {
                 if (callCount == 1)
                 {
-                    throw new OperationCanceledException(cancellationSecret);
+                    throw new TraktPersistenceUnavailableException();
                 }
             }
         };
@@ -198,10 +197,11 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
         await connectionService.WaitForPollCountAsync(1).WaitAsync(TimeSpan.FromSeconds(1));
         ManualTimer timer = await timeProvider.WaitForTimerAsync().WaitAsync(TimeSpan.FromSeconds(1));
         logger.Messages.Should().ContainSingle(message => message.Contains(
-            "persistence_timeout",
+            "trakt_persistence_unavailable",
             StringComparison.Ordinal));
         string logs = string.Join(Environment.NewLine, logger.Messages);
-        logs.Should().NotContain(cancellationSecret);
+        logs.Should().NotContain("TaskCanceledException");
+        logs.Should().NotContain("OperationCanceledException");
 
         timeProvider.Advance(TimeSpan.FromSeconds(1));
         timer.Fire();
@@ -209,6 +209,42 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
         await connectionService.WaitForPollCountAsync(2).WaitAsync(TimeSpan.FromSeconds(1));
         connectionService.PollCallCount.Should().Be(2);
         await hostedService.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task StopAsync_WhenUnrelatedCancellationRacesShutdown_DoesNotSwallowIt()
+    {
+        using CancellationTokenSource unrelatedSource = new();
+        unrelatedSource.Cancel();
+        OperationCanceledException unrelatedCancellation = new(
+            "unrelated-host-cancellation-sentinel-93f45b",
+            null,
+            unrelatedSource.Token);
+        HostedRepository repository = new(PendingConnection(Now, Now.AddMinutes(10)));
+        HostedConnectionService connectionService = new()
+        {
+            CancellationRaceException = unrelatedCancellation
+        };
+        ManualTimeProvider timeProvider = new(Now);
+        CapturingLogger logger = new();
+        TraktDeviceAuthorizationHostedService hostedService = new(
+            repository,
+            connectionService,
+            timeProvider,
+            logger);
+        await hostedService.StartAsync(CancellationToken.None);
+        await connectionService.WaitForPollCountAsync(1).WaitAsync(TimeSpan.FromSeconds(1));
+
+        await hostedService
+            .StopAsync(CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(1));
+        Func<Task> action = async () => await hostedService.ExecuteTask!;
+
+        OperationCanceledException thrown = (await action.Should()
+            .ThrowAsync<OperationCanceledException>())
+            .Which;
+        thrown.Should().BeSameAs(unrelatedCancellation);
+        logger.Messages.Should().BeEmpty();
     }
 
     [Fact]
@@ -343,6 +379,8 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
 
         public Action<int>? BeforePollResult { get; init; }
 
+        public Exception? CancellationRaceException { get; init; }
+
         public Task<TraktDeviceStartDto> StartDeviceAsync(CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
@@ -366,6 +404,13 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
 
             BeforePollResult?.Invoke(callCount);
 
+            if (CancellationRaceException is not null)
+            {
+                return ThrowAfterCancellationAsync(
+                    cancellationToken,
+                    CancellationRaceException);
+            }
+
             if (callCount <= FailuresBeforeSuccess)
             {
                 return Task.FromException<TraktConnectionStatusDto>(
@@ -373,6 +418,21 @@ public sealed class TraktDeviceAuthorizationHostedServiceTests
             }
 
             return Task.FromResult(new TraktConnectionStatusDto("pending", null, null, null));
+        }
+
+        private static async Task<TraktConnectionStatusDto> ThrowAfterCancellationAsync(
+            CancellationToken cancellationToken,
+            Exception exception)
+        {
+            try
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+
+            throw exception;
         }
 
         public Task<TraktConnectionStatusDto> GetStatusAsync(CancellationToken cancellationToken)

@@ -79,10 +79,14 @@ public sealed class TraktConnectionServiceTests
     }
 
     [Fact]
-    public async Task StartDeviceAsync_WhenCallerCancelsAfterChallenge_PersistsWithIndependentBoundedToken()
+    public async Task StartDeviceAsync_WhenCallerCancelsAfterChallenge_CleansPersistedPendingBeforeRethrowing()
     {
         using CancellationTokenSource callerCancellation = new();
-        FakeRepository repository = new() { RejectCanceledSaveTokens = true };
+        FakeRepository repository = new()
+        {
+            RejectCanceledSaveTokens = true,
+            RejectCanceledDeleteTokens = true
+        };
         FakeOAuthClient oauthClient = new()
         {
             AfterStartResponse = callerCancellation.Cancel
@@ -92,12 +96,48 @@ public sealed class TraktConnectionServiceTests
             oauthClient,
             new TrackingProtector());
 
-        TraktDeviceStartDto result = await service.StartDeviceAsync(callerCancellation.Token);
+        Func<Task> action = async () => await service.StartDeviceAsync(callerCancellation.Token);
 
-        result.UserCode.Should().Be("NEWCODE");
+        OperationCanceledException exception = (await action.Should()
+            .ThrowAsync<OperationCanceledException>())
+            .Which;
+        exception.CancellationToken.Should().Be(callerCancellation.Token);
         callerCancellation.IsCancellationRequested.Should().BeTrue();
-        repository.Stored!.State.Should().Be("pending");
+        repository.SavedConnections.Should().ContainSingle()
+            .Which.State.Should().Be("pending");
+        repository.Stored.Should().BeNull();
+        repository.DeleteCallCount.Should().Be(1);
         AssertIndependentSaveToken(repository, callerCancellation.Token);
+        AssertIndependentDeleteToken(repository, callerCancellation.Token);
+    }
+
+    [Fact]
+    public async Task StartDeviceAsync_WhenCallerCancelsAsChallengeSaveCompletes_CleansPendingBeforeRethrowing()
+    {
+        using CancellationTokenSource callerCancellation = new();
+        FakeRepository repository = new()
+        {
+            RejectCanceledSaveTokens = true,
+            RejectCanceledDeleteTokens = true,
+            AfterSave = callerCancellation.Cancel
+        };
+        TraktConnectionService service = CreateService(
+            repository,
+            new FakeOAuthClient(),
+            new TrackingProtector());
+
+        Func<Task> action = async () => await service.StartDeviceAsync(callerCancellation.Token);
+
+        OperationCanceledException exception = (await action.Should()
+            .ThrowAsync<OperationCanceledException>())
+            .Which;
+        exception.CancellationToken.Should().Be(callerCancellation.Token);
+        repository.SavedConnections.Should().ContainSingle()
+            .Which.State.Should().Be("pending");
+        repository.Stored.Should().BeNull();
+        repository.DeleteCallCount.Should().Be(1);
+        AssertIndependentSaveToken(repository, callerCancellation.Token);
+        AssertIndependentDeleteToken(repository, callerCancellation.Token);
     }
 
     [Fact]
@@ -194,6 +234,90 @@ public sealed class TraktConnectionServiceTests
         repository.SaveCallCount.Should().Be(0);
         repository.Stored.Should().BeNull();
         protector.ProtectedPlaintexts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task StartDeviceAsync_WhenCriticalSaveDeadlineExpires_ThrowsFixedPersistenceUnavailable()
+    {
+        const string deviceCode = "deadline-device-code-sentinel-e56bd1";
+        const string userCode = "DEADLINE-USER-CODE-SENTINEL-99A62F";
+        FakeRepository repository = new() { WaitForSaveCancellation = true };
+        FakeOAuthClient oauthClient = new()
+        {
+            DeviceCode = new TraktDeviceCode(
+                deviceCode,
+                userCode,
+                "https://trakt.tv/activate",
+                TimeSpan.FromMinutes(10),
+                TimeSpan.FromSeconds(5))
+        };
+        TraktConnectionService service = CreateService(
+            repository,
+            oauthClient,
+            new TrackingProtector(),
+            new ImmediateTimeoutTimeProvider(Now));
+
+        Func<Task> action = async () => await service.StartDeviceAsync(CancellationToken.None);
+
+        Exception exception = (await action.Should().ThrowAsync<Exception>()).Which;
+        exception.GetType().FullName.Should().Be(
+            "Watchlist.Application.TraktPersistenceUnavailableException");
+        exception.Message.Should().Be("Trakt connection persistence is temporarily unavailable.");
+        exception.InnerException.Should().BeNull();
+        exception.ToString().Should().NotContain(deviceCode);
+        exception.ToString().Should().NotContain(userCode);
+        repository.SaveCancellationTokens.Should().ContainSingle();
+        repository.SaveCancellationTokens.Single().IsCancellationRequested.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task StartDeviceAsync_WhenCriticalSaveThrowsUnrelatedCancellation_PreservesCancellation()
+    {
+        OperationCanceledException unrelatedCancellation = new(
+            "unrelated-save-cancellation-sentinel-1be75d");
+        FakeRepository repository = new() { SaveException = unrelatedCancellation };
+        TraktConnectionService service = CreateService(
+            repository,
+            new FakeOAuthClient(),
+            new TrackingProtector());
+
+        Func<Task> action = async () => await service.StartDeviceAsync(CancellationToken.None);
+
+        OperationCanceledException thrown = (await action.Should()
+            .ThrowAsync<OperationCanceledException>())
+            .Which;
+        thrown.Should().BeSameAs(unrelatedCancellation);
+        thrown.Should().NotBeOfType<TraktPersistenceUnavailableException>();
+    }
+
+    [Fact]
+    public async Task StartDeviceAsync_WhenUnrelatedSaveCancellationArrivesAfterDeadline_PreservesCancellation()
+    {
+        using CancellationTokenSource unrelatedSource = new();
+        unrelatedSource.Cancel();
+        OperationCanceledException unrelatedCancellation = new(
+            "late-unrelated-save-cancellation-sentinel-6e19af",
+            null,
+            unrelatedSource.Token);
+        FakeRepository repository = new()
+        {
+            WaitForSaveCancellation = true,
+            SaveExceptionAfterCancellation = unrelatedCancellation
+        };
+        TraktConnectionService service = CreateService(
+            repository,
+            new FakeOAuthClient(),
+            new TrackingProtector(),
+            new ImmediateTimeoutTimeProvider(Now));
+
+        Func<Task> action = async () => await service.StartDeviceAsync(CancellationToken.None);
+
+        OperationCanceledException thrown = (await action.Should()
+            .ThrowAsync<OperationCanceledException>())
+            .Which;
+        thrown.Should().BeSameAs(unrelatedCancellation);
+        thrown.CancellationToken.Should().Be(unrelatedSource.Token);
+        thrown.Should().NotBeOfType<TraktPersistenceUnavailableException>();
     }
 
     [Fact]
@@ -331,7 +455,7 @@ public sealed class TraktConnectionServiceTests
     [Theory]
     [InlineData("poll")]
     [InlineData("refresh")]
-    public async Task TokenGrant_WhenExpiryTimestampOverflows_ThrowsParseBeforeProtectionOrPersistence(
+    public async Task TokenGrant_WhenExpiryTimestampOverflows_PersistsNonPollableStateBeforeRethrowingParse(
         string operation)
     {
         TraktConnection initial = operation == "poll"
@@ -373,8 +497,84 @@ public sealed class TraktConnectionServiceTests
             .ThrowAsync<TraktParseException>())
             .Which;
         exception.Message.Should().Be("The Trakt response could not be parsed.");
-        repository.Stored.Should().BeSameAs(initial);
-        repository.SaveCallCount.Should().Be(0);
+        repository.SaveCallCount.Should().Be(1);
+        if (operation == "poll")
+        {
+            repository.Stored!.State.Should().Be("revoked");
+            AssertPendingFieldsCleared(repository.Stored);
+            TraktConnectionStatusDto status = await service.GetStatusAsync(CancellationToken.None);
+            status.Should().Be(new TraktConnectionStatusDto("revoked", null, null, "revoked"));
+        }
+        else
+        {
+            repository.Stored!.State.Should().Be("refresh_required");
+            repository.Stored.ProtectedAccessToken.Should().Be(initial.ProtectedAccessToken);
+            repository.Stored.ProtectedRefreshToken.Should().Be(initial.ProtectedRefreshToken);
+            TraktConnectionStatusDto status = await service.GetStatusAsync(CancellationToken.None);
+            status.LastErrorCode.Should().Be("refresh_rejected");
+        }
+
+        protector.ProtectedPlaintexts.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("poll", 0)]
+    [InlineData("poll", -1)]
+    [InlineData("refresh", 0)]
+    [InlineData("refresh", -1)]
+    public async Task TokenGrant_WhenExpiryIsNotPositive_PersistsNonPollableStateBeforeRethrowingParse(
+        string operation,
+        int expirySeconds)
+    {
+        TraktConnection initial = operation == "poll"
+            ? PendingConnection(nextPollAt: Now)
+            : ConnectedConnection(Now.AddMinutes(1));
+        FakeRepository repository = new(initial);
+        TraktTokenGrant invalidGrant = new(
+            "invalid-expiry-access-token",
+            "invalid-expiry-refresh-token",
+            TimeSpan.FromSeconds(expirySeconds),
+            Now);
+        FakeOAuthClient oauthClient = new();
+        if (operation == "poll")
+        {
+            oauthClient.PollResult = invalidGrant;
+        }
+        else
+        {
+            oauthClient.RefreshResult = invalidGrant;
+        }
+
+        TrackingProtector protector = new();
+        TraktConnectionService service = CreateService(repository, oauthClient, protector);
+
+        async Task InvokeAsync()
+        {
+            if (operation == "poll")
+            {
+                await service.PollPendingAsync(CancellationToken.None);
+                return;
+            }
+
+            await service.GetValidAccessTokenAsync(CancellationToken.None);
+        }
+
+        Func<Task> action = InvokeAsync;
+
+        await action.Should().ThrowAsync<TraktParseException>();
+        repository.SaveCallCount.Should().Be(1);
+        repository.Stored!.State.Should().Be(
+            operation == "poll" ? "revoked" : "refresh_required");
+        if (operation == "poll")
+        {
+            AssertPendingFieldsCleared(repository.Stored);
+        }
+        else
+        {
+            repository.Stored.ProtectedAccessToken.Should().Be(initial.ProtectedAccessToken);
+            repository.Stored.ProtectedRefreshToken.Should().Be(initial.ProtectedRefreshToken);
+        }
+
         protector.ProtectedPlaintexts.Should().BeEmpty();
     }
 
@@ -415,15 +615,10 @@ public sealed class TraktConnectionServiceTests
         repository.Stored.NextDevicePollAt.Should().Be(Now.AddSeconds(12));
     }
 
-    [Theory]
-    [InlineData("unavailable")]
-    [InlineData("parse")]
-    public async Task PollPendingAsync_WhenTransientFailureOccurs_PersistsDurableBackoffBeforeRethrowing(
-        string failureKind)
+    [Fact]
+    public async Task PollPendingAsync_WhenTransientFailureOccurs_PersistsDurableBackoffBeforeRethrowing()
     {
-        Exception failure = failureKind == "unavailable"
-            ? new TraktUnavailableException()
-            : new TraktParseException();
+        TraktUnavailableException failure = new();
         FakeRepository repository = new(PendingConnection(
             nextPollAt: Now,
             interval: TimeSpan.FromSeconds(7)));
@@ -445,6 +640,47 @@ public sealed class TraktConnectionServiceTests
 
         await service.PollPendingAsync(CancellationToken.None);
 
+        oauthClient.PollCallCount.Should().Be(1);
+        repository.SaveCallCount.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task PollPendingAsync_WhenSuccessfulResponseCannotBeParsed_RevokesBeforeRethrowing()
+    {
+        using CancellationTokenSource callerCancellation = new();
+        TraktParseException failure = new();
+        FakeRepository repository = new(PendingConnection(
+            nextPollAt: Now,
+            interval: TimeSpan.FromSeconds(7)))
+        {
+            RejectCanceledSaveTokens = true
+        };
+        FakeOAuthClient oauthClient = new()
+        {
+            PollException = failure,
+            AfterPollResponse = callerCancellation.Cancel
+        };
+        TraktConnectionService service = CreateService(
+            repository,
+            oauthClient,
+            new TrackingProtector());
+
+        Func<Task> action = async () => await service.PollPendingAsync(callerCancellation.Token);
+
+        TraktParseException thrown = (await action.Should()
+            .ThrowAsync<TraktParseException>())
+            .Which;
+        thrown.Should().BeSameAs(failure);
+        thrown.Message.Should().Be("The Trakt response could not be parsed.");
+        repository.Stored!.State.Should().Be("revoked");
+        AssertPendingFieldsCleared(repository.Stored);
+        repository.SaveCallCount.Should().Be(1);
+        callerCancellation.IsCancellationRequested.Should().BeTrue();
+        AssertIndependentSaveToken(repository, callerCancellation.Token);
+
+        TraktConnectionStatusDto status = await service.PollPendingAsync(CancellationToken.None);
+
+        status.Should().Be(new TraktConnectionStatusDto("revoked", null, null, "revoked"));
         oauthClient.PollCallCount.Should().Be(1);
         repository.SaveCallCount.Should().Be(1);
     }
@@ -745,11 +981,10 @@ public sealed class TraktConnectionServiceTests
         repository.Stored!.UpdatedAt.Should().Be(Now.AddSeconds(30));
     }
 
-    [Theory]
-    [MemberData(nameof(TransientRefreshFailures))]
-    public async Task GetValidAccessTokenAsync_WhenRefreshFailsTransiently_PreservesConnectedRecord(
-        Exception exception)
+    [Fact]
+    public async Task GetValidAccessTokenAsync_WhenRefreshFailsTransiently_PreservesConnectedRecord()
     {
+        TraktUnavailableException exception = new();
         TraktConnection original = ConnectedConnection(Now.AddMinutes(1));
         FakeRepository repository = new(original);
         FakeOAuthClient oauthClient = new() { RefreshException = exception };
@@ -757,16 +992,45 @@ public sealed class TraktConnectionServiceTests
 
         Func<Task<string>> action = () => service.GetValidAccessTokenAsync(CancellationToken.None);
 
-        await action.Should().ThrowAsync<Exception>();
+        TraktUnavailableException thrown = (await action.Should()
+            .ThrowAsync<TraktUnavailableException>())
+            .Which;
+        thrown.Should().BeSameAs(exception);
         repository.Stored.Should().BeSameAs(original);
         repository.SaveCallCount.Should().Be(0);
     }
 
-    public static TheoryData<Exception> TransientRefreshFailures => new()
+    [Fact]
+    public async Task GetValidAccessTokenAsync_WhenSuccessfulRefreshCannotBeParsed_PersistsRefreshRequiredBeforeRethrowing()
     {
-        new TraktUnavailableException(),
-        new TraktParseException()
-    };
+        using CancellationTokenSource callerCancellation = new();
+        TraktConnection original = ConnectedConnection(Now.AddMinutes(1));
+        TraktParseException failure = new();
+        FakeRepository repository = new(original) { RejectCanceledSaveTokens = true };
+        FakeOAuthClient oauthClient = new()
+        {
+            RefreshException = failure,
+            AfterRefreshResponse = callerCancellation.Cancel
+        };
+        TraktConnectionService service = CreateService(repository, oauthClient, new TrackingProtector());
+
+        Func<Task<string>> action = () => service.GetValidAccessTokenAsync(
+            callerCancellation.Token);
+
+        TraktParseException thrown = (await action.Should()
+            .ThrowAsync<TraktParseException>())
+            .Which;
+        thrown.Should().BeSameAs(failure);
+        thrown.Message.Should().Be("The Trakt response could not be parsed.");
+        repository.Stored!.State.Should().Be("refresh_required");
+        repository.Stored.ProtectedAccessToken.Should().Be(original.ProtectedAccessToken);
+        repository.Stored.ProtectedRefreshToken.Should().Be(original.ProtectedRefreshToken);
+        repository.SaveCallCount.Should().Be(1);
+        callerCancellation.IsCancellationRequested.Should().BeTrue();
+        AssertIndependentSaveToken(repository, callerCancellation.Token);
+        TraktConnectionStatusDto status = await service.GetStatusAsync(CancellationToken.None);
+        status.LastErrorCode.Should().Be("refresh_rejected");
+    }
 
     [Theory]
     [InlineData("pending")]
@@ -927,7 +1191,7 @@ public sealed class TraktConnectionServiceTests
         FakeRepository repository,
         FakeOAuthClient oauthClient,
         TrackingProtector protector,
-        MutableTimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null)
     {
         return new TraktConnectionService(
             repository,
@@ -993,6 +1257,17 @@ public sealed class TraktConnectionServiceTests
         saveToken.IsCancellationRequested.Should().BeFalse();
     }
 
+    private static void AssertIndependentDeleteToken(
+        FakeRepository repository,
+        CancellationToken callerToken)
+    {
+        repository.DeleteCancellationTokens.Should().ContainSingle();
+        CancellationToken deleteToken = repository.DeleteCancellationTokens.Single();
+        deleteToken.Should().NotBe(callerToken);
+        deleteToken.CanBeCanceled.Should().BeTrue();
+        deleteToken.IsCancellationRequested.Should().BeFalse();
+    }
+
     private sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
@@ -1000,6 +1275,59 @@ public sealed class TraktConnectionServiceTests
         public void Advance(TimeSpan duration)
         {
             utcNow = utcNow.Add(duration);
+        }
+    }
+
+    private sealed class ImmediateTimeoutTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+
+        public override ITimer CreateTimer(
+            TimerCallback callback,
+            object? state,
+            TimeSpan dueTime,
+            TimeSpan period)
+        {
+            return new ImmediateTimer(callback, state);
+        }
+
+        private sealed class ImmediateTimer : ITimer
+        {
+            private readonly TimerCallback callback;
+            private readonly object? state;
+            private int disposed;
+
+            public ImmediateTimer(TimerCallback callback, object? state)
+            {
+                this.callback = callback;
+                this.state = state;
+                _ = FireAsync();
+            }
+
+            public bool Change(TimeSpan dueTime, TimeSpan period)
+            {
+                return Volatile.Read(ref disposed) == 0;
+            }
+
+            public void Dispose()
+            {
+                Interlocked.Exchange(ref disposed, 1);
+            }
+
+            public ValueTask DisposeAsync()
+            {
+                Dispose();
+                return ValueTask.CompletedTask;
+            }
+
+            private async Task FireAsync()
+            {
+                await Task.Yield();
+                if (Volatile.Read(ref disposed) == 0)
+                {
+                    callback(state);
+                }
+            }
         }
     }
 
@@ -1014,16 +1342,49 @@ public sealed class TraktConnectionServiceTests
 
         public bool RejectCanceledSaveTokens { get; init; }
 
+        public bool RejectCanceledDeleteTokens { get; init; }
+
+        public bool WaitForSaveCancellation { get; init; }
+
+        public Exception? SaveException { get; init; }
+
+        public Exception? SaveExceptionAfterCancellation { get; init; }
+
+        public Action? AfterSave { get; init; }
+
         public List<CancellationToken> SaveCancellationTokens { get; } = [];
+
+        public List<CancellationToken> DeleteCancellationTokens { get; } = [];
+
+        public List<TraktConnection> SavedConnections { get; } = [];
 
         public Task<TraktConnection?> GetAsync(CancellationToken cancellationToken)
         {
             return Task.FromResult(Stored);
         }
 
-        public Task SaveAsync(TraktConnection savedConnection, CancellationToken cancellationToken)
+        public async Task SaveAsync(
+            TraktConnection savedConnection,
+            CancellationToken cancellationToken)
         {
             SaveCancellationTokens.Add(cancellationToken);
+            if (SaveException is not null)
+            {
+                throw SaveException;
+            }
+
+            if (WaitForSaveCancellation)
+            {
+                try
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                catch (OperationCanceledException) when (SaveExceptionAfterCancellation is not null)
+                {
+                    throw SaveExceptionAfterCancellation;
+                }
+            }
+
             if (RejectCanceledSaveTokens)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -1031,11 +1392,18 @@ public sealed class TraktConnectionServiceTests
 
             SaveCallCount++;
             Stored = savedConnection;
-            return Task.CompletedTask;
+            SavedConnections.Add(savedConnection);
+            AfterSave?.Invoke();
         }
 
         public Task DeleteAsync(CancellationToken cancellationToken)
         {
+            DeleteCancellationTokens.Add(cancellationToken);
+            if (RejectCanceledDeleteTokens)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
             DeleteCallCount++;
             Stored = null;
             return Task.CompletedTask;

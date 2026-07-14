@@ -12,7 +12,7 @@ public sealed class TraktConnectionService(
 {
     private static readonly TimeSpan SlowDownIncrement = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan DefaultDevicePollInterval = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan CriticalSaveTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CriticalPersistenceTimeout = TimeSpan.FromSeconds(10);
     private readonly SemaphoreSlim gate = new(1, 1);
 
     public async Task<TraktDeviceStartDto> StartDeviceAsync(
@@ -54,6 +54,11 @@ public sealed class TraktConnectionService(
                 null,
                 completedAt);
             await SaveCriticalAsync(pending);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                await DeleteCriticalAsync();
+                cancellationToken.ThrowIfCancellationRequested();
+            }
 
             return new TraktDeviceStartDto(
                 deviceCode.UserCode,
@@ -162,7 +167,7 @@ public sealed class TraktConnectionService(
             }
             catch (TraktParseException)
             {
-                await PersistTransientBackoffAsync(
+                await PersistInvalidDeviceGrantAsync(
                     connection,
                     timeProvider.GetUtcNow());
                 throw;
@@ -183,7 +188,17 @@ public sealed class TraktConnectionService(
                 return new TraktConnectionStatusDto("pending", null, null, null);
             }
 
-            TraktConnection connected = CreateConnected(grant, responseCompletedAt);
+            TraktConnection connected;
+            try
+            {
+                connected = CreateConnected(grant, responseCompletedAt);
+            }
+            catch (TraktParseException)
+            {
+                await PersistInvalidDeviceGrantAsync(connection, responseCompletedAt);
+                throw;
+            }
+
             await SaveCriticalAsync(connected);
             return GetPublicStatus(connected);
         }
@@ -299,6 +314,17 @@ public sealed class TraktConnectionService(
         await SaveCriticalAsync(scheduled);
     }
 
+    private async Task PersistInvalidDeviceGrantAsync(
+        TraktConnection connection,
+        DateTimeOffset completedAt)
+    {
+        TraktConnection revoked = ClearPendingState(
+            connection,
+            "revoked",
+            completedAt);
+        await SaveCriticalAsync(revoked);
+    }
+
     private async Task<string> RefreshAsync(
         TraktConnection connection,
         CancellationToken cancellationToken)
@@ -312,25 +338,72 @@ public sealed class TraktConnectionService(
         catch (TraktRefreshRejectedException)
         {
             DateTimeOffset completedAt = timeProvider.GetUtcNow();
-            TraktConnection refreshRequired = connection with
-            {
-                State = "refresh_required",
-                UpdatedAt = completedAt
-            };
-            await SaveCriticalAsync(refreshRequired);
+            await PersistRefreshRequiredAsync(connection, completedAt);
             throw new TraktNotConnectedException();
+        }
+        catch (TraktParseException)
+        {
+            await PersistRefreshRequiredAsync(
+                connection,
+                timeProvider.GetUtcNow());
+            throw;
         }
 
         DateTimeOffset responseCompletedAt = timeProvider.GetUtcNow();
-        TraktConnection refreshed = CreateConnected(grant, responseCompletedAt);
+        TraktConnection refreshed;
+        try
+        {
+            refreshed = CreateConnected(grant, responseCompletedAt);
+        }
+        catch (TraktParseException)
+        {
+            await PersistRefreshRequiredAsync(connection, responseCompletedAt);
+            throw;
+        }
+
         await SaveCriticalAsync(refreshed);
         return grant.AccessToken;
     }
 
+    private async Task PersistRefreshRequiredAsync(
+        TraktConnection connection,
+        DateTimeOffset completedAt)
+    {
+        TraktConnection refreshRequired = connection with
+        {
+            State = "refresh_required",
+            UpdatedAt = completedAt
+        };
+        await SaveCriticalAsync(refreshRequired);
+    }
+
     private async Task SaveCriticalAsync(TraktConnection connection)
     {
-        using CancellationTokenSource timeout = new(CriticalSaveTimeout, timeProvider);
-        await repository.SaveAsync(connection, timeout.Token);
+        await ExecuteCriticalPersistenceAsync(
+            cancellationToken => repository.SaveAsync(connection, cancellationToken));
+    }
+
+    private async Task DeleteCriticalAsync()
+    {
+        await ExecuteCriticalPersistenceAsync(repository.DeleteAsync);
+    }
+
+    private async Task ExecuteCriticalPersistenceAsync(
+        Func<CancellationToken, Task> operation)
+    {
+        using CancellationTokenSource timeout = new(
+            CriticalPersistenceTimeout,
+            timeProvider);
+        try
+        {
+            await operation(timeout.Token);
+        }
+        catch (OperationCanceledException exception)
+            when (timeout.IsCancellationRequested
+                && exception.CancellationToken == timeout.Token)
+        {
+            throw new TraktPersistenceUnavailableException();
+        }
     }
 
     private string UnprotectConnectedValue(string? ciphertext)

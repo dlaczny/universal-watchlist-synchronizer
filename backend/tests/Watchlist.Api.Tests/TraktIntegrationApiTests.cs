@@ -139,6 +139,30 @@ public sealed class TraktIntegrationApiTests
         (await response.Content.ReadAsStringAsync()).Should().NotContain("client-secret");
     }
 
+    [Fact]
+    public async Task StartDevice_WhenPersistenceUnavailable_ReturnsFixedRedactedServiceUnavailable()
+    {
+        using SeededApiFactory factory = new(
+            syncApiKey: SyncKey,
+            traktStartException: new TraktPersistenceUnavailableException());
+        HttpClient client = factory.CreateClient();
+        using HttpRequestMessage request = AuthorizedRequest(
+            HttpMethod.Post,
+            "/api/integrations/trakt/device/start");
+
+        HttpResponseMessage response = await client.SendAsync(request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        using JsonDocument document = await ReadJsonAsync(response);
+        document.RootElement.GetProperty("code").GetString().Should().Be(
+            "trakt_persistence_unavailable");
+        document.RootElement.GetProperty("error").GetString().Should().Be(
+            "Trakt connection persistence is temporarily unavailable.");
+        string body = await response.Content.ReadAsStringAsync();
+        body.Should().NotContain("device-code");
+        body.Should().NotContain("user-code");
+    }
+
     private static readonly HashSet<string> SensitivePropertyNames = new(
         [
             "deviceCode",

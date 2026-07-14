@@ -6,8 +6,8 @@ tags:
   - api
   - backend
   - worker
-timestamp: 2026-07-11T00:00:00Z
-version: 0.3.0
+timestamp: 2026-07-14T00:00:00Z
+version: 0.4.0
 ---
 
 # Boundary
@@ -68,6 +68,25 @@ lifecycle transition or source snapshot.
 | `POST /api/sync/availability/refresh` | Run stale-aware Plex availability refresh. |
 | `POST /api/sync/tmdb/tv` | Compatibility TV watchlist sync. |
 | `POST /api/sync/all` | Compatibility combined movie and TV sequence. |
+
+# Trakt Connection Management
+
+The Trakt management routes require the same `X-Watchlist-Sync-Key` as sync
+mutations. The backend returns the one-time user code only from the start
+response; status responses never expose device codes, user codes, access
+tokens, refresh tokens, client secrets, or protected values.
+
+| Endpoint | Contract |
+|---|---|
+| `POST /api/integrations/trakt/device/start` | Starts device authorization and returns the verification URL, one-time user code, expiry, and polling interval. Repeating an unexpired start returns `409` with `code=trakt_connection_pending`. Trakt dependency failure returns `503` with `code=trakt_unavailable`; a critical connection-state persistence timeout returns `503` with `code=trakt_persistence_unavailable`. |
+| `GET /api/integrations/trakt/status` | Returns only the public connection status, connected/expiry timestamps, and stable last-error code. |
+| `DELETE /api/integrations/trakt/connection` | Removes the singleton Trakt connection and returns `status=disconnected`. |
+
+A successful device-token response that cannot be parsed or represented is
+treated as consumed: the pending authorization becomes non-pollable before the
+fixed parse error is reported. An unusable successful refresh similarly moves
+the connection to `refresh_required` while retaining only its protected stored
+credentials for explicit reconnection.
 
 # Image Proxies
 
