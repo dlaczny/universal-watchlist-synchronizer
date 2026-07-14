@@ -33,7 +33,10 @@ public static class DependencyInjection
             .Validate(options => Uri.TryCreate(options.ImageBaseUrl, UriKind.Absolute, out _), "Tmdb:ImageBaseUrl must be absolute.");
         services.AddOptions<TraktOptions>()
             .Bind(configuration.GetSection(TraktOptions.SectionName))
-            .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Trakt:BaseUrl must be absolute.");
+            .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Trakt:BaseUrl must be absolute.")
+            .Validate(
+                options => options.PageSize is >= 1 and <= TraktTvClient.MaximumPageSize,
+                "Trakt:PageSize must be between 1 and 100.");
         services.PostConfigure<TmdbOptions>(options =>
         {
             IConfigurationSection providerIdsSection = tmdbSection.GetSection(nameof(TmdbOptions.OwnedProviderIds));
@@ -62,6 +65,12 @@ public static class DependencyInjection
             httpClient.BaseAddress = new Uri(options.BaseUrl);
         });
         services.AddSingleton<ITraktOAuthClient, TraktOAuthClient>();
+        services.AddHttpClient(TraktTvClient.HttpClientName, (serviceProvider, httpClient) =>
+        {
+            TraktOptions options = serviceProvider.GetRequiredService<IOptions<TraktOptions>>().Value;
+            httpClient.BaseAddress = new Uri(options.BaseUrl);
+        });
+        services.AddSingleton<ITraktTvClient, TraktTvClient>();
         services.AddSingleton<TraktConnectionService>(serviceProvider =>
         {
             TraktOptions traktOptions = serviceProvider
