@@ -24,4 +24,6 @@ public sealed class MongoDbOptions
     public string TvLifecycleEventsCollectionName { get; init; } = "tv_lifecycle_events";
 
     public string TraktConnectionsCollectionName { get; init; } = "trakt_connections";
+
+    public string TmdbProviderCatalogCollectionName { get; init; } = "tmdb_provider_catalog";
 }

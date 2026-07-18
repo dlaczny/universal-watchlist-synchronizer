@@ -5,23 +5,14 @@ namespace Watchlist.Application;
 public sealed class TmdbMovieEnrichmentService(
     ITmdbMovieClient client,
     ITmdbMovieMetadataRepository repository,
-    TimeProvider timeProvider) : ITmdbMovieEnrichmentService
+    TimeProvider timeProvider,
+    TmdbEnrichmentSettings settings) : ITmdbMovieEnrichmentService
 {
     private const string CompletedStatus = "completed";
     private const string EnrichedStatus = "enriched";
     private const string FailedStatus = "failed";
     private const string NotFoundStatus = "not_found";
     private const string PartialStatus = "partial";
-
-    private static readonly HashSet<string> OwnedProviderNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "max",
-        "hbo max",
-        "skyshowtime",
-        "crunchyroll",
-        "amazon prime video",
-        "prime video"
-    };
 
     public async Task<TmdbMovieEnrichmentResultDto> SyncMoviesAsync(CancellationToken cancellationToken)
     {
@@ -212,15 +203,18 @@ public sealed class TmdbMovieEnrichmentService(
         return false;
     }
 
-    private static IReadOnlyList<string> GetOwnedServiceAvailability(TmdbMovieProviderDataDto providers)
+    private IReadOnlyList<string> GetOwnedServiceAvailability(TmdbMovieProviderDataDto providers)
     {
-        if (!providers.Regions.TryGetValue("PL", out TmdbRegionWatchProvidersDto? polandProviders))
+        if (!providers.Regions.TryGetValue(
+                settings.ProviderRegion,
+                out TmdbRegionWatchProvidersDto? polandProviders))
         {
             return [];
         }
 
+        HashSet<int> ownedProviderIds = settings.OwnedProviderIds.ToHashSet();
         return polandProviders.Flatrate
-            .Where(provider => OwnedProviderNames.Contains(provider.ProviderName))
+            .Where(provider => ownedProviderIds.Contains(provider.ProviderId))
             .Select(provider => provider.ProviderName)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();

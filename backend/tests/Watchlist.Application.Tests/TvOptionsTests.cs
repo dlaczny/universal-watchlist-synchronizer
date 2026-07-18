@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Watchlist.Application;
 using Watchlist.Infrastructure;
 
 namespace Watchlist.Application.Tests;
@@ -65,8 +66,11 @@ public sealed class TvOptionsTests
         using ServiceProvider provider = services.BuildServiceProvider();
 
         TmdbOptions options = provider.GetRequiredService<IOptions<TmdbOptions>>().Value;
+        TmdbEnrichmentSettings settings = provider.GetRequiredService<TmdbEnrichmentSettings>();
 
         options.OwnedProviderIds.Should().Equal(8, 337, 531);
+        settings.OwnedProviderIds.Should().Equal(8, 337, 531);
+        settings.ProviderRegion.Should().Be("PL");
     }
 
     [Fact]
@@ -92,5 +96,19 @@ public sealed class TvOptionsTests
         providerIds.Add(1899);
 
         options.OwnedProviderIds.Should().Equal(8, 337, 531);
+    }
+
+    [Fact]
+    public void AddWatchlistInfrastructure_TvEnrichmentDependenciesUseSingletonSafeLifetimes()
+    {
+        ServiceCollection services = new();
+        services.AddWatchlistInfrastructure(new ConfigurationBuilder().Build());
+
+        services.Single(descriptor => descriptor.ServiceType == typeof(ITmdbTvMetadataClient))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Single(descriptor => descriptor.ServiceType == typeof(ITmdbTvEnrichmentService))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Single(descriptor => descriptor.ServiceType == typeof(ITmdbProviderCatalogRepository))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
     }
 }

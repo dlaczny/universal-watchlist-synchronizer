@@ -226,5 +226,20 @@ public sealed class TmdbTvWatchlistSyncServiceTests
 
             return Task.FromResult(MetadataById[tmdbId]);
         }
+
+        public Task<TmdbTvProviderDataDto> GetTvProvidersAsync(
+            int tmdbId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<TmdbTvProviderDataDto> GetSeasonProvidersAsync(
+            int tmdbId,
+            int seasonNumber,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<TmdbWatchProviderCatalogDto> GetProviderCatalogAsync(
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<TmdbWatchProviderRegionsDto> GetProviderRegionsAsync(
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

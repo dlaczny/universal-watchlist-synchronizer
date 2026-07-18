@@ -30,13 +30,30 @@ public static class DependencyInjection
         services.AddOptions<TmdbOptions>()
             .Bind(tmdbSection)
             .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Tmdb:BaseUrl must be absolute.")
-            .Validate(options => Uri.TryCreate(options.ImageBaseUrl, UriKind.Absolute, out _), "Tmdb:ImageBaseUrl must be absolute.");
+            .Validate(options => Uri.TryCreate(options.ImageBaseUrl, UriKind.Absolute, out _), "Tmdb:ImageBaseUrl must be absolute.")
+            .Validate(
+                options => options.ProviderRegion.Length == 2
+                    && options.ProviderRegion.All(character => character is >= 'A' and <= 'Z'),
+                "Tmdb:ProviderRegion must be an uppercase ISO alpha-2 code.")
+            .Validate(
+                options => options.OwnedProviderIds.Count > 0
+                    && options.OwnedProviderIds.All(providerId => providerId > 0)
+                    && options.OwnedProviderIds.Distinct().Count() == options.OwnedProviderIds.Count,
+                "Tmdb:OwnedProviderIds must contain unique positive IDs.")
+            .Validate(
+                options => options.ProviderCacheLifetime > TimeSpan.Zero,
+                "Tmdb:ProviderCacheLifetime must be positive.")
+            .ValidateOnStart();
         services.AddOptions<TraktOptions>()
             .Bind(configuration.GetSection(TraktOptions.SectionName))
             .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Trakt:BaseUrl must be absolute.")
             .Validate(
                 options => options.PageSize is >= 1 and <= TraktTvClient.MaximumPageSize,
-                "Trakt:PageSize must be between 1 and 100.");
+                "Trakt:PageSize must be between 1 and 100.")
+            .Validate(
+                options => options.MetadataRefreshInterval > TimeSpan.Zero,
+                "Trakt:MetadataRefreshInterval must be positive.")
+            .ValidateOnStart();
         services.PostConfigure<TmdbOptions>(options =>
         {
             IConfigurationSection providerIdsSection = tmdbSection.GetSection(nameof(TmdbOptions.OwnedProviderIds));
@@ -45,6 +62,16 @@ public static class DependencyInjection
                 int[] configuredProviderIds = providerIdsSection.Get<int[]>() ?? [];
                 options.OwnedProviderIds = configuredProviderIds;
             }
+        });
+        services.AddSingleton(serviceProvider =>
+        {
+            TmdbOptions tmdbOptions = serviceProvider.GetRequiredService<IOptions<TmdbOptions>>().Value;
+            TraktOptions traktOptions = serviceProvider.GetRequiredService<IOptions<TraktOptions>>().Value;
+            return new TmdbEnrichmentSettings(
+                tmdbOptions.ProviderRegion,
+                tmdbOptions.OwnedProviderIds,
+                traktOptions.MetadataRefreshInterval,
+                tmdbOptions.ProviderCacheLifetime);
         });
         services.AddSingleton<IMongoClient>(serviceProvider =>
         {
@@ -59,6 +86,7 @@ public static class DependencyInjection
         });
         services.AddSingleton<ITraktTokenProtector, DataProtectionTraktTokenProtector>();
         services.AddSingleton<ITraktConnectionRepository, MongoTraktConnectionRepository>();
+        services.AddSingleton<ITmdbProviderCatalogRepository, MongoTmdbProviderCatalogRepository>();
         services.AddHttpClient(TraktOAuthClient.HttpClientName, (serviceProvider, httpClient) =>
         {
             TraktOptions options = serviceProvider.GetRequiredService<IOptions<TraktOptions>>().Value;
@@ -128,15 +156,18 @@ public static class DependencyInjection
             TmdbOptions options = serviceProvider.GetRequiredService<IOptions<TmdbOptions>>().Value;
             httpClient.BaseAddress = new Uri(options.BaseUrl);
         });
-        services.AddHttpClient<ITmdbTvMetadataClient, TmdbTvMetadataClient>((serviceProvider, httpClient) =>
+        services.AddHttpClient(TmdbTvMetadataClient.HttpClientName, (serviceProvider, httpClient) =>
         {
             TmdbOptions options = serviceProvider.GetRequiredService<IOptions<TmdbOptions>>().Value;
             httpClient.BaseAddress = new Uri(options.BaseUrl);
         });
+        services.AddSingleton<ITmdbTvMetadataClient, TmdbTvMetadataClient>();
+        services.AddSingleton<ITmdbTvEnrichmentService, TmdbTvEnrichmentService>();
         services.AddScoped<ITmdbTvWatchlistSyncService, TmdbTvWatchlistSyncService>();
         services.AddHostedService<DataProtectionKeyRingHostedService>();
         services.AddHostedService<TraktDeviceAuthorizationHostedService>();
         services.AddHostedService<MongoBootstrapHostedService>();
+        services.AddHostedService<TmdbProviderCatalogHostedService>();
 
         return services;
     }

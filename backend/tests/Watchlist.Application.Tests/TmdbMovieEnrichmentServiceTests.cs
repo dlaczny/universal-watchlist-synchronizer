@@ -73,9 +73,9 @@ public sealed class TmdbMovieEnrichmentServiceTests
         {
             ["PL"] = new(
                 [
-                    new TmdbWatchProviderDto(1, "MAX", "/max.jpg", 1),
-                    new TmdbWatchProviderDto(2, "Prime Video", "/prime.jpg", 2),
-                    new TmdbWatchProviderDto(3, "Netflix", "/netflix.jpg", 3)
+                    new TmdbWatchProviderDto(119, "MAX", "/max.jpg", 1),
+                    new TmdbWatchProviderDto(1899, "Prime Video", "/prime.jpg", 2),
+                    new TmdbWatchProviderDto(8, "Netflix", "/netflix.jpg", 3)
                 ],
                 [new TmdbWatchProviderDto(4, "Apple TV", "/apple.jpg", 4)],
                 []),
@@ -101,6 +101,38 @@ public sealed class TmdbMovieEnrichmentServiceTests
         update.OwnedServiceAvailability.Should().Equal("MAX", "Prime Video");
         update.ReleasedOnVod.Should().BeTrue();
         update.VodRegions.Should().Equal("PL", "US");
+    }
+
+    [Fact]
+    public async Task SyncMoviesAsync_MatchesOwnedSubscriptionsByConfiguredIdNotDisplayName()
+    {
+        TmdbMovieProviderDataDto providers = new(new Dictionary<string, TmdbRegionWatchProvidersDto>
+        {
+            ["PL"] = new(
+                [
+                    new TmdbWatchProviderDto(
+                        119,
+                        "Renamed upstream without notice",
+                        "/owned.jpg",
+                        1),
+                    new TmdbWatchProviderDto(8, "Max", "/misleading.jpg", 2)
+                ],
+                [],
+                [])
+        });
+        FakeTmdbMovieClient client = new();
+        client.MetadataByCandidateId[1297842] = CreateMetadata(1297842, "GOAT", providers);
+        FakeTmdbMovieMetadataRepository repository = new([
+            CreateWriteModel("movie-letterboxd-1297842", MediaType.Movie, WatchlistSource.Letterboxd, "1297842")
+        ]);
+        TmdbMovieEnrichmentService service = CreateService(client, repository);
+
+        await service.SyncMoviesAsync(CancellationToken.None);
+
+        TmdbMovieMetadataUpdate update = repository.Updates.Single().Update;
+        update.OwnedServiceAvailability.Should().Equal("Renamed upstream without notice");
+        update.Providers.Regions["PL"].Flatrate.Should().Equal(
+            providers.Regions["PL"].Flatrate);
     }
 
     [Fact]
@@ -243,7 +275,15 @@ public sealed class TmdbMovieEnrichmentServiceTests
         ITmdbMovieClient client,
         ITmdbMovieMetadataRepository repository)
     {
-        return new TmdbMovieEnrichmentService(client, repository, new FakeTimeProvider(SyncTime));
+        return new TmdbMovieEnrichmentService(
+            client,
+            repository,
+            new FakeTimeProvider(SyncTime),
+            new TmdbEnrichmentSettings(
+                "PL",
+                [119, 1899, 1773],
+                TimeSpan.FromDays(1),
+                TimeSpan.FromHours(24)));
     }
 
     private static WatchlistItemWriteModel CreateWriteModel(
