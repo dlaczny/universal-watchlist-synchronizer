@@ -120,6 +120,7 @@ public static class DependencyInjection
         services.AddSingleton<IWatchlistWriteRepository, MongoWatchlistWriteRepository>();
         services.AddSingleton<ITvGenerationRepository, MongoTvGenerationRepository>();
         services.AddSingleton<ITvShowReadRepository, MongoTvShowReadRepository>();
+        services.AddSingleton<ILegacyTvMigrationService, MongoLegacyTvMigrationService>();
         services.AddSingleton<ILetterboxdSourceSnapshotRepository, MongoLetterboxdSourceSnapshotRepository>();
         services.AddSingleton<ITmdbMovieMetadataRepository, MongoTmdbMovieMetadataRepository>();
         services.AddSingleton<ISyncStatusReadRepository, MongoSyncStatusReadRepository>();
@@ -153,11 +154,6 @@ public static class DependencyInjection
         });
         services.AddScoped<ILetterboxdMovieSyncService, LetterboxdMovieSyncService>();
         services.AddScoped<ITmdbMovieEnrichmentService, TmdbMovieEnrichmentService>();
-        services.AddHttpClient<ITmdbTvWatchlistClient, TmdbTvWatchlistClient>((serviceProvider, httpClient) =>
-        {
-            TmdbOptions options = serviceProvider.GetRequiredService<IOptions<TmdbOptions>>().Value;
-            httpClient.BaseAddress = new Uri(options.BaseUrl);
-        });
         services.AddHttpClient(TmdbTvMetadataClient.HttpClientName, (serviceProvider, httpClient) =>
         {
             TmdbOptions options = serviceProvider.GetRequiredService<IOptions<TmdbOptions>>().Value;
@@ -165,10 +161,10 @@ public static class DependencyInjection
         });
         services.AddSingleton<ITmdbTvMetadataClient, TmdbTvMetadataClient>();
         services.AddSingleton<ITmdbTvEnrichmentService, TmdbTvEnrichmentService>();
-        services.AddScoped<ITmdbTvWatchlistSyncService, TmdbTvWatchlistSyncService>();
         services.AddHostedService<DataProtectionKeyRingHostedService>();
         services.AddHostedService<TraktDeviceAuthorizationHostedService>();
         services.AddHostedService<MongoTvIndexHostedService>();
+        services.AddHostedService<LegacyTvMigrationHostedService>();
         services.AddHostedService<MongoBootstrapHostedService>();
         services.AddHostedService<TmdbProviderCatalogHostedService>();
 

@@ -7,11 +7,12 @@ namespace Watchlist.Application.Tests;
 public sealed class SeedDataTests
 {
     [Fact]
-    public void WatchlistItems_ContainsExistingSampleRecords()
+    public void WatchlistItems_ContainsOnlyExistingMovieSamples()
     {
         IReadOnlyList<WatchlistItem> items = SeedData.WatchlistItems;
 
-        items.Should().HaveCount(4);
+        items.Should().HaveCount(2);
+        items.Should().OnlyContain(item => item.MediaType == MediaType.Movie);
         items.Should().ContainSingle(item =>
             item.Id == "movie-dune-part-two"
             && item.MediaType == MediaType.Movie
@@ -22,16 +23,6 @@ public sealed class SeedDataTests
             && item.MediaType == MediaType.Movie
             && item.AvailabilityStatus == AvailabilityStatus.Unreleased
             && item.AddedAt == DateTimeOffset.Parse("2026-05-21T10:00:00+02:00"));
-        items.Should().ContainSingle(item =>
-            item.Id == "tv-andor"
-            && item.MediaType == MediaType.TvShow
-            && item.AvailabilityStatus == AvailabilityStatus.NotOnPlex
-            && item.AddedAt == DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"));
-        items.Should().ContainSingle(item =>
-            item.Id == "tv-tmdb-1399"
-            && item.MediaType == MediaType.TvShow
-            && item.AvailabilityStatus == AvailabilityStatus.NotOnPlex
-            && item.AddedAt == DateTimeOffset.Parse("2026-06-06T12:00:00Z"));
     }
 
     [Fact]

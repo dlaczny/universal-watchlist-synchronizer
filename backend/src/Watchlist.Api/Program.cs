@@ -250,14 +250,13 @@ syncApi.MapPost("/plex/movies", async (
     return Results.Ok(result);
 });
 
-syncApi.MapPost("/tmdb/tv", async (
-    ITmdbTvWatchlistSyncService syncService,
-    CancellationToken cancellationToken) =>
-{
-    TmdbTvSyncResultDto result = await syncService.SyncAsync(cancellationToken);
-
-    return Results.Ok(result);
-});
+syncApi.MapPost("/tmdb/tv", () => Results.Json(
+    new
+    {
+        code = "legacy_tv_sync_disabled",
+        error = "The legacy TMDB TV sync is disabled."
+    },
+    statusCode: StatusCodes.Status410Gone));
 
 syncApi.MapPost("/availability/refresh", async (
     IAvailabilityRefreshService refreshService,

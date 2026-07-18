@@ -32,14 +32,15 @@ public sealed class WatchlistApiTests
         JsonElement items = document.RootElement;
         items.GetArrayLength().Should().BeGreaterThan(0);
         items.EnumerateArray().Should().Contain(item => item.GetProperty("mediaType").GetString() == "movie");
-        items.EnumerateArray().Should().Contain(item => item.GetProperty("mediaType").GetString() == "tv");
+        items.EnumerateArray().Should().OnlyContain(item =>
+            item.GetProperty("mediaType").GetString() == "movie");
         items[0].TryGetProperty("addedAt", out _).Should().BeTrue();
         items[0].TryGetProperty("runtimeMinutes", out _).Should().BeFalse();
         items[0].TryGetProperty("primaryActionLabel", out _).Should().BeFalse();
     }
 
     [Fact]
-    public async Task GetWatchlist_WhenCollectionTv_ReturnsTvShows()
+    public async Task GetWatchlist_WhenCollectionTv_DoesNotReturnLegacyTvSeeds()
     {
         using SeededApiFactory factory = new();
         HttpClient client = factory.CreateClient();
@@ -49,12 +50,11 @@ public sealed class WatchlistApiTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         JsonElement items = document.RootElement;
-        items.GetArrayLength().Should().BeGreaterThan(0);
-        items.EnumerateArray().Should().OnlyContain(item => item.GetProperty("mediaType").GetString() == "tv");
+        items.GetArrayLength().Should().Be(0);
     }
 
     [Fact]
-    public async Task GetWatchlist_WhenCollectionTv_ReturnsTmdbTvShows()
+    public async Task GetWatchlist_WhenCollectionTv_DoesNotReturnTmdbLegacyRows()
     {
         using SeededApiFactory factory = new();
         HttpClient client = factory.CreateClient();
@@ -64,11 +64,7 @@ public sealed class WatchlistApiTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
-        JsonElement item = document.RootElement.EnumerateArray()
-            .Single(element => element.GetProperty("id").GetString() == "tv-tmdb-1399");
-        item.GetProperty("mediaType").GetString().Should().Be("tv");
-        item.GetProperty("source").GetString().Should().Be("tmdb");
-        item.GetProperty("title").GetString().Should().Be("Game of Thrones");
+        document.RootElement.GetArrayLength().Should().Be(0);
     }
 
     [Fact]
@@ -406,8 +402,12 @@ public sealed class WatchlistApiTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
-        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
+        document.RootElement.GetProperty("status").GetString().Should().Be("partial");
         document.RootElement.GetProperty("letterboxd").GetProperty("itemsFetched").GetInt32().Should().Be(2);
+        document.RootElement.GetProperty("tmdbTv").GetProperty("status").GetString()
+            .Should().Be("disabled");
+        document.RootElement.GetProperty("tmdbTv").GetProperty("itemsFetched").GetInt32()
+            .Should().Be(0);
         document.RootElement.GetProperty("plexMovies").GetProperty("watchlistItemsMatched").GetInt32().Should().Be(40);
     }
 
@@ -457,21 +457,6 @@ public sealed class WatchlistApiTests
         HttpResponseMessage response = await client.SendAsync(request);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-    }
-
-    [Fact]
-    public async Task SyncTmdbTv_ReturnsTvSyncResult()
-    {
-        using SeededApiFactory factory = new();
-        HttpClient client = factory.CreateClient();
-
-        HttpResponseMessage response = await client.PostAsync("/api/sync/tmdb/tv", null);
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        using JsonDocument document = await ReadJsonDocumentAsync(response);
-        document.RootElement.GetProperty("status").GetString().Should().Be("completed");
-        document.RootElement.GetProperty("itemsFetched").GetInt32().Should().Be(2);
-        document.RootElement.GetProperty("itemsUpserted").GetInt32().Should().Be(2);
     }
 
     [Fact]

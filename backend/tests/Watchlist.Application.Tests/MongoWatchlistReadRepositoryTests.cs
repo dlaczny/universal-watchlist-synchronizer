@@ -26,7 +26,7 @@ public sealed class MongoWatchlistReadRepositoryTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetItemsAsync_WhenManifestExists_ReturnsActiveLetterboxdAndOtherSourcesOnly()
+    public async Task GetItemsAsync_WhenManifestExists_ReturnsActiveMoviesOnly()
     {
         IMongoCollection<MongoWatchlistItemDocument> items =
             database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
@@ -41,9 +41,8 @@ public sealed class MongoWatchlistReadRepositoryTests : IAsyncLifetime
         IReadOnlyList<WatchlistItem> result = await repository.GetItemsAsync(
             CancellationToken.None);
 
-        result.Select(item => item.Id).Should().BeEquivalentTo(
-            "movie-letterboxd-101",
-            "tv-tmdb-1");
+        result.Select(item => item.Id).Should().BeEquivalentTo("movie-letterboxd-101");
+        result.Should().OnlyContain(item => item.MediaType == MediaType.Movie);
         result.Should().NotContain(item => item.SourceId == "202");
     }
 
@@ -59,6 +58,21 @@ public sealed class MongoWatchlistReadRepositoryTests : IAsyncLifetime
             CancellationToken.None);
 
         result.Select(item => item.SourceId).Should().BeEquivalentTo("101", "202");
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_WhenManifestDoesNotExist_StillExcludesLegacyTvRows()
+    {
+        IMongoCollection<MongoWatchlistItemDocument> items =
+            database.GetCollection<MongoWatchlistItemDocument>(options.WatchlistItemsCollectionName);
+        await items.InsertManyAsync([CreateMovie("101", "Movie"), CreateTvShow()]);
+        MongoWatchlistReadRepository repository = new(database, Options.Create(options));
+
+        IReadOnlyList<WatchlistItem> result = await repository.GetItemsAsync(
+            CancellationToken.None);
+
+        result.Select(item => item.Id).Should().Equal("movie-letterboxd-101");
+        result.Should().OnlyContain(item => item.MediaType == MediaType.Movie);
     }
 
     private async Task PublishSnapshot(

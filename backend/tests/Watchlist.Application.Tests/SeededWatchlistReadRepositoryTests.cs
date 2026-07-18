@@ -10,7 +10,7 @@ namespace Watchlist.Application.Tests;
 public sealed class SeededWatchlistReadRepositoryTests
 {
     [Fact]
-    public async Task GetItemsAsync_ReturnsPlannedSeedItems()
+    public async Task GetItemsAsync_ReturnsOnlyPlannedMovieSeedItems()
     {
         SeededWatchlistReadRepository repository = new();
 
@@ -38,17 +38,8 @@ public sealed class SeededWatchlistReadRepositoryTests
             && item.AvailabilityStatus == AvailabilityStatus.Unreleased
             && item.PosterUrl == null
             && item.BackdropUrl == null);
-        items.Should().ContainSingle(item =>
-            item.Id == "tv-andor"
-            && item.MediaType == MediaType.TvShow
-            && item.Source == WatchlistSource.Tmdb
-            && item.SourceId == "tmdb-tv-83867"
-            && item.Title == "Andor"
-            && item.Year == 2022
-            && item.ReleaseStatus == ReleaseStatus.Released
-            && item.AvailabilityStatus == AvailabilityStatus.NotOnPlex
-            && item.PosterUrl == "https://image.tmdb.org/t/p/w500/59SVNwLfoMnZPPB6ukW6dlPxAdI.jpg"
-            && item.BackdropUrl == "https://image.tmdb.org/t/p/w1280/5NbdcZdsu7Rr0RthcYk4qqv7W7J.jpg");
+        items.Should().HaveCount(2);
+        items.Should().OnlyContain(item => item.MediaType == MediaType.Movie);
     }
 
     [Fact]

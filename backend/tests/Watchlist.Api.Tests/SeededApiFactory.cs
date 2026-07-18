@@ -18,7 +18,8 @@ public sealed class SeededApiFactory(
     Exception? availabilityRefreshException = null,
     Exception? tmdbTvSyncException = null,
     string? syncApiKey = null,
-    Exception? traktStartException = null) : WebApplicationFactory<Program>
+    Exception? traktStartException = null,
+    Action? tmdbTvSyncInvoked = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -44,6 +45,7 @@ public sealed class SeededApiFactory(
             services.RemoveAll<ITraktAccessTokenProvider>();
             RemoveBootstrapHostedService(services);
             RemoveTraktHostedService(services);
+            RemoveLegacyTvMigrationHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
             services.AddSingleton<ISyncStatusReadRepository, SeededSyncStatusReadRepository>();
             services.AddSingleton<ILetterboxdMovieSyncService>(
@@ -59,7 +61,9 @@ public sealed class SeededApiFactory(
             services.AddSingleton<ICombinedSyncService>(
                 _ => new SeededCombinedSyncService(combinedSyncException));
             services.AddSingleton<ITmdbTvWatchlistSyncService>(
-                _ => new SeededTmdbTvWatchlistSyncService(tmdbTvSyncException));
+                _ => new SeededTmdbTvWatchlistSyncService(
+                    tmdbTvSyncException,
+                    tmdbTvSyncInvoked));
             services.AddSingleton<IAvailabilityRefreshService>(
                 _ => new SeededAvailabilityRefreshService(availabilityRefreshException));
             services.AddSingleton<IWatchlistExportRepository, SeededWatchlistExportRepository>();
@@ -93,6 +97,18 @@ public sealed class SeededApiFactory(
         if (traktDescriptor is not null)
         {
             services.Remove(traktDescriptor);
+        }
+    }
+
+    internal static void RemoveLegacyTvMigrationHostedService(IServiceCollection services)
+    {
+        ServiceDescriptor? migrationDescriptor = services.FirstOrDefault(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(LegacyTvMigrationHostedService));
+
+        if (migrationDescriptor is not null)
+        {
+            services.Remove(migrationDescriptor);
         }
     }
 
@@ -350,10 +366,13 @@ public sealed class SeededApiFactory(
         }
     }
 
-    private sealed class SeededTmdbTvWatchlistSyncService(Exception? syncException) : ITmdbTvWatchlistSyncService
+    private sealed class SeededTmdbTvWatchlistSyncService(
+        Exception? syncException,
+        Action? invoked) : ITmdbTvWatchlistSyncService
     {
         public Task<TmdbTvSyncResultDto> SyncAsync(CancellationToken cancellationToken)
         {
+            invoked?.Invoke();
             if (syncException is not null)
             {
                 return Task.FromException<TmdbTvSyncResultDto>(syncException);
@@ -441,12 +460,12 @@ public sealed class SeededApiFactory(
             }
 
             CombinedSyncResultDto result = new(
-                "completed",
+                "partial",
                 DateTimeOffset.Parse("2026-06-05T12:00:00Z"),
                 DateTimeOffset.Parse("2026-06-05T12:00:04Z"),
                 new LetterboxdSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:00Z"), DateTimeOffset.Parse("2026-06-05T12:00:01Z"), 2, 2, 0, "letterboxd-snapshot"),
                 new TmdbMovieEnrichmentResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:01Z"), DateTimeOffset.Parse("2026-06-05T12:00:02Z"), 2, 2, 0, 0),
-                new TmdbTvSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:02Z"), DateTimeOffset.Parse("2026-06-05T12:00:03Z"), 14, 14, 0, 14, 0, 0),
+                new TmdbTvSyncResultDto("disabled", DateTimeOffset.Parse("2026-06-05T12:00:02Z"), DateTimeOffset.Parse("2026-06-05T12:00:02Z"), 0, 0, 0, 0, 0, 0),
                 new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:03Z"), DateTimeOffset.Parse("2026-06-05T12:00:04Z"), 1, 500, 500, 0, 40, 220, 3));
 
             return Task.FromResult(result);

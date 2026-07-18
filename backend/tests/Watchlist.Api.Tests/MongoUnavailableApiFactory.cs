@@ -17,6 +17,7 @@ public sealed class MongoUnavailableApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<IWatchlistReadRepository>();
             services.RemoveAll<IWatchlistExportRepository>();
             SeededApiFactory.RemoveBootstrapHostedService(services);
+            SeededApiFactory.RemoveLegacyTvMigrationHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, ThrowingWatchlistReadRepository>();
             services.AddSingleton<IWatchlistExportRepository, ThrowingWatchlistExportRepository>();
         });

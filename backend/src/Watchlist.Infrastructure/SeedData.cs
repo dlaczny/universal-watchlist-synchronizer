@@ -41,35 +41,7 @@ public static class SeedData
             ReleaseStatus.Unreleased,
             AvailabilityStatus.Unreleased,
             DateTimeOffset.Parse("2026-05-21T10:00:00+02:00"),
-            DateTimeOffset.Parse("2026-05-25T10:00:00+02:00")),
-        new WatchlistItem(
-            "tv-andor",
-            MediaType.TvShow,
-            WatchlistSource.Tmdb,
-            "tmdb-tv-83867",
-            "Andor",
-            2022,
-            "The story of Cassian Andor's journey to discover the difference he can make.",
-            "https://image.tmdb.org/t/p/w500/59SVNwLfoMnZPPB6ukW6dlPxAdI.jpg",
-            "https://image.tmdb.org/t/p/w1280/5NbdcZdsu7Rr0RthcYk4qqv7W7J.jpg",
-            ReleaseStatus.Released,
-            AvailabilityStatus.NotOnPlex,
-            DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"),
-            DateTimeOffset.Parse("2026-05-25T10:00:00+02:00")),
-        new WatchlistItem(
-            "tv-tmdb-1399",
-            MediaType.TvShow,
-            WatchlistSource.Tmdb,
-            "1399",
-            "Game of Thrones",
-            2011,
-            "Nine noble families fight for control.",
-            "https://image.tmdb.org/t/p/w500/poster.jpg",
-            "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
-            ReleaseStatus.Released,
-            AvailabilityStatus.NotOnPlex,
-            DateTimeOffset.Parse("2026-06-06T12:00:00Z"),
-            DateTimeOffset.Parse("2026-06-06T12:00:00Z"))
+            DateTimeOffset.Parse("2026-05-25T10:00:00+02:00"))
     ];
 
     public static readonly IReadOnlyList<MongoSyncRunDocument> SyncRuns =

@@ -21,8 +21,11 @@ public sealed class MongoWatchlistReadRepository : IWatchlistReadRepository
     {
         LetterboxdSourceSnapshot? snapshot = await sourceSnapshots.GetLatestAsync(
             cancellationToken);
+        FilterDefinitionBuilder<MongoWatchlistItemDocument> filter =
+            Builders<MongoWatchlistItemDocument>.Filter;
         List<MongoWatchlistItemDocument> documents = await collection
-            .Find(MongoLetterboxdLifecycleFilters.VisibleWatchlistItems(snapshot))
+            .Find(filter.Eq(document => document.MediaType, MediaType.Movie)
+                & MongoLetterboxdLifecycleFilters.VisibleWatchlistItems(snapshot))
             .ToListAsync(cancellationToken);
 
         return documents.Select(document => document.ToDomain()).ToList();
