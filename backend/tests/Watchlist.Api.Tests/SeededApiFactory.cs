@@ -20,7 +20,8 @@ public sealed class SeededApiFactory(
     Exception? tmdbTvSyncException = null,
     string? syncApiKey = null,
     Exception? traktStartException = null,
-    Action? tmdbTvSyncInvoked = null) : WebApplicationFactory<Program>
+    Action? tmdbTvSyncInvoked = null,
+    Exception? tvSyncException = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -39,6 +40,10 @@ public sealed class SeededApiFactory(
             services.RemoveAll<IPlexMovieSyncService>();
             services.RemoveAll<IPlexMovieInventoryRepository>();
             services.RemoveAll<ICombinedSyncService>();
+            services.RemoveAll<ITvSyncService>();
+            services.RemoveAll<ITvGenerationRepository>();
+            services.RemoveAll<ITvExportService>();
+            services.RemoveAll<ITvStatusService>();
             services.RemoveAll<ITmdbTvWatchlistSyncService>();
             services.RemoveAll<IAvailabilityRefreshService>();
             services.RemoveAll<IWatchlistExportRepository>();
@@ -63,6 +68,10 @@ public sealed class SeededApiFactory(
             services.AddSingleton<IPlexMovieInventoryRepository, SeededPlexMovieInventoryRepository>();
             services.AddSingleton<ICombinedSyncService>(
                 _ => new SeededCombinedSyncService(combinedSyncException));
+            services.AddSingleton<ITvSyncService>(_ => new SeededTvSyncService(tvSyncException));
+            services.AddSingleton<ITvGenerationRepository, SeededTvGenerationRepository>();
+            services.AddSingleton<ITvExportService, TvExportService>();
+            services.AddSingleton<ITvStatusService, TvStatusService>();
             services.AddSingleton<ITmdbTvWatchlistSyncService>(
                 _ => new SeededTmdbTvWatchlistSyncService(
                     tmdbTvSyncException,
@@ -141,7 +150,7 @@ public sealed class SeededApiFactory(
             CreateShow("tv-trakt-12347", 12347, TvLifecycleState.RetiredTerminal)
         ];
 
-        private static readonly PublishedTvGeneration Generation = new(
+        internal static readonly PublishedTvGeneration Generation = new(
             new TvGenerationManifest(
                 "seeded-tv-generation",
                 null,
@@ -212,6 +221,42 @@ public sealed class SeededApiFactory(
                 DateTimeOffset.Parse("2026-07-19T00:00:00Z"),
                 "seeded-tv-generation",
                 null);
+        }
+    }
+
+    private sealed class SeededTvGenerationRepository : ITvGenerationRepository
+    {
+        public Task StageAsync(TvGenerationDraft draft, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task PublishAsync(TvGenerationManifest manifest, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<PublishedTvGeneration?> GetPublishedAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<PublishedTvGeneration?>(SeededTvShowReadRepository.Generation);
+        }
+    }
+
+    private sealed class SeededTvSyncService(Exception? exception) : ITvSyncService
+    {
+        public Task<TvSyncResultDto> SyncAsync(TvGenerationKind kind, CancellationToken cancellationToken)
+        {
+            if (exception is not null)
+            {
+                return Task.FromException<TvSyncResultDto>(exception);
+            }
+
+            return Task.FromResult(new TvSyncResultDto(
+                "completed",
+                DateTimeOffset.Parse("2026-07-19T12:00:00Z"),
+                DateTimeOffset.Parse("2026-07-19T12:00:01Z"),
+                "seeded-tv-generation",
+                "scheduled_full",
+                3,
+                3,
+                3,
+                0,
+                false,
+                ["plex_history_phase_not_implemented", "worker_tv_mutation_disabled"]));
         }
     }
 
@@ -568,7 +613,7 @@ public sealed class SeededApiFactory(
                 DateTimeOffset.Parse("2026-06-05T12:00:04Z"),
                 new LetterboxdSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:00Z"), DateTimeOffset.Parse("2026-06-05T12:00:01Z"), 2, 2, 0, "letterboxd-snapshot"),
                 new TmdbMovieEnrichmentResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:01Z"), DateTimeOffset.Parse("2026-06-05T12:00:02Z"), 2, 2, 0, 0),
-                new TmdbTvSyncResultDto("disabled", DateTimeOffset.Parse("2026-06-05T12:00:02Z"), DateTimeOffset.Parse("2026-06-05T12:00:02Z"), 0, 0, 0, 0, 0, 0),
+                new TvSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:04Z"), DateTimeOffset.Parse("2026-06-05T12:00:04Z"), "seeded-tv-generation", "scheduled_full", 3, 3, 3, 0, false, ["plex_history_phase_not_implemented", "worker_tv_mutation_disabled"]),
                 new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:03Z"), DateTimeOffset.Parse("2026-06-05T12:00:04Z"), 1, 500, 500, 0, 40, 220, 3));
 
             return Task.FromResult(result);

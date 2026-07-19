@@ -97,11 +97,21 @@ app.MapGet("/api/export/movies/sync-state", async (
 
 app.MapGet("/api/export/sonarr/tv", async (
     WatchlistExportService exportService,
+    HttpContext httpContext,
     CancellationToken cancellationToken) =>
 {
     IReadOnlyList<object> items = await exportService.GetSonarrTvAsync(cancellationToken);
 
+    httpContext.Response.Headers["X-Watchlist-Contract"] = "compatibility-only";
     return Results.Ok(items);
+});
+
+app.MapGet("/api/export/tv/sync-state", async (
+    ITvExportService exportService,
+    CancellationToken cancellationToken) =>
+{
+    WorkerTvSnapshotDto? snapshot = await exportService.GetTvSyncSnapshotAsync(cancellationToken);
+    return snapshot is null ? Results.NotFound() : Results.Ok(snapshot);
 });
 
 app.MapGet("/api/images/tmdb/{size}/{fileName}", async (
@@ -209,11 +219,18 @@ app.MapGet("/api/images/plex/{ratingKey}/{kind}", async (
 
 app.MapGet("/api/sync/status", async (
     ISyncStatusReadRepository repository,
+    ITvStatusService tvStatusService,
     CancellationToken cancellationToken) =>
 {
     SyncStatusDto? status = await repository.GetLatestAsync(cancellationToken);
 
-    return status is null ? Results.NotFound() : Results.Ok(status);
+    if (status is null)
+    {
+        return Results.NotFound();
+    }
+
+    TvSyncStatusDto tv = await tvStatusService.GetStatusAsync(cancellationToken);
+    return Results.Ok(status with { Tv = tv });
 });
 
 RouteGroupBuilder syncApi = app.MapGroup("/api/sync")
@@ -263,6 +280,14 @@ syncApi.MapPost("/tmdb/tv", () => Results.Json(
         error = "The legacy TMDB TV sync is disabled."
     },
     statusCode: StatusCodes.Status410Gone));
+
+syncApi.MapPost("/tv", async (
+    ITvSyncService syncService,
+    CancellationToken cancellationToken) =>
+{
+    TvSyncResultDto result = await syncService.SyncAsync(TvGenerationKind.ScheduledFull, cancellationToken);
+    return Results.Ok(result);
+});
 
 syncApi.MapPost("/availability/refresh", async (
     IAvailabilityRefreshService refreshService,

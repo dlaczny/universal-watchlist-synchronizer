@@ -150,6 +150,8 @@ public static class DependencyInjection
         services.AddScoped<IMovieSyncService, MovieSyncService>();
         services.AddScoped<IAvailabilityRefreshService, AvailabilityRefreshService>();
         services.AddScoped<ICombinedSyncService, CombinedSyncService>();
+        services.AddScoped<ITvExportService, TvExportService>();
+        services.AddScoped<ITvStatusService, TvStatusService>();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<LetterboxdSyncGate>();
         services.AddSingleton<IHttpRetryDelay, DefaultHttpRetryDelay>();

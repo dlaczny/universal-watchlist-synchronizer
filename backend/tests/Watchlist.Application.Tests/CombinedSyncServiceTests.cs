@@ -1,50 +1,50 @@
 using FluentAssertions;
 using Watchlist.Application;
+using Watchlist.Domain;
 
 namespace Watchlist.Application.Tests;
 
 public sealed class CombinedSyncServiceTests
 {
     [Fact]
-    public async Task SyncAllAsync_RunsMovieStagesAndReportsLegacyTvDisabled()
+    public async Task SyncAllAsync_RunsMovieStagesThenReportsTraktTvGeneration()
     {
         List<string> calls = [];
         CombinedSyncService service = new(
             new FakeLetterboxd(calls),
             new FakeTmdb(calls),
             new FakePlex(calls),
+            new FakeTv(calls),
             new FakeTimeProvider());
 
         CombinedSyncResultDto result = await service.SyncAllAsync(CancellationToken.None);
 
-        calls.Should().Equal("letterboxd", "tmdb", "plex");
-        result.Status.Should().Be("partial");
+        calls.Should().Equal("letterboxd", "tmdb", "plex", "tv");
+        result.Status.Should().Be("completed");
         result.Letterboxd.ItemsFetched.Should().Be(2);
         result.TmdbMovies.ItemsEnriched.Should().Be(2);
-        result.TmdbTv.Status.Should().Be("disabled");
-        result.TmdbTv.ItemsFetched.Should().Be(0);
-        result.TmdbTv.ItemsUpserted.Should().Be(0);
-        result.TmdbTv.ItemsDeleted.Should().Be(0);
-        result.TmdbTv.StartedAt.Should().Be(result.TmdbTv.FinishedAt);
+        result.Tv.Status.Should().Be("completed");
+        result.Tv.GenerationId.Should().Be("tv-generation");
         result.PlexMovies.WatchlistItemsMatched.Should().Be(1);
     }
 
     [Fact]
-    public async Task SyncAllAsync_DoesNotRequireOrInvokeLegacyTmdbTvService()
+    public async Task SyncAllAsync_ReportsTypedTvFailureAsPartialWithoutMaskingMovies()
     {
         List<string> calls = [];
         CombinedSyncService service = new(
             new FakeLetterboxd(calls),
             new FakeTmdb(calls),
             new FakePlex(calls),
+            new FakeTv(calls, new TraktUnavailableException()),
             new FakeTimeProvider());
 
         CombinedSyncResultDto result = await service.SyncAllAsync(CancellationToken.None);
 
-        calls.Should().Equal("letterboxd", "tmdb", "plex");
+        calls.Should().Equal("letterboxd", "tmdb", "plex", "tv");
         result.Status.Should().Be("partial");
-        result.TmdbTv.Status.Should().Be("disabled");
-        result.TmdbTv.ItemsFetched.Should().Be(0);
+        result.Tv.Status.Should().Be("failed");
+        result.Tv.HealthReasons.Should().ContainSingle("trakt_unavailable");
         result.PlexMovies.WatchlistItemsMatched.Should().Be(1);
     }
 
@@ -77,6 +77,28 @@ public sealed class CombinedSyncServiceTests
         {
             calls.Add("plex");
             return Task.FromResult(new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:03Z"), DateTimeOffset.Parse("2026-06-05T12:00:04Z"), 1, 1, 1, 0, 1, 1, 0));
+        }
+    }
+
+    private sealed class FakeTv(List<string> calls, Exception? exception = null) : ITvSyncService
+    {
+        public Task<TvSyncResultDto> SyncAsync(TvGenerationKind kind, CancellationToken cancellationToken)
+        {
+            calls.Add("tv");
+            return exception is null
+                ? Task.FromResult(new TvSyncResultDto(
+                    "completed",
+                    DateTimeOffset.Parse("2026-06-05T12:00:04Z"),
+                    DateTimeOffset.Parse("2026-06-05T12:00:05Z"),
+                    "tv-generation",
+                    "scheduled_full",
+                    1,
+                    1,
+                    1,
+                    0,
+                    false,
+                    ["plex_history_phase_not_implemented", "worker_tv_mutation_disabled"]))
+                : Task.FromException<TvSyncResultDto>(exception);
         }
     }
 

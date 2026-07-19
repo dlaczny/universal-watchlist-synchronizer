@@ -410,10 +410,10 @@ public sealed class WatchlistApiTests
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         document.RootElement.GetProperty("status").GetString().Should().Be("partial");
         document.RootElement.GetProperty("letterboxd").GetProperty("itemsFetched").GetInt32().Should().Be(2);
-        document.RootElement.GetProperty("tmdbTv").GetProperty("status").GetString()
-            .Should().Be("disabled");
-        document.RootElement.GetProperty("tmdbTv").GetProperty("itemsFetched").GetInt32()
-            .Should().Be(0);
+        document.RootElement.GetProperty("tv").GetProperty("status").GetString()
+            .Should().Be("completed");
+        document.RootElement.GetProperty("tv").GetProperty("generationId").GetString()
+            .Should().Be("seeded-tv-generation");
         document.RootElement.GetProperty("plexMovies").GetProperty("watchlistItemsMatched").GetInt32().Should().Be(40);
     }
 

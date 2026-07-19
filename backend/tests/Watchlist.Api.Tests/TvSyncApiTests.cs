@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.Json;
 using FluentAssertions;
 
 namespace Watchlist.Api.Tests;
@@ -7,69 +6,151 @@ namespace Watchlist.Api.Tests;
 public sealed class TvSyncApiTests
 {
     [Fact]
-    public async Task PostLegacyTmdbTvSync_WithCorrectKey_ReturnsGoneWithoutInvokingService()
+    public async Task SyncTv_WithoutConfiguredKey_UsesLocalCompatibility()
     {
-        int invocationCount = 0;
-        using SeededApiFactory factory = new(
-            syncApiKey: "test-sync-key",
-            tmdbTvSyncInvoked: () => invocationCount++);
-        HttpClient client = factory.CreateClient();
-        using HttpRequestMessage request = new(HttpMethod.Post, "/api/sync/tmdb/tv");
-        request.Headers.Add("X-Watchlist-Sync-Key", "test-sync-key");
+        using SeededApiFactory factory = new();
+        using HttpClient client = factory.CreateClient();
 
-        HttpResponseMessage response = await client.SendAsync(request);
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tv", null);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Gone);
-        using JsonDocument document = JsonDocument.Parse(
-            await response.Content.ReadAsStringAsync());
-        document.RootElement.GetProperty("code").GetString()
-            .Should().Be("legacy_tv_sync_disabled");
-        document.RootElement.GetProperty("error").GetString()
-            .Should().Be("The legacy TMDB TV sync is disabled.");
-        invocationCount.Should().Be(0);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Theory]
     [InlineData(null)]
-    [InlineData("wrong-key")]
-    public async Task PostLegacyTmdbTvSync_WithInvalidKey_ReturnsUnauthorizedWithoutInvokingService(
-        string? suppliedKey)
+    [InlineData("wrong")]
+    public async Task SyncTv_WithConfiguredKey_RejectsMissingOrWrongKey(string? suppliedKey)
     {
-        int invocationCount = 0;
-        using SeededApiFactory factory = new(
-            syncApiKey: "test-sync-key",
-            tmdbTvSyncInvoked: () => invocationCount++);
-        HttpClient client = factory.CreateClient();
-        using HttpRequestMessage request = new(HttpMethod.Post, "/api/sync/tmdb/tv");
+        using SeededApiFactory factory = new(syncApiKey: "correct");
+        using HttpClient client = factory.CreateClient();
         if (suppliedKey is not null)
         {
-            request.Headers.Add("X-Watchlist-Sync-Key", suppliedKey);
+            client.DefaultRequestHeaders.Add("X-Watchlist-Sync-Key", suppliedKey);
         }
 
-        HttpResponseMessage response = await client.SendAsync(request);
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tv", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-        invocationCount.Should().Be(0);
     }
 
     [Fact]
-    public async Task PostSyncAll_ReportsDisabledCompatibilityStageWithoutInvokingLegacyTvService()
+    public async Task SyncTv_WithCorrectKey_ReturnsPublishedGeneration()
     {
-        int invocationCount = 0;
-        using SeededApiFactory factory = new(
-            tmdbTvSyncInvoked: () => invocationCount++);
-        HttpClient client = factory.CreateClient();
+        using SeededApiFactory factory = new(syncApiKey: "correct");
+        using HttpClient client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Watchlist-Sync-Key", "correct");
 
-        HttpResponseMessage response = await client.PostAsync("/api/sync/all", null);
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tv", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        using JsonDocument document = JsonDocument.Parse(
-            await response.Content.ReadAsStringAsync());
-        document.RootElement.GetProperty("status").GetString().Should().Be("partial");
-        document.RootElement.GetProperty("tmdbTv").GetProperty("status").GetString()
-            .Should().Be("disabled");
-        document.RootElement.GetProperty("tmdbTv").GetProperty("itemsFetched").GetInt32()
-            .Should().Be(0);
-        invocationCount.Should().Be(0);
+        (await response.Content.ReadAsStringAsync()).Should().Contain("seeded-tv-generation");
+    }
+
+    [Theory]
+    [InlineData("not_connected", HttpStatusCode.Conflict, "trakt_not_connected")]
+    [InlineData("snapshot", HttpStatusCode.BadGateway, "tv_snapshot_rejected")]
+    [InlineData("unavailable", HttpStatusCode.ServiceUnavailable, "trakt_unavailable")]
+    public async Task SyncTv_MapsTypedFailuresWithoutLeakingDetails(
+        string failure,
+        HttpStatusCode expectedStatus,
+        string expectedCode)
+    {
+        Exception exception = failure switch
+        {
+            "not_connected" => new Watchlist.Application.TraktNotConnectedException(),
+            "snapshot" => new Watchlist.Application.TvSourceSnapshotRejectedException("secret-source-body"),
+            _ => new Watchlist.Application.TraktUnavailableException()
+        };
+        using SeededApiFactory factory = new(tvSyncException: exception);
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tv", null);
+        string body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(expectedStatus);
+        body.Should().Contain(expectedCode);
+        body.Should().NotContain("secret-source-body");
+    }
+
+    [Fact]
+    public async Task SonarrCompatibilityExport_IsEmptyAndCarriesCompatibilityHeader()
+    {
+        using SeededApiFactory factory = new();
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/export/sonarr/tv");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.Headers.GetValues("X-Watchlist-Contract").Should().ContainSingle()
+            .Which.Should().Be("compatibility-only");
+        (await response.Content.ReadAsStringAsync()).Should().Be("[]");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("wrong")]
+    public async Task LegacyTmdbTvSync_WithMissingOrWrongKey_ReturnsUnauthorized(string? suppliedKey)
+    {
+        using SeededApiFactory factory = new(syncApiKey: "correct");
+        using HttpClient client = factory.CreateClient();
+        if (suppliedKey is not null)
+        {
+            client.DefaultRequestHeaders.Add("X-Watchlist-Sync-Key", suppliedKey);
+        }
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tmdb/tv", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task LegacyTmdbTvSync_WithCorrectKey_ReturnsGoneWithoutInvokingTheLegacyService()
+    {
+        int invoked = 0;
+        using SeededApiFactory factory = new(
+            syncApiKey: "correct",
+            tmdbTvSyncInvoked: () => invoked++);
+        using HttpClient client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Watchlist-Sync-Key", "correct");
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tmdb/tv", null);
+        string body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.Gone);
+        body.Should().Contain("legacy_tv_sync_disabled");
+        invoked.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task TvWorkerExport_ReturnsOnlyPublishedReadOnlySnapshot()
+    {
+        using SeededApiFactory factory = new();
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/export/tv/sync-state");
+        string body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        body.Should().Contain("\"schemaVersion\":\"1\"");
+        body.Should().Contain("\"generationId\":\"seeded-tv-generation\"");
+        body.Should().Contain("\"mutationCapable\":false");
+        body.Should().Contain("phase_1_read_only");
+        body.Should().NotContain("seeded-access-token");
+    }
+
+    [Fact]
+    public async Task SyncStatus_PreservesMovieStatusAndAddsTvState()
+    {
+        using SeededApiFactory factory = new();
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.GetAsync("/api/sync/status");
+        string body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        body.Should().Contain("\"status\":\"seeded\"");
+        body.Should().Contain("\"tv\":");
+        body.Should().Contain("\"connectionStatus\":\"connected\"");
+        body.Should().Contain("\"mutationCapable\":false");
     }
 }

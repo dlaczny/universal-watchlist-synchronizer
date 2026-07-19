@@ -2,4 +2,5 @@ namespace Watchlist.Application;
 
 public sealed record SyncStatusDto(
     string Status,
-    DateTimeOffset? LastSuccessfulSyncAt);
+    DateTimeOffset? LastSuccessfulSyncAt,
+    TvSyncStatusDto? Tv = null);
