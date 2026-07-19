@@ -32,6 +32,10 @@ public sealed class MongoTvSyncManifestDocument
     [BsonElement("publishedAt")]
     public DateTimeOffset PublishedAt { get; init; }
 
+    [BsonElement("lastScheduledFullAt")]
+    [BsonIgnoreIfNull]
+    public DateTimeOffset? LastScheduledFullAt { get; init; }
+
     [BsonElement("activityShowWatchlistedAt")]
     public DateTimeOffset ActivityShowWatchlistedAt { get; init; }
 
@@ -114,6 +118,7 @@ public sealed class MongoTvSyncManifestDocument
             StartedAt = manifest.StartedAt,
             CompletedAt = manifest.CompletedAt,
             PublishedAt = manifest.PublishedAt,
+            LastScheduledFullAt = manifest.LastScheduledFullAt,
             ActivityShowWatchlistedAt = manifest.ActivityCursor.ShowWatchlistedAt,
             ActivityEpisodeWatchedAt = manifest.ActivityCursor.EpisodeWatchedAt,
             WatchlistPageCount = manifest.WatchlistPageCount,
@@ -189,6 +194,9 @@ public sealed class MongoTvSyncManifestDocument
             CleanupEventIds.ToArray(),
             MutationCapable,
             HealthReasons.ToArray(),
-            EnrichmentErrors.ToArray());
+            EnrichmentErrors.ToArray())
+        {
+            LastScheduledFullAt = LastScheduledFullAt
+        };
     }
 }

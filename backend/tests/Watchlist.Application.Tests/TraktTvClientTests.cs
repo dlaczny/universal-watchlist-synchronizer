@@ -91,12 +91,14 @@ public sealed class TraktTvClientTests
         });
         TraktTvClient client = CreateClient(handler);
 
-        IReadOnlyList<TraktWatchlistShow> result = await client.GetWatchlistAsync(
+        TraktPagedResult<TraktWatchlistShow> result = await client.GetWatchlistAsync(
             AccessToken,
             CancellationToken.None);
 
-        result.Select(item => item.Ids.TraktId).Should().Equal(10, 30);
-        result[0].Should().Be(new TraktWatchlistShow(
+        result.PageCount.Should().Be(2);
+        result.PageSize.Should().Be(100);
+        result.Items.Select(item => item.Ids.TraktId).Should().Equal(10, 30);
+        result.Items[0].Should().Be(new TraktWatchlistShow(
             new TraktShowIds(10, 100, 1000, "tt0000010"),
             "First",
             2020,
@@ -115,11 +117,13 @@ public sealed class TraktTvClientTests
                 : throw new InvalidOperationException($"Unexpected request: {request.PathAndQuery}"));
         TraktTvClient client = CreateClient(handler, pageSize: 37);
 
-        IReadOnlyList<TraktWatchlistShow> result = await client.GetWatchlistAsync(
+        TraktPagedResult<TraktWatchlistShow> result = await client.GetWatchlistAsync(
             AccessToken,
             CancellationToken.None);
 
-        result.Should().BeEmpty();
+        result.PageCount.Should().Be(1);
+        result.PageSize.Should().Be(37);
+        result.Items.Should().BeEmpty();
         handler.Requests.Should().ContainSingle();
     }
 
@@ -154,21 +158,23 @@ public sealed class TraktTvClientTests
         });
         TraktTvClient client = CreateClient(handler);
 
-        IReadOnlyList<TraktWatchedShowProgress> result = await client.GetWatchedProgressAsync(
+        TraktPagedResult<TraktWatchedShowProgress> result = await client.GetWatchedProgressAsync(
             AccessToken,
             CancellationToken.None);
 
-        result.Select(item => item.Ids.TraktId).Should().Equal(10, 30);
-        result[0].AiredEpisodes.Should().Be(20);
-        result[0].CompletedEpisodes.Should().Be(15);
-        result[0].NextEpisode.Should().Be(new TraktSeasonEpisode(
+        result.PageCount.Should().Be(2);
+        result.PageSize.Should().Be(100);
+        result.Items.Select(item => item.Ids.TraktId).Should().Equal(10, 30);
+        result.Items[0].AiredEpisodes.Should().Be(20);
+        result.Items[0].CompletedEpisodes.Should().Be(15);
+        result.Items[0].NextEpisode.Should().Be(new TraktSeasonEpisode(
             10101,
             20101,
             2,
             1,
             "Next",
             DateTimeOffset.Parse("2026-08-01T20:00:00Z")));
-        result[0].LastEpisode.Should().Be(new TraktSeasonEpisode(
+        result.Items[0].LastEpisode.Should().Be(new TraktSeasonEpisode(
             10100,
             20100,
             1,
@@ -461,13 +467,13 @@ public sealed class TraktTvClientTests
             """, 1));
         TraktTvClient client = CreateClient(handler);
 
-        IReadOnlyList<TraktWatchedShowProgress> result = await client.GetWatchedProgressAsync(
+        TraktPagedResult<TraktWatchedShowProgress> result = await client.GetWatchedProgressAsync(
             AccessToken,
             CancellationToken.None);
 
-        result.Should().ContainSingle();
-        result[0].NextEpisode.Should().BeNull();
-        result[0].LastEpisode.Should().BeNull();
+        result.Items.Should().ContainSingle();
+        result.Items[0].NextEpisode.Should().BeNull();
+        result.Items[0].LastEpisode.Should().BeNull();
     }
 
     [Fact]
@@ -1114,14 +1120,14 @@ public sealed class TraktTvClientTests
             1));
         TraktTvClient client = CreateClient(handler);
 
-        IReadOnlyList<TraktWatchlistShow> result = await client.GetWatchlistAsync(
+        TraktPagedResult<TraktWatchlistShow> result = await client.GetWatchlistAsync(
             AccessToken,
             CancellationToken.None);
-        IList<TraktWatchlistShow> mutableView = result.Should()
+        IList<TraktWatchlistShow> mutableView = result.Items.Should()
             .BeAssignableTo<IList<TraktWatchlistShow>>()
             .Subject;
 
-        Action action = () => mutableView[0] = result[0] with { Title = "Changed" };
+        Action action = () => mutableView[0] = result.Items[0] with { Title = "Changed" };
         action.Should().Throw<NotSupportedException>();
     }
 

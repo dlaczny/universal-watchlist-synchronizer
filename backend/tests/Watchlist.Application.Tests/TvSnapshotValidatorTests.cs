@@ -235,6 +235,7 @@ public sealed class TvSnapshotValidatorTests
     [InlineData("season_nonzero")]
     [InlineData("trakt_zero")]
     [InlineData("tvdb_zero")]
+    [InlineData("tvdb_null")]
     [InlineData("episode_zero")]
     [InlineData("duplicate_number")]
     [InlineData("duplicate_trakt")]
@@ -252,6 +253,7 @@ public sealed class TvSnapshotValidatorTests
             "season_nonzero" => [first with { SeasonNumber = 1 }],
             "trakt_zero" => [first with { TraktEpisodeId = 0 }],
             "tvdb_zero" => [first with { TvdbId = 0 }],
+            "tvdb_null" => [first with { TvdbId = null }],
             "episode_zero" => [first with { EpisodeNumber = 0 }],
             "duplicate_number" => [first, second with { EpisodeNumber = 1 }],
             "duplicate_trakt" => [first, second with { TraktEpisodeId = first.TraktEpisodeId }],
@@ -718,11 +720,11 @@ public sealed class TvSnapshotValidatorTests
     }
 
     [Fact]
-    public void ComputeMembershipHash_UsesOnlyCanonicalTraktIdAndWatchlistMembership()
+    public void ComputeMembershipHash_UsesCanonicalTraktMembershipAndSpecialIdentities()
     {
         TvShow first = CreateShow(42);
         TvShow second = CreateShow(43) with { InWatchlist = false };
-        string expected = Hash("[[42,true],[43,false]]");
+        string expected = Hash("[[42,true,[]],[43,false,[]]]");
 
         string forward = validator.ComputeMembershipHash([first, second]);
         string reverse = validator.ComputeMembershipHash([second, first]);
@@ -761,7 +763,7 @@ public sealed class TvSnapshotValidatorTests
     }
 
     [Fact]
-    public void ComputeHashes_ExcludeSpecialIdentities()
+    public void ComputeHashes_IncludeSpecialIdentitiesOnlyInMembershipHash()
     {
         TvShow show = CreateShow(42);
         TvShow withSpecial = show with
@@ -769,7 +771,10 @@ public sealed class TvSnapshotValidatorTests
             SpecialEpisodeIdentities = [new TvSpecialEpisodeIdentity(8_001, 9_001, 0, 1)]
         };
 
-        validator.ComputeMembershipHash([withSpecial]).Should().Be(validator.ComputeMembershipHash([show]));
+        validator.ComputeMembershipHash([withSpecial]).Should()
+            .Be(Hash("[[42,true,[[8001,9001,0,1]]]]"));
+        validator.ComputeMembershipHash([withSpecial]).Should()
+            .NotBe(validator.ComputeMembershipHash([show]));
         validator.ComputeProgressHash([withSpecial]).Should().Be(validator.ComputeProgressHash([show]));
     }
 
@@ -888,6 +893,7 @@ public sealed class TvSnapshotValidatorTests
         manifest.ValidationFailureReasons.Should().BeEmpty();
         manifest.PlexHistoryCollectedAt.Should().BeNull();
         manifest.PlexHistoryWatermark.Should().BeNull();
+        manifest.LastScheduledFullAt.Should().Be(CompletedAt.AddSeconds(1));
         manifest.CleanupEventIds.Should().BeEmpty();
         manifest.MutationCapable.Should().BeFalse();
         manifest.HealthReasons.Should().Equal(
@@ -895,6 +901,44 @@ public sealed class TvSnapshotValidatorTests
             "worker_tv_mutation_disabled");
         manifest.LifecycleEventIds.Should().Equal(draft.LifecycleEvents.Select(item => item.Id));
         Action action = () => validator.Validate(manifest);
+        action.Should().NotThrow();
+    }
+
+    [Fact]
+    public void CreatePhaseOne_ActivityFull_PreservesPriorScheduledPublicationTime()
+    {
+        TvGenerationDraft draft = CreateValidDraft() with
+        {
+            Kind = TvGenerationKind.ActivityFull
+        };
+        DateTimeOffset priorScheduledAt = CompletedAt.AddMinutes(-30);
+
+        TvGenerationManifest manifest = TvGenerationManifest.CreatePhaseOne(
+            draft,
+            previousGenerationId: "generation-0",
+            publishedAt: CompletedAt.AddSeconds(1),
+            providerEnrichmentCompletedAt: CompletedAt,
+            previousLastScheduledFullAt: priorScheduledAt);
+
+        manifest.LastScheduledFullAt.Should().Be(priorScheduledAt);
+        Action action = () => validator.Validate(manifest);
+        action.Should().NotThrow();
+    }
+
+    [Fact]
+    public void Validate_LegacyManifestWithoutLastScheduledPublicationTime_RemainsReadable()
+    {
+        TvGenerationManifest manifest = TvGenerationManifest.CreatePhaseOne(
+            CreateValidDraft(),
+            previousGenerationId: null,
+            publishedAt: CompletedAt.AddSeconds(1),
+            providerEnrichmentCompletedAt: CompletedAt) with
+        {
+            LastScheduledFullAt = null
+        };
+
+        Action action = () => validator.Validate(manifest);
+
         action.Should().NotThrow();
     }
 

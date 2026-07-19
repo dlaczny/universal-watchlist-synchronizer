@@ -56,24 +56,27 @@ public sealed class TraktTvClient(
             episodeWatchedAt.ToUniversalTime());
     }
 
-    public async Task<IReadOnlyList<TraktWatchlistShow>> GetWatchlistAsync(
+    public async Task<TraktPagedResult<TraktWatchlistShow>> GetWatchlistAsync(
         string accessToken,
         CancellationToken cancellationToken)
     {
+        int pageSize = GetPageSize();
         using HttpClient httpClient = CreateHttpClient();
         return await ReadPaginatedAsync<WatchlistItemResponse, TraktWatchlistShow>(
             httpClient,
             accessToken,
-            page => $"/sync/watchlist/shows/added/asc?page={page}&limit={GetPageSize()}",
+            page => $"/sync/watchlist/shows/added/asc?page={page}&limit={pageSize}",
             MapWatchlistShow,
             item => item.Ids.TraktId,
+            pageSize,
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<IReadOnlyList<TraktWatchedShowProgress>> GetWatchedProgressAsync(
+    public async Task<TraktPagedResult<TraktWatchedShowProgress>> GetWatchedProgressAsync(
         string accessToken,
         CancellationToken cancellationToken)
     {
+        int pageSize = GetPageSize();
         using HttpClient httpClient = CreateHttpClient();
         return await ReadPaginatedAsync<WatchedProgressResponse, TraktWatchedShowProgress>(
             httpClient,
@@ -83,9 +86,10 @@ public sealed class TraktTvClient(
                 "&hide_not_completed=false" +
                 "&only_rewatching=false" +
                 $"&page={page}" +
-                $"&limit={GetPageSize()}",
+                $"&limit={pageSize}",
             MapWatchedProgress,
             item => item.Ids.TraktId,
+            pageSize,
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -243,12 +247,13 @@ public sealed class TraktTvClient(
         return Array.AsReadOnly(orderedEpisodes);
     }
 
-    private async Task<IReadOnlyList<TOutput>> ReadPaginatedAsync<TResponse, TOutput>(
+    private async Task<TraktPagedResult<TOutput>> ReadPaginatedAsync<TResponse, TOutput>(
         HttpClient httpClient,
         string accessToken,
         Func<int, string> requestPath,
         Func<TResponse, TOutput> map,
         Func<TOutput, long> identity,
+        int pageSize,
         CancellationToken cancellationToken)
         where TResponse : class
     {
@@ -306,7 +311,10 @@ public sealed class TraktTvClient(
         }
 
         TOutput[] orderedResults = results.OrderBy(identity).ToArray();
-        return Array.AsReadOnly(orderedResults);
+        return new TraktPagedResult<TOutput>(
+            expectedPageCount ?? 1,
+            pageSize,
+            orderedResults);
     }
 
     private async Task<HttpResponseMessage> SendAsync(

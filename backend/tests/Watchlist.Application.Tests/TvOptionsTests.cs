@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Watchlist.Application;
 using Watchlist.Infrastructure;
@@ -99,7 +100,7 @@ public sealed class TvOptionsTests
     }
 
     [Fact]
-    public void AddWatchlistInfrastructure_TvEnrichmentDependenciesUseSingletonSafeLifetimes()
+    public void AddWatchlistInfrastructure_TvDependenciesUseSingletonSafeLifetimes()
     {
         ServiceCollection services = new();
         services.AddWatchlistInfrastructure(new ConfigurationBuilder().Build());
@@ -110,5 +111,13 @@ public sealed class TvOptionsTests
             .Lifetime.Should().Be(ServiceLifetime.Singleton);
         services.Single(descriptor => descriptor.ServiceType == typeof(ITmdbProviderCatalogRepository))
             .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Single(descriptor => descriptor.ServiceType == typeof(ITraktOperationCoordinator))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Single(descriptor => descriptor.ServiceType == typeof(ITvSyncService))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Should().ContainSingle(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(TvSyncHostedService)
+            && descriptor.Lifetime == ServiceLifetime.Singleton);
     }
 }

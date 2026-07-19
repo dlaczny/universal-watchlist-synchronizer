@@ -48,6 +48,12 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(TraktOptions.SectionName))
             .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _), "Trakt:BaseUrl must be absolute.")
             .Validate(
+                options => options.ActivityPollInterval > TimeSpan.Zero,
+                "Trakt:ActivityPollInterval must be positive.")
+            .Validate(
+                options => options.FullSyncInterval > TimeSpan.Zero,
+                "Trakt:FullSyncInterval must be positive.")
+            .Validate(
                 options => options.PageSize is >= 1 and <= TraktTvClient.MaximumPageSize,
                 "Trakt:PageSize must be between 1 and 100.")
             .Validate(
@@ -121,6 +127,7 @@ public static class DependencyInjection
         services.AddSingleton<ITvGenerationRepository, MongoTvGenerationRepository>();
         services.AddSingleton<ITvShowReadRepository, MongoTvShowReadRepository>();
         services.AddSingleton<ILegacyTvMigrationService, MongoLegacyTvMigrationService>();
+        services.AddSingleton<ITraktOperationCoordinator, TraktOperationCoordinator>();
         services.AddSingleton<ILetterboxdSourceSnapshotRepository, MongoLetterboxdSourceSnapshotRepository>();
         services.AddSingleton<ITmdbMovieMetadataRepository, MongoTmdbMovieMetadataRepository>();
         services.AddSingleton<ISyncStatusReadRepository, MongoSyncStatusReadRepository>();
@@ -161,12 +168,27 @@ public static class DependencyInjection
         });
         services.AddSingleton<ITmdbTvMetadataClient, TmdbTvMetadataClient>();
         services.AddSingleton<ITmdbTvEnrichmentService, TmdbTvEnrichmentService>();
+        services.AddSingleton<ITvSyncService>(serviceProvider =>
+        {
+            TraktOptions traktOptions = serviceProvider
+                .GetRequiredService<IOptions<TraktOptions>>()
+                .Value;
+            return new TvSyncService(
+                serviceProvider.GetRequiredService<ITraktAccessTokenProvider>(),
+                serviceProvider.GetRequiredService<ITraktTvClient>(),
+                serviceProvider.GetRequiredService<ITmdbTvEnrichmentService>(),
+                serviceProvider.GetRequiredService<ITvGenerationRepository>(),
+                serviceProvider.GetRequiredService<ITraktOperationCoordinator>(),
+                serviceProvider.GetRequiredService<TimeProvider>(),
+                traktOptions.MetadataRefreshInterval);
+        });
         services.AddHostedService<DataProtectionKeyRingHostedService>();
         services.AddHostedService<TraktDeviceAuthorizationHostedService>();
         services.AddHostedService<MongoTvIndexHostedService>();
         services.AddHostedService<LegacyTvMigrationHostedService>();
         services.AddHostedService<MongoBootstrapHostedService>();
         services.AddHostedService<TmdbProviderCatalogHostedService>();
+        services.AddHostedService<TvSyncHostedService>();
 
         return services;
     }

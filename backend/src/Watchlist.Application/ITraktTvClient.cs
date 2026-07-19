@@ -9,11 +9,11 @@ public interface ITraktTvClient
         string accessToken,
         CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<TraktWatchlistShow>> GetWatchlistAsync(
+    Task<TraktPagedResult<TraktWatchlistShow>> GetWatchlistAsync(
         string accessToken,
         CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<TraktWatchedShowProgress>> GetWatchedProgressAsync(
+    Task<TraktPagedResult<TraktWatchedShowProgress>> GetWatchedProgressAsync(
         string accessToken,
         CancellationToken cancellationToken);
 

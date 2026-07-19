@@ -47,6 +47,12 @@ public sealed record TvGenerationManifest(
     private IReadOnlyList<string> _healthReasons = Snapshot(HealthReasons);
     private IReadOnlyList<string> _enrichmentErrors = Snapshot(EnrichmentErrors);
 
+    /// <summary>
+    /// Gets the durable publication time of the most recent scheduled full generation.
+    /// Null is reserved for manifests written before this provenance field existed.
+    /// </summary>
+    public DateTimeOffset? LastScheduledFullAt { get; init; }
+
     public IReadOnlyDictionary<string, string> RequestFilters
     {
         get => _requestFilters;
@@ -90,7 +96,8 @@ public sealed record TvGenerationManifest(
         TvGenerationDraft draft,
         string? previousGenerationId,
         DateTimeOffset publishedAt,
-        DateTimeOffset? providerEnrichmentCompletedAt)
+        DateTimeOffset? providerEnrichmentCompletedAt,
+        DateTimeOffset? previousLastScheduledFullAt = null)
     {
         ArgumentNullException.ThrowIfNull(draft);
         TvSnapshotValidator validator = new();
@@ -120,7 +127,12 @@ public sealed record TvGenerationManifest(
             [],
             false,
             RequiredHealthReasons,
-            draft.EnrichmentErrors);
+            draft.EnrichmentErrors)
+        {
+            LastScheduledFullAt = draft.Kind == TvGenerationKind.ScheduledFull
+                ? publishedAt
+                : previousLastScheduledFullAt
+        };
         validator.Validate(manifest);
         return manifest;
     }

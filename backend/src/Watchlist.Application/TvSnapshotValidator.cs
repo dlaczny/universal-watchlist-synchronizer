@@ -47,7 +47,7 @@ public sealed class TvSnapshotValidator
     }
 
     /// <summary>
-    /// Computes the canonical hash of Trakt show identity and explicit watchlist membership.
+    /// Computes the canonical hash of Trakt membership and season-zero resolution identities.
     /// </summary>
     public string ComputeMembershipHash(IReadOnlyList<TvShow> shows)
     {
@@ -67,6 +67,34 @@ public sealed class TvSnapshotValidator
                 writer.WriteStartArray();
                 writer.WriteNumberValue(show.TraktId);
                 writer.WriteBooleanValue(show.InWatchlist);
+                writer.WriteStartArray();
+                foreach (TvSpecialEpisodeIdentity? special in show.SpecialEpisodeIdentities
+                             .OrderBy(identity => identity?.EpisodeNumber ?? int.MinValue)
+                             .ThenBy(identity => identity?.TraktEpisodeId ?? long.MinValue))
+                {
+                    if (special is null)
+                    {
+                        writer.WriteNullValue();
+                        continue;
+                    }
+
+                    writer.WriteStartArray();
+                    writer.WriteNumberValue(special.TraktEpisodeId);
+                    if (special.TvdbId is int tvdbId)
+                    {
+                        writer.WriteNumberValue(tvdbId);
+                    }
+                    else
+                    {
+                        writer.WriteNullValue();
+                    }
+
+                    writer.WriteNumberValue(special.SeasonNumber);
+                    writer.WriteNumberValue(special.EpisodeNumber);
+                    writer.WriteEndArray();
+                }
+
+                writer.WriteEndArray();
                 writer.WriteEndArray();
             }
 
@@ -194,6 +222,15 @@ public sealed class TvSnapshotValidator
         if (!IsUtc(manifest.PublishedAt) || manifest.PublishedAt < manifest.CompletedAt)
         {
             throw Rejected("tv_manifest_published_at_invalid");
+        }
+
+        if (manifest.LastScheduledFullAt is DateTimeOffset lastScheduledFullAt
+            && (!IsUtc(lastScheduledFullAt)
+                || lastScheduledFullAt > manifest.PublishedAt
+                || manifest.Kind == TvGenerationKind.ScheduledFull
+                    && lastScheduledFullAt != manifest.PublishedAt))
+        {
+            throw Rejected("tv_manifest_last_scheduled_full_invalid");
         }
 
         if (manifest.PreviousGenerationId is not null
@@ -407,13 +444,14 @@ public sealed class TvSnapshotValidator
 
             TvSpecialEpisodeIdentity special = candidate;
             if (special.TraktEpisodeId <= 0
-                || special.TvdbId is <= 0
+                || special.TvdbId is not int specialTvdbId
+                || specialTvdbId <= 0
                 || special.SeasonNumber != 0
                 || special.EpisodeNumber <= 0
                 || previousEpisodeNumber is int priorEpisodeNumber
                     && special.EpisodeNumber <= priorEpisodeNumber
                 || !traktEpisodeIds.Add(special.TraktEpisodeId)
-                || special.TvdbId is int tvdbEpisodeId && !tvdbEpisodeIds.Add(tvdbEpisodeId))
+                || !tvdbEpisodeIds.Add(specialTvdbId))
             {
                 throw Rejected("tv_snapshot_special_identity_invalid");
             }

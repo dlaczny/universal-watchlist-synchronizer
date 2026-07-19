@@ -445,6 +445,7 @@ public sealed class MongoTvGenerationRepository(
             && left.StartedAt == right.StartedAt
             && left.CompletedAt == right.CompletedAt
             && left.PublishedAt == right.PublishedAt
+            && left.LastScheduledFullAt == right.LastScheduledFullAt
             && left.ActivityCursor == right.ActivityCursor
             && left.WatchlistPageCount == right.WatchlistPageCount
             && left.WatchlistItemCount == right.WatchlistItemCount
