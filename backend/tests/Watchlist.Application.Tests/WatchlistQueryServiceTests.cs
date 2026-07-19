@@ -14,18 +14,82 @@ public sealed class WatchlistQueryServiceTests
     {
         IReadOnlyList<WatchlistItem> items =
         [
-            CreateItem("old-movie", MediaType.Movie, "Dune: Part Two", DateTimeOffset.Parse("2026-05-20T10:00:00+02:00")),
-            CreateItem("new-tv", MediaType.TvShow, "Andor", DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"))
+            CreateItem("old-movie", MediaType.Movie, "Dune: Part Two", DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"))
         ];
-        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQueryService service = new(
+            new StubWatchlistReadRepository(items),
+            new StubTvShowReadRepository([CreateTvShow("tv-trakt-12345", TvLifecycleState.Active)]));
         WatchlistQuery query = new(
             WatchlistCollection.All,
-            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex, AvailabilityStatus.NotOnPlex },
-            WatchlistSort.AddedDescending);
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex, AvailabilityStatus.NotOnPlex, AvailabilityStatus.UnknownMatch },
+            WatchlistSort.AddedDescending,
+            null);
 
         IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
 
-        result.Select(item => item.Id).Should().Equal("new-tv", "old-movie");
+        result.Select(item => item.Id).Should().Equal("tv-trakt-12345", "old-movie");
+    }
+
+    [Theory]
+    [InlineData(null, "tv-trakt-12345")]
+    [InlineData(TvBrowseState.Active, "tv-trakt-12345")]
+    [InlineData(TvBrowseState.CaughtUp, "tv-trakt-45678")]
+    [InlineData(TvBrowseState.Retired, "tv-trakt-78901")]
+    public async Task GetItemsAsync_WhenCollectionTv_AppliesPublishedTvState(
+        TvBrowseState? state,
+        string expectedId)
+    {
+        WatchlistQueryService service = new(
+            new StubWatchlistReadRepository([]),
+            new StubTvShowReadRepository(
+            [
+                CreateTvShow("tv-trakt-12345", TvLifecycleState.Active),
+                CreateTvShow("tv-trakt-45678", TvLifecycleState.CaughtUp),
+                CreateTvShow("tv-trakt-78901", TvLifecycleState.RetiredTerminal),
+                CreateTvShow("tv-trakt-99999", TvLifecycleState.SourceRemoved)
+            ]));
+        WatchlistQuery query = new(
+            WatchlistCollection.Tv,
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.UnknownMatch },
+            WatchlistSort.AddedDescending,
+            state);
+
+        IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
+
+        result.Should().ContainSingle();
+        result[0].Id.Should().Be(expectedId);
+        result[0].Source.Should().Be("trakt");
+        result[0].AvailabilityStatus.Should().Be("unknown_match");
+        result[0].Tv.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GetItemDetailsAsync_WhenPublishedTvExists_MapsTvDetails()
+    {
+        WatchlistQueryService service = new(
+            new StubWatchlistReadRepository([]),
+            new StubTvShowReadRepository([CreateTvShow("tv-trakt-12345", TvLifecycleState.Active)]));
+
+        WatchlistItemDetailsDto? result = await service.GetItemDetailsAsync("tv-trakt-12345", CancellationToken.None);
+
+        result.Should().NotBeNull();
+        result!.MediaType.Should().Be("tv");
+        result.Source.Should().Be("trakt");
+        result.Tv.Should().NotBeNull();
+        result.Tv!.Destinations.SonarrState.Should().Be("unknown");
+        result.Tv.Seasons.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task GetItemAsync_WhenLegacyTvIdExistsOnlyInMovieRepository_ReturnsNull()
+    {
+        WatchlistQueryService service = new(
+            new StubWatchlistReadRepository([CreateItem("legacy-tv", MediaType.TvShow, "Legacy")]),
+            new StubTvShowReadRepository([]));
+
+        WatchlistItemDto? result = await service.GetItemAsync("legacy-tv", CancellationToken.None);
+
+        result.Should().BeNull();
     }
 
     [Fact]
@@ -54,19 +118,20 @@ public sealed class WatchlistQueryServiceTests
     {
         IReadOnlyList<WatchlistItem> items =
         [
-            CreateItem("movie-1", MediaType.Movie, "Alien", AvailabilityStatus.AvailableOnPlex),
-            CreateItem("tv-1", MediaType.TvShow, "Severance", AvailabilityStatus.AvailableOnPlex)
+            CreateItem("movie-1", MediaType.Movie, "Alien", AvailabilityStatus.AvailableOnPlex)
         ];
-        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQueryService service = new(
+            new StubWatchlistReadRepository(items),
+            new StubTvShowReadRepository([CreateTvShow("tv-trakt-1", TvLifecycleState.Active)]));
         WatchlistQuery query = new(
             WatchlistCollection.Tv,
-            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex },
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.UnknownMatch },
             WatchlistSort.AddedDescending);
 
         IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
 
         result.Should().ContainSingle();
-        result[0].Id.Should().Be("tv-1");
+        result[0].Id.Should().Be("tv-trakt-1");
         result[0].MediaType.Should().Be("tv");
     }
 
@@ -100,18 +165,20 @@ public sealed class WatchlistQueryServiceTests
         IReadOnlyList<WatchlistItem> items =
         [
             CreateItem("tie-first", MediaType.Movie, "First", latestAddedAt, AvailabilityStatus.AvailableOnPlex),
-            CreateItem("older", MediaType.Movie, "Older", olderAddedAt, AvailabilityStatus.AvailableOnPlex),
-            CreateItem("tie-second", MediaType.TvShow, "Second", latestAddedAt, AvailabilityStatus.AvailableOnPlex)
+            CreateItem("older", MediaType.Movie, "Older", olderAddedAt, AvailabilityStatus.AvailableOnPlex)
         ];
-        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQueryService service = new(
+            new StubWatchlistReadRepository(items),
+            new StubTvShowReadRepository(
+                [CreateTvShow("tv-trakt-2", TvLifecycleState.Active) with { AddedAt = latestAddedAt, Title = "Second" }]));
         WatchlistQuery query = new(
             WatchlistCollection.All,
-            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex },
+            new HashSet<AvailabilityStatus> { AvailabilityStatus.AvailableOnPlex, AvailabilityStatus.UnknownMatch },
             WatchlistSort.AddedDescending);
 
         IReadOnlyList<WatchlistItemDto> result = await service.GetItemsAsync(query, CancellationToken.None);
 
-        result.Select(item => item.Id).Should().Equal("tie-first", "tie-second", "older");
+        result.Select(item => item.Id).Should().Equal("tie-first", "tv-trakt-2", "older");
     }
 
     [Fact]
@@ -120,10 +187,11 @@ public sealed class WatchlistQueryServiceTests
         IReadOnlyList<WatchlistItem> items =
         [
             CreateItem("future", MediaType.Movie, "future Movie", DateTimeOffset.Parse("2026-05-21T10:00:00+02:00"), AvailabilityStatus.Unreleased),
-            CreateItem("dune", MediaType.Movie, "Dune: Part Two", DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"), AvailabilityStatus.AvailableOnPlex),
-            CreateItem("andor", MediaType.TvShow, "Andor", DateTimeOffset.Parse("2026-05-22T10:00:00+02:00"), AvailabilityStatus.NotOnPlex)
+            CreateItem("dune", MediaType.Movie, "Dune: Part Two", DateTimeOffset.Parse("2026-05-20T10:00:00+02:00"), AvailabilityStatus.AvailableOnPlex)
         ];
-        WatchlistQueryService service = new(new StubWatchlistReadRepository(items));
+        WatchlistQueryService service = new(
+            new StubWatchlistReadRepository(items),
+            new StubTvShowReadRepository([CreateTvShow("tv-trakt-3", TvLifecycleState.Active) with { Title = "Andor" }]));
         WatchlistQuery query = new(
             WatchlistCollection.All,
             new HashSet<AvailabilityStatus>
@@ -397,6 +465,99 @@ public sealed class WatchlistQueryServiceTests
         {
             return Task.FromResult(items);
         }
+    }
+
+    private sealed class StubTvShowReadRepository(IReadOnlyList<TvShow> shows) : ITvShowReadRepository
+    {
+        private readonly PublishedTvGeneration generation = new(
+            new TvGenerationManifest(
+                "tv-generation",
+                null,
+                TvGenerationKind.ScheduledFull,
+                DateTimeOffset.Parse("2026-07-19T11:59:00Z"),
+                DateTimeOffset.Parse("2026-07-19T12:00:00Z"),
+                DateTimeOffset.Parse("2026-07-19T12:00:00Z"),
+                new TraktActivityCursor(DateTimeOffset.Parse("2026-07-19T11:00:00Z"), DateTimeOffset.Parse("2026-07-19T11:00:00Z")),
+                1,
+                shows.Count,
+                1,
+                shows.Count,
+                "v1",
+                new Dictionary<string, string>(),
+                "membership",
+                "progress",
+                null,
+                null,
+                null,
+                "valid",
+                [],
+                [],
+                [],
+                false,
+                ["plex_history_phase_not_implemented", "worker_tv_mutation_disabled"],
+                []),
+            shows);
+
+        public Task<PublishedTvGeneration?> GetPublishedAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<PublishedTvGeneration?>(generation);
+        }
+
+        public Task<TvShow?> GetPublishedShowAsync(string id, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(generation.Shows.SingleOrDefault(show => show.Id == id));
+        }
+    }
+
+    private static TvShow CreateTvShow(string id, TvLifecycleState lifecycleState)
+    {
+        long traktId = long.Parse(id["tv-trakt-".Length..], System.Globalization.CultureInfo.InvariantCulture);
+        TvEpisodeProgress episode = new(
+            555,
+            777,
+            1,
+            1,
+            "The First Episode",
+            DateTimeOffset.Parse("2026-07-01T00:00:00Z"),
+            false,
+            null);
+        TvProviderAvailability availability = new(
+            TvProviderState.Available,
+            "PL",
+            DateTimeOffset.Parse("2026-07-18T00:00:00Z"),
+            "https://www.themoviedb.org/tv/123/watch?locale=PL",
+            [new TvProviderOffer(8, "Netflix", TvProviderCategory.Flatrate, "https://image.tmdb.org/t/p/w500/logo.png")]);
+
+        return new TvShow(
+            id,
+            traktId,
+            123,
+            456,
+            "tt1234567",
+            TvIdentityStatus.Verified,
+            "Example TV Show",
+            2026,
+            "A TV overview.",
+            "https://image.tmdb.org/t/p/w500/poster.png",
+            "https://image.tmdb.org/t/p/w1280/backdrop.png",
+            "returning series",
+            lifecycleState != TvLifecycleState.RetiredTerminal,
+            1,
+            0,
+            null,
+            episode,
+            [new TvSeasonProgress(1, 1, 0, false, availability, [episode])],
+            [],
+            availability,
+            lifecycleState,
+            lifecycleState == TvLifecycleState.Active ? null : "lifecycle_event",
+            1,
+            0,
+            AddedAt,
+            UpdatedAt,
+            UpdatedAt,
+            "tv-generation",
+            null);
     }
 
     private sealed class StubPlexMovieInventoryRepository(

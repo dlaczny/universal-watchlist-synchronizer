@@ -35,6 +35,7 @@ app.MapGet("/api/watchlist", async (
     string? collection,
     string? availability,
     string? sort,
+    string? state,
     WatchlistQueryService queryService,
     CancellationToken cancellationToken) =>
 {
@@ -53,7 +54,12 @@ app.MapGet("/api/watchlist", async (
         return Results.BadRequest(new { error = "Invalid sort." });
     }
 
-    WatchlistQuery query = new(parsedCollection, parsedAvailability, parsedSort);
+    if (!TryParseTvState(state, parsedCollection, out TvBrowseState? parsedTvState))
+    {
+        return Results.BadRequest(new { error = "Invalid TV state." });
+    }
+
+    WatchlistQuery query = new(parsedCollection, parsedAvailability, parsedSort, parsedTvState);
     IReadOnlyList<WatchlistItemDto> items = await queryService.GetItemsAsync(query, cancellationToken);
 
     return Results.Ok(items.Select(ToBackendImageUrls).ToList());
@@ -354,6 +360,25 @@ static bool TryParseSort(string? value, out WatchlistSort sort)
     return value is null or "added_desc" or "title_asc";
 }
 
+static bool TryParseTvState(
+    string? value,
+    WatchlistCollection collection,
+    out TvBrowseState? state)
+{
+    state = value switch
+    {
+        null => null,
+        "active" => TvBrowseState.Active,
+        "caught_up" => TvBrowseState.CaughtUp,
+        "retired" => TvBrowseState.Retired,
+        _ => null
+    };
+
+    return value is null
+        ? true
+        : collection == WatchlistCollection.Tv && state is not null;
+}
+
 static IReadOnlySet<AvailabilityStatus> AllAvailabilityStatuses()
 {
     return new HashSet<AvailabilityStatus>
@@ -370,7 +395,8 @@ static WatchlistItemDto ToBackendImageUrls(WatchlistItemDto item)
     return item with
     {
         PosterUrl = ToBackendTmdbImageUrl(item.PosterUrl),
-        BackdropUrl = ToBackendTmdbImageUrl(item.BackdropUrl)
+        BackdropUrl = ToBackendTmdbImageUrl(item.BackdropUrl),
+        Tv = item.Tv is null ? null : ToBackendTvImageUrls(item.Tv)
     };
 }
 
@@ -379,7 +405,42 @@ static WatchlistItemDetailsDto ToBackendDetailImageUrls(WatchlistItemDetailsDto 
     return item with
     {
         PosterUrl = ToBackendTmdbImageUrl(item.PosterUrl),
-        BackdropUrl = ToBackendTmdbImageUrl(item.BackdropUrl)
+        BackdropUrl = ToBackendTmdbImageUrl(item.BackdropUrl),
+        Tv = item.Tv is null ? null : ToBackendTvDetailImageUrls(item.Tv)
+    };
+}
+
+static TvBrowseDto ToBackendTvImageUrls(TvBrowseDto tv)
+{
+    return tv with
+    {
+        Availability = ToBackendTvProviderImageUrls(tv.Availability),
+        RelevantSeasonAvailability = tv.RelevantSeasonAvailability is null
+            ? null
+            : ToBackendTvProviderImageUrls(tv.RelevantSeasonAvailability)
+    };
+}
+
+static TvDetailsDto ToBackendTvDetailImageUrls(TvDetailsDto tv)
+{
+    return tv with
+    {
+        Availability = ToBackendTvProviderImageUrls(tv.Availability),
+        Seasons = tv.Seasons.Select(season => season with
+        {
+            Availability = ToBackendTvProviderImageUrls(season.Availability)
+        }).ToArray()
+    };
+}
+
+static TvProviderAvailabilityDto ToBackendTvProviderImageUrls(TvProviderAvailabilityDto availability)
+{
+    return availability with
+    {
+        Offers = availability.Offers.Select(offer => offer with
+        {
+            LogoUrl = ToBackendTmdbImageUrl(offer.LogoUrl)
+        }).ToArray()
     };
 }
 
@@ -402,7 +463,8 @@ static string? ToBackendTmdbImageUrl(string? imageUrl)
         return imageUrl;
     }
 
-    return $"/api/images/tmdb/{segments[2]}/{segments[3]}";
+    string fileName = Uri.EscapeDataString(Uri.UnescapeDataString(segments[3]));
+    return $"/api/images/tmdb/{segments[2]}/{fileName}";
 }
 
 static bool IsAllowedTmdbImageSize(string size)

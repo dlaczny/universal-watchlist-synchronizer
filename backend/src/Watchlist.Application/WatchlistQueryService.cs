@@ -7,10 +7,28 @@ namespace Watchlist.Application;
 /// </summary>
 public sealed class WatchlistQueryService(
     IWatchlistReadRepository repository,
-    IPlexMovieInventoryRepository plexRepository)
+    IPlexMovieInventoryRepository plexRepository,
+    ITvShowReadRepository tvRepository)
 {
     public WatchlistQueryService(IWatchlistReadRepository repository)
-        : this(repository, NullPlexMovieInventoryRepository.Instance)
+        : this(
+            repository,
+            NullPlexMovieInventoryRepository.Instance,
+            NullTvShowReadRepository.Instance)
+    {
+    }
+
+    public WatchlistQueryService(
+        IWatchlistReadRepository repository,
+        ITvShowReadRepository tvRepository)
+        : this(repository, NullPlexMovieInventoryRepository.Instance, tvRepository)
+    {
+    }
+
+    public WatchlistQueryService(
+        IWatchlistReadRepository repository,
+        IPlexMovieInventoryRepository plexRepository)
+        : this(repository, plexRepository, NullTvShowReadRepository.Instance)
     {
     }
 
@@ -21,26 +39,29 @@ public sealed class WatchlistQueryService(
         WatchlistQuery query,
         CancellationToken cancellationToken)
     {
-        IReadOnlyList<WatchlistItem> items = await repository.GetItemsAsync(cancellationToken);
-        IEnumerable<WatchlistItem> filteredItems = items;
+        List<WatchlistItemDto> browseItems = [];
 
-        MediaType? mediaType = query.Collection switch
+        if (query.Collection is WatchlistCollection.All or WatchlistCollection.Movie)
         {
-            WatchlistCollection.Movie => MediaType.Movie,
-            WatchlistCollection.Tv => MediaType.TvShow,
-            _ => null
-        };
-
-        if (mediaType is not null)
-        {
-            filteredItems = filteredItems.Where(item => item.MediaType == mediaType.Value);
+            IReadOnlyList<WatchlistItem> items = await repository.GetItemsAsync(cancellationToken);
+            browseItems.AddRange(items
+                .Where(item => item.MediaType == MediaType.Movie)
+                .Where(item => query.Availability.Contains(item.AvailabilityStatus))
+                .Select(ToDto));
         }
 
-        filteredItems = filteredItems.Where(item => query.Availability.Contains(item.AvailabilityStatus));
-
-        List<WatchlistItemDto> browseItems = filteredItems
-            .Select(ToDto)
-            .ToList();
+        if (query.Collection is (WatchlistCollection.All or WatchlistCollection.Tv)
+            && query.Availability.Contains(AvailabilityStatus.UnknownMatch))
+        {
+            PublishedTvGeneration? generation = await tvRepository.GetPublishedAsync(cancellationToken);
+            IEnumerable<TvShow> shows = generation?.Shows ?? [];
+            TvBrowseState desiredState = query.Collection == WatchlistCollection.All
+                ? TvBrowseState.Active
+                : query.TvState ?? TvBrowseState.Active;
+            browseItems.AddRange(shows
+                .Where(show => MatchesBrowseState(show, desiredState))
+                .Select(ToTvDto));
+        }
 
         if (query.Availability.Contains(AvailabilityStatus.AvailableOnPlex))
         {
@@ -67,8 +88,14 @@ public sealed class WatchlistQueryService(
     /// </summary>
     public async Task<WatchlistItemDto?> GetItemAsync(string id, CancellationToken cancellationToken)
     {
+        if (IsPublishedTvId(id))
+        {
+            TvShow? tvShow = await tvRepository.GetPublishedShowAsync(id, cancellationToken);
+            return tvShow is null ? null : ToTvDto(tvShow);
+        }
+
         IReadOnlyList<WatchlistItem> items = await repository.GetItemsAsync(cancellationToken);
-        WatchlistItem? item = items.FirstOrDefault(item => item.Id == id);
+        WatchlistItem? item = items.FirstOrDefault(item => item.Id == id && item.MediaType == MediaType.Movie);
 
         if (item is not null)
         {
@@ -92,8 +119,14 @@ public sealed class WatchlistQueryService(
         string id,
         CancellationToken cancellationToken)
     {
+        if (IsPublishedTvId(id))
+        {
+            TvShow? tvShow = await tvRepository.GetPublishedShowAsync(id, cancellationToken);
+            return tvShow is null ? null : ToTvDetailsDto(tvShow);
+        }
+
         IReadOnlyList<WatchlistItem> items = await repository.GetItemsAsync(cancellationToken);
-        WatchlistItem? item = items.FirstOrDefault(item => item.Id == id);
+        WatchlistItem? item = items.FirstOrDefault(item => item.Id == id && item.MediaType == MediaType.Movie);
         if (item is not null)
         {
             return ToDetailsDto(item);
@@ -107,6 +140,198 @@ public sealed class WatchlistQueryService(
 
         PlexMovieDto? plexMovie = await plexRepository.GetMovieAsync(plexRatingKey, cancellationToken);
         return plexMovie is null ? null : ToPlexOnlyDetailsDto(plexMovie);
+    }
+
+    private static bool MatchesBrowseState(TvShow show, TvBrowseState state)
+    {
+        return (show.LifecycleState, state) switch
+        {
+            (TvLifecycleState.Active, TvBrowseState.Active) => true,
+            (TvLifecycleState.CaughtUp, TvBrowseState.CaughtUp) => true,
+            (TvLifecycleState.RetiredTerminal, TvBrowseState.Retired) => true,
+            _ => false
+        };
+    }
+
+    private static WatchlistItemDto ToTvDto(TvShow show)
+    {
+        return new WatchlistItemDto(
+            show.Id,
+            "tv",
+            "trakt",
+            show.TraktId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            show.Title,
+            show.Year,
+            show.Overview,
+            show.PosterUrl,
+            show.BackdropUrl,
+            ToReleaseStatus(show),
+            "unknown_match",
+            "watchlist",
+            false,
+            false,
+            [],
+            show.Availability.Offers
+                .Where(offer => offer.Category == TvProviderCategory.Flatrate)
+                .Select(offer => offer.ProviderName)
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToArray(),
+            show.AddedAt,
+            show.UpdatedAt)
+        {
+            Tv = ToTvBrowseDto(show)
+        };
+    }
+
+    private static WatchlistItemDetailsDto ToTvDetailsDto(TvShow show)
+    {
+        return new WatchlistItemDetailsDto(
+            show.Id,
+            "tv",
+            "trakt",
+            show.TraktId.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            show.Title,
+            show.Year,
+            show.Overview,
+            show.PosterUrl,
+            show.BackdropUrl,
+            ToReleaseStatus(show),
+            "unknown_match",
+            "watchlist",
+            false,
+            false,
+            [],
+            show.Availability.Offers
+                .Where(offer => offer.Category == TvProviderCategory.Flatrate)
+                .Select(offer => offer.ProviderName)
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToArray(),
+            show.AddedAt,
+            show.UpdatedAt,
+            [],
+            null,
+            null,
+            null,
+            null,
+            "Unavailable",
+            false,
+            null)
+        {
+            Tv = ToTvDetailsDtoValue(show)
+        };
+    }
+
+    private static TvBrowseDto ToTvBrowseDto(TvShow show)
+    {
+        TvSeasonProgress? relevantSeason = FindRelevantSeason(show);
+        return new TvBrowseDto(
+            1,
+            ToApiValue(show.LifecycleState),
+            show.LastLifecycleEvent,
+            show.TraktStatus,
+            show.InWatchlist,
+            ToApiValue(show.IdentityStatus),
+            show.AiredEpisodes,
+            show.CompletedEpisodes,
+            ToEpisodeDto(show.NextEpisode),
+            false,
+            "unknown",
+            ToProviderAvailabilityDto(show.Availability),
+            relevantSeason?.SeasonNumber,
+            relevantSeason is null ? null : ToProviderAvailabilityDto(relevantSeason.Availability));
+    }
+
+    private static TvDetailsDto ToTvDetailsDtoValue(TvShow show)
+    {
+        IReadOnlyList<TvSeasonProgressDto> seasons = show.Seasons
+            .OrderBy(season => season.SeasonNumber)
+            .Select(season => new TvSeasonProgressDto(
+                season.SeasonNumber,
+                season.AiredEpisodes,
+                season.CompletedEpisodes,
+                season.HasKnownFutureEpisode,
+                "not_implemented",
+                ToProviderAvailabilityDto(season.Availability),
+                season.Episodes
+                    .OrderBy(episode => episode.EpisodeNumber)
+                    .Select(episode => ToEpisodeDto(episode)!)
+                    .ToArray()))
+            .ToArray();
+
+        return new TvDetailsDto(
+            1,
+            ToApiValue(show.LifecycleState),
+            show.LastLifecycleEvent,
+            show.TraktStatus,
+            show.InWatchlist,
+            ToApiValue(show.IdentityStatus),
+            show.AiredEpisodes,
+            show.CompletedEpisodes,
+            ToEpisodeDto(show.LastWatchedEpisode),
+            ToEpisodeDto(show.NextEpisode),
+            ToProviderAvailabilityDto(show.Availability),
+            new TvDestinationStatusDto("unknown", "unknown", null),
+            seasons);
+    }
+
+    private static TvSeasonProgress? FindRelevantSeason(TvShow show)
+    {
+        if (show.NextEpisode is not null)
+        {
+            return show.Seasons.SingleOrDefault(
+                season => season.SeasonNumber == show.NextEpisode.SeasonNumber);
+        }
+
+        return show.Seasons
+            .Where(season => season.SeasonNumber > 0 && season.AiredEpisodes > 0)
+            .OrderByDescending(season => season.SeasonNumber)
+            .FirstOrDefault();
+    }
+
+    private static TvEpisodeProgressDto? ToEpisodeDto(TvEpisodeProgress? episode)
+    {
+        return episode is null
+            ? null
+            : new TvEpisodeProgressDto(
+                episode.SeasonNumber,
+                episode.EpisodeNumber,
+                episode.Title,
+                episode.AiredAt,
+                episode.Watched,
+                episode.WatchedAt);
+    }
+
+    private static TvProviderAvailabilityDto ToProviderAvailabilityDto(TvProviderAvailability availability)
+    {
+        return new TvProviderAvailabilityDto(
+            ToApiValue(availability.State),
+            availability.Region,
+            availability.FetchedAt,
+            availability.Link,
+            availability.Offers
+                .OrderBy(offer => offer.Category)
+                .ThenBy(offer => offer.ProviderId)
+                .Select(offer => new TvProviderOfferDto(
+                    offer.ProviderId,
+                    offer.ProviderName,
+                    ToApiValue(offer.Category),
+                    offer.LogoUrl))
+                .ToArray());
+    }
+
+    private static string ToReleaseStatus(TvShow show)
+    {
+        if (show.AiredEpisodes > 0)
+        {
+            return "released";
+        }
+
+        return show.NextEpisode?.AiredAt is DateTimeOffset airedAt
+            && airedAt > DateTimeOffset.UtcNow
+            ? "unreleased"
+            : "unknown";
     }
 
     private static WatchlistItemDto ToDto(WatchlistItem item)
@@ -311,6 +536,61 @@ public sealed class WatchlistQueryService(
         };
     }
 
+    private static bool IsPublishedTvId(string id)
+    {
+        return id.StartsWith("tv-trakt-", StringComparison.Ordinal);
+    }
+
+    private static string ToApiValue(TvLifecycleState lifecycleState)
+    {
+        return lifecycleState switch
+        {
+            TvLifecycleState.Active => "active",
+            TvLifecycleState.CaughtUp => "caught_up",
+            TvLifecycleState.SourceRemoved => "source_removed",
+            TvLifecycleState.TerminalCleanupPending => "terminal_cleanup_pending",
+            TvLifecycleState.RetiredTerminal => "retired_terminal",
+            _ => "unknown"
+        };
+    }
+
+    private static string ToApiValue(TvIdentityStatus identityStatus)
+    {
+        return identityStatus switch
+        {
+            TvIdentityStatus.Verified => "verified",
+            TvIdentityStatus.Missing => "missing",
+            TvIdentityStatus.Conflict => "conflict",
+            TvIdentityStatus.LegacyUnresolved => "legacy_unresolved",
+            _ => "unknown"
+        };
+    }
+
+    private static string ToApiValue(TvProviderState providerState)
+    {
+        return providerState switch
+        {
+            TvProviderState.Available => "available",
+            TvProviderState.ConfirmedUnavailable => "confirmed_unavailable",
+            TvProviderState.Unknown => "unknown",
+            TvProviderState.Stale => "stale",
+            _ => "unknown"
+        };
+    }
+
+    private static string ToApiValue(TvProviderCategory category)
+    {
+        return category switch
+        {
+            TvProviderCategory.Flatrate => "flatrate",
+            TvProviderCategory.Free => "free",
+            TvProviderCategory.Ads => "ads",
+            TvProviderCategory.Rent => "rent",
+            TvProviderCategory.Buy => "buy",
+            _ => "unknown"
+        };
+    }
+
     private enum LibraryMembership
     {
         Watchlist,
@@ -362,6 +642,25 @@ public sealed class WatchlistQueryService(
             CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class NullTvShowReadRepository : ITvShowReadRepository
+    {
+        public static readonly NullTvShowReadRepository Instance = new();
+
+        private NullTvShowReadRepository()
+        {
+        }
+
+        public Task<PublishedTvGeneration?> GetPublishedAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<PublishedTvGeneration?>(null);
+        }
+
+        public Task<TvShow?> GetPublishedShowAsync(string id, CancellationToken cancellationToken)
+        {
+            return Task.FromResult<TvShow?>(null);
         }
     }
 }

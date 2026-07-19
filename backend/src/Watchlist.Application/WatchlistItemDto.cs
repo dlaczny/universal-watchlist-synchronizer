@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Watchlist.Application;
 
 /// <summary>
@@ -21,4 +23,8 @@ public sealed record WatchlistItemDto(
     IReadOnlyList<string> VodRegions,
     IReadOnlyList<string> OwnedServiceAvailability,
     DateTimeOffset AddedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TvBrowseDto? Tv { get; init; }
+}

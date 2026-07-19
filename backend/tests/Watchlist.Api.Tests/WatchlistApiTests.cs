@@ -32,8 +32,9 @@ public sealed class WatchlistApiTests
         JsonElement items = document.RootElement;
         items.GetArrayLength().Should().BeGreaterThan(0);
         items.EnumerateArray().Should().Contain(item => item.GetProperty("mediaType").GetString() == "movie");
-        items.EnumerateArray().Should().OnlyContain(item =>
-            item.GetProperty("mediaType").GetString() == "movie");
+        items.EnumerateArray().Should().Contain(item =>
+            item.GetProperty("mediaType").GetString() == "tv"
+            && item.GetProperty("tv").GetProperty("lifecycleState").GetString() == "active");
         items[0].TryGetProperty("addedAt", out _).Should().BeTrue();
         items[0].TryGetProperty("runtimeMinutes", out _).Should().BeFalse();
         items[0].TryGetProperty("primaryActionLabel", out _).Should().BeFalse();
@@ -50,7 +51,11 @@ public sealed class WatchlistApiTests
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
         JsonElement items = document.RootElement;
-        items.GetArrayLength().Should().Be(0);
+        items.GetArrayLength().Should().Be(1);
+        items[0].GetProperty("id").GetString().Should().Be("tv-trakt-12345");
+        items.EnumerateArray().Should().NotContain(item =>
+            item.GetProperty("id").GetString() == "tv-andor"
+            || item.GetProperty("id").GetString() == "tv-legacy");
     }
 
     [Fact]
@@ -64,7 +69,8 @@ public sealed class WatchlistApiTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         using JsonDocument document = await ReadJsonDocumentAsync(response);
-        document.RootElement.GetArrayLength().Should().Be(0);
+        document.RootElement.GetArrayLength().Should().Be(1);
+        document.RootElement[0].GetProperty("id").GetString().Should().Be("tv-trakt-12345");
     }
 
     [Fact]

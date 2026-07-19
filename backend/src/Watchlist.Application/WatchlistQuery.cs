@@ -8,4 +8,5 @@ namespace Watchlist.Application;
 public sealed record WatchlistQuery(
     WatchlistCollection Collection,
     IReadOnlySet<AvailabilityStatus> Availability,
-    WatchlistSort Sort);
+    WatchlistSort Sort,
+    TvBrowseState? TvState = null);

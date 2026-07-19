@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Watchlist.Application;
 
 public sealed record WatchlistItemDetailsDto(
@@ -26,4 +28,8 @@ public sealed record WatchlistItemDetailsDto(
     int? TmdbVoteCount,
     string PrimaryActionLabel,
     bool PrimaryActionEnabled,
-    string? PrimaryActionTarget);
+    string? PrimaryActionTarget)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public TvDetailsDto? Tv { get; init; }
+}

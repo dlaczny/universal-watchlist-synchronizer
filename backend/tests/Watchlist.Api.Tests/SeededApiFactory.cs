@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Watchlist.Application;
+using Watchlist.Domain;
 using Watchlist.Infrastructure;
 
 namespace Watchlist.Api.Tests;
@@ -31,6 +32,7 @@ public sealed class SeededApiFactory(
         builder.ConfigureServices(services =>
         {
             services.RemoveAll<IWatchlistReadRepository>();
+            services.RemoveAll<ITvShowReadRepository>();
             services.RemoveAll<ISyncStatusReadRepository>();
             services.RemoveAll<ILetterboxdMovieSyncService>();
             services.RemoveAll<ITmdbMovieEnrichmentService>();
@@ -47,6 +49,7 @@ public sealed class SeededApiFactory(
             RemoveTraktHostedService(services);
             RemoveLegacyTvMigrationHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
+            services.AddSingleton<ITvShowReadRepository, SeededTvShowReadRepository>();
             services.AddSingleton<ISyncStatusReadRepository, SeededSyncStatusReadRepository>();
             services.AddSingleton<ILetterboxdMovieSyncService>(
                 _ => new SeededLetterboxdMovieSyncService(letterboxdSyncException));
@@ -109,6 +112,106 @@ public sealed class SeededApiFactory(
         if (migrationDescriptor is not null)
         {
             services.Remove(migrationDescriptor);
+        }
+    }
+
+    private sealed class SeededTvShowReadRepository : ITvShowReadRepository
+    {
+        private static readonly TvProviderAvailability Availability = new(
+            TvProviderState.Available,
+            "PL",
+            DateTimeOffset.Parse("2026-07-18T00:00:00Z"),
+            "https://www.themoviedb.org/tv/456/watch?locale=PL",
+            [new TvProviderOffer(8, "Netflix", TvProviderCategory.Flatrate, "https://image.tmdb.org/t/p/w500/logo%2fprivate.png")]);
+
+        private static readonly TvEpisodeProgress Episode = new(
+            501,
+            601,
+            1,
+            1,
+            "Pilot",
+            DateTimeOffset.Parse("2026-07-01T00:00:00Z"),
+            false,
+            null);
+
+        private static readonly IReadOnlyList<TvShow> Shows =
+        [
+            CreateShow("tv-trakt-12345", 12345, TvLifecycleState.Active),
+            CreateShow("tv-trakt-12346", 12346, TvLifecycleState.CaughtUp),
+            CreateShow("tv-trakt-12347", 12347, TvLifecycleState.RetiredTerminal)
+        ];
+
+        private static readonly PublishedTvGeneration Generation = new(
+            new TvGenerationManifest(
+                "seeded-tv-generation",
+                null,
+                TvGenerationKind.ScheduledFull,
+                DateTimeOffset.Parse("2026-07-19T11:59:00Z"),
+                DateTimeOffset.Parse("2026-07-19T12:00:00Z"),
+                DateTimeOffset.Parse("2026-07-19T12:00:00Z"),
+                new TraktActivityCursor(DateTimeOffset.Parse("2026-07-19T11:00:00Z"), DateTimeOffset.Parse("2026-07-19T11:00:00Z")),
+                1,
+                3,
+                1,
+                3,
+                "v1",
+                new Dictionary<string, string>(),
+                "membership",
+                "progress",
+                null,
+                null,
+                null,
+                "valid",
+                [],
+                [],
+                [],
+                false,
+                ["plex_history_phase_not_implemented", "worker_tv_mutation_disabled"],
+                []),
+            Shows);
+
+        public Task<PublishedTvGeneration?> GetPublishedAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult<PublishedTvGeneration?>(Generation);
+        }
+
+        public Task<TvShow?> GetPublishedShowAsync(string id, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(Shows.SingleOrDefault(show => show.Id == id));
+        }
+
+        private static TvShow CreateShow(string id, long traktId, TvLifecycleState lifecycleState)
+        {
+            return new TvShow(
+                id,
+                traktId,
+                123,
+                456,
+                "tt1234567",
+                TvIdentityStatus.Verified,
+                "Seeded TV Show",
+                2026,
+                "A seeded TV overview.",
+                "https://image.tmdb.org/t/p/w500/poster.png",
+                "https://image.tmdb.org/t/p/w1280/backdrop.png",
+                "returning series",
+                lifecycleState != TvLifecycleState.RetiredTerminal,
+                1,
+                0,
+                null,
+                Episode,
+                [new TvSeasonProgress(1, 1, 0, false, Availability, [Episode])],
+                [],
+                Availability,
+                lifecycleState,
+                lifecycleState == TvLifecycleState.Active ? null : "lifecycle_event",
+                1,
+                0,
+                DateTimeOffset.Parse("2026-07-18T00:00:00Z"),
+                DateTimeOffset.Parse("2026-07-19T00:00:00Z"),
+                DateTimeOffset.Parse("2026-07-19T00:00:00Z"),
+                "seeded-tv-generation",
+                null);
         }
     }
 
