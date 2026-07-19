@@ -1,12 +1,11 @@
 ---
 type: Backlog
 title: TV Phase 1 Read Model Implementation Plan
-description: TDD execution plan for Trakt device OAuth, complete TV generations, Polish provider enrichment, read APIs, Android TV progress UI, and secret-safe deployment with every TV mutation disabled.
+description: TDD execution plan for Trakt device OAuth, complete TV generations, Polish provider enrichment, read APIs, and secret-safe deployment with every TV mutation disabled.
 tags:
   - tv
   - trakt
   - mongodb
-  - android-tv
   - tmdb
   - ci-cd
 timestamp: 2026-07-13T00:00:00Z
@@ -17,11 +16,13 @@ version: 0.1.0
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver a non-destructive Trakt-backed TV read model with persistent device OAuth, complete publish-last generations, legacy-TV migration, Poland-specific provider data, browse/detail/export contracts, and a read-only Android TV experience.
+**Goal:** Deliver a non-destructive Trakt-backed TV read model with persistent device OAuth, complete publish-last generations, legacy-TV migration, Poland-specific provider data, browse/detail/export contracts, and a read-only worker export.
 
-**Architecture:** The .NET backend owns Trakt OAuth and source reads, TMDB enrichment, lifecycle reduction, and MongoDB generation publication. Readers resolve exactly one published TV generation; source or validation failures retain the previous pointer. Android consumes versioned backend DTOs and never calls a mutation endpoint, while the future worker receives an explicitly non-mutation-capable export.
+**Architecture:** The .NET backend owns Trakt OAuth and source reads, TMDB enrichment, lifecycle reduction, and MongoDB generation publication. Readers resolve exactly one published TV generation; source or validation failures retain the previous pointer. The future worker receives an explicitly non-mutation-capable export.
 
-**Tech Stack:** .NET 10 minimal API, ASP.NET Data Protection, MongoDB 8, `HttpClient`, xUnit, FluentAssertions, Java 17 Android TV, JUnit 4, Gradle 8, Docker Compose, GitHub Actions, Bash, and OKF Markdown.
+> **Android TV scope:** [Android app work, Android fixtures, Android CI, APK validation, and Android-only documentation](../../backlog/android_tv_tv_integration.md) are deferred. An explicit user request to resume Android TV work is required; a generic TV continuation is insufficient.
+
+**Tech Stack:** .NET 10 minimal API, ASP.NET Data Protection, MongoDB 8, `HttpClient`, xUnit, FluentAssertions, Docker Compose, GitHub Actions, Bash, and OKF Markdown.
 
 ---
 
@@ -357,7 +358,7 @@ public sealed record TvShow(
     string? LegacySourceId);
 ```
 
-- [ ] **Step 5: Add validated infrastructure options**
+- [ ] **Step 4: Add validated infrastructure options**
 
 Use these option properties and defaults:
 
@@ -413,7 +414,7 @@ Add `Microsoft.AspNetCore.DataProtection` version `10.0.9` to
 `Watchlist.Infrastructure.csproj`; do not add a floating package version. This
 servicing pin avoids GHSA-9mv3-2cwr-p262.
 
-- [ ] **Step 6: Run focused and existing enum tests**
+- [ ] **Step 5: Run focused and existing enum tests**
 
 Run:
 
@@ -424,7 +425,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 Expected: all selected tests pass, and existing movie enum numeric values remain
 unchanged.
 
-- [ ] **Step 7: Commit the Phase 1 domain contract**
+- [ ] **Step 6: Commit the Phase 1 domain contract**
 
 ```powershell
 git add backend/src/Watchlist.Domain backend/src/Watchlist.Infrastructure backend/tests/Watchlist.Application.Tests
@@ -568,7 +569,7 @@ and immediately unprotects a random 32-byte probe, and fails startup if the
 directory is missing, not absolute in Production, or not writable. The probe
 value and protected payload are never logged.
 
-- [ ] **Step 5: Implement the singleton Mongo document**
+- [ ] **Step 4: Implement the singleton Mongo document**
 
 Use `_id=single-account`, replace-upsert writes, and these persisted fields:
 
@@ -589,14 +590,14 @@ updatedAt
 Delete the pending user code and protected device code when a token is stored.
 Do not log or return the raw Mongo document.
 
-- [ ] **Step 6: Verify encryption and Mongo persistence**
+- [ ] **Step 5: Verify encryption and Mongo persistence**
 
 Run the focused tests from Step 2.
 
 Expected: all selected tests pass; raw Mongo assertions prove that plaintext
 token and device-code values are absent.
 
-- [ ] **Step 7: Commit encrypted Trakt connection persistence**
+- [ ] **Step 6: Commit encrypted Trakt connection persistence**
 
 ```powershell
 git add backend/src/Watchlist.Application backend/src/Watchlist.Infrastructure backend/tests/Watchlist.Application.Tests
@@ -731,7 +732,7 @@ the configured five-minute skew and whose `ForceRefreshAsync` is available
 after a definite authentication rejection. Both methods throw
 `TraktNotConnectedException` for every non-connected state.
 
-- [ ] **Step 5: Implement the device polling hosted service**
+- [ ] **Step 4: Implement the device polling hosted service**
 
 `TraktDeviceAuthorizationHostedService` wakes once per second but calls
 `PollPendingAsync` only when `NextDevicePollAt <= TimeProvider.GetUtcNow()`.
@@ -739,7 +740,7 @@ It stops polling at expiry, honors the persisted interval after restart, and
 logs only stable state and error codes. Do not log user code, device code,
 tokens, client secret, or response bodies.
 
-- [ ] **Step 6: Add protected integration endpoints**
+- [ ] **Step 5: Add protected integration endpoints**
 
 Create `TvEndpointRouteBuilderExtensions.MapTvEndpoints`, call it once from
 `Program.cs`, and map an `/api/integrations` route group using the existing
@@ -754,9 +755,9 @@ DELETE /api/integrations/trakt/connection
 Return `200` for start/status/delete, `409` with
 `code=trakt_connection_pending` when start is repeated during an unexpired
 pending flow, and `503` with `code=trakt_unavailable` for definite upstream
-failure. No Android code calls these routes.
+failure. No client code calls these routes.
 
-- [ ] **Step 7: Verify API authorization and redaction**
+- [ ] **Step 6: Verify API authorization and redaction**
 
 Run:
 
@@ -768,7 +769,7 @@ Expected: missing or wrong `X-Watchlist-Sync-Key` returns `401`; a correct key
 returns the documented DTO; serialized status contains none of `deviceCode`,
 `accessToken`, `refreshToken`, `clientSecret`, or `protected` fields.
 
-- [ ] **Step 8: Run all focused OAuth tests and commit**
+- [ ] **Step 7: Run all focused OAuth tests and commit**
 
 ```powershell
 dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Tests.csproj --filter "FullyQualifiedName~TraktOAuthClientTests|FullyQualifiedName~TraktConnectionServiceTests|FullyQualifiedName~DataProtectionTraktTokenProtectorTests"
@@ -913,21 +914,21 @@ identity-only list on `TvShow`; they are never converted to
 `TvEpisodeProgress` and remain excluded from progress, provider, search, and
 cleanup semantics.
 
-- [ ] **Step 5: Implement deterministic all-page reads**
+- [ ] **Step 4: Implement deterministic all-page reads**
 
 Use page size from `TraktOptions`, fetch pages sequentially, require a stable
 page count, concatenate, reject duplicates, then order by Trakt ID. Do not use
 the first page as a complete snapshot. Deserialize with case-insensitive
 properties plus explicit `JsonPropertyName` for snake-case fields.
 
-- [ ] **Step 6: Verify every Trakt adapter case**
+- [ ] **Step 5: Verify every Trakt adapter case**
 
 Run the command from Step 3.
 
 Expected: every pagination, header, invariant, status, and malformed-response
 test passes.
 
-- [ ] **Step 7: Commit the Trakt read adapter**
+- [ ] **Step 6: Commit the Trakt read adapter**
 
 ```powershell
 git add backend/src/Watchlist.Application backend/src/Watchlist.Infrastructure backend/tests/Watchlist.Application.Tests/TraktTvClientTests.cs
@@ -1038,7 +1039,7 @@ Increment lifecycle version only when an event is emitted. Use event types
 `added`, `caught_up`, `reactivated`, and `source_removed`. A repeated equivalent
 generation emits no event and retains the version.
 
-- [ ] **Step 5: Add generation draft and manifest contracts**
+- [ ] **Step 4: Add generation draft and manifest contracts**
 
 ```csharp
 namespace Watchlist.Application;
@@ -1098,7 +1099,7 @@ forward-compatible fields rather than changing the manifest shape. For Phase
 1, manifest construction always supplies the two locked health
 reasons and `MutationCapable=false`.
 
-- [ ] **Step 6: Implement canonical hashing and validation**
+- [ ] **Step 5: Implement canonical hashing and validation**
 
 Hash UTF-8 JSON with SHA-256 after ordering shows by Trakt ID, seasons by season
 number, and episodes by episode number. Use lowercase hexadecimal. Membership
@@ -1106,14 +1107,14 @@ hash includes Trakt ID and `InWatchlist`; progress hash includes Trakt ID,
 aired/completed, and every watched episode. Never include title, provider name,
 or wall-clock generation time in either hash.
 
-- [ ] **Step 7: Verify lifecycle and validator tests**
+- [ ] **Step 6: Verify lifecycle and validator tests**
 
 Run the command from Step 3.
 
 Expected: every transition and rejection case passes, including the assertion
 that `ended` and `canceled` do not enter a cleanup state in Phase 1.
 
-- [ ] **Step 8: Commit pure lifecycle behavior**
+- [ ] **Step 7: Commit pure lifecycle behavior**
 
 ```powershell
 git add backend/src/Watchlist.Application backend/tests/Watchlist.Application.Tests
@@ -1294,7 +1295,7 @@ snapshot, prove a failed refresh changes only stale/error health, and prove a
 later successful atomic replacement clears the error without exposing a raw
 response body.
 
-- [ ] **Step 5: Implement provider-state and cache semantics**
+- [ ] **Step 4: Implement provider-state and cache semantics**
 
 `TmdbTvEnrichmentService` receives the current source show, the previous
 published row, and `now`. It refreshes metadata when older than the configured
@@ -1313,7 +1314,7 @@ TvProviderAvailability availability = previous?.Availability switch
 Record a stable redacted enrichment error containing Trakt ID, TMDB ID, stage,
 and error code. Do not include URL query credentials, headers, or response body.
 
-- [ ] **Step 6: Preserve unknown versus unavailable semantics**
+- [ ] **Step 5: Preserve unknown versus unavailable semantics**
 
 Map a successful empty configured-ID match to `ConfirmedUnavailable`. Map all
 missing, failed, or malformed provider fetches to `Unknown` or `Stale` as
@@ -1321,7 +1322,7 @@ defined above. Never derive `Not released` from provider absence. Keep movie
 provider output and eligibility semantics unchanged while replacing its
 internal provider-name allowlist with the same configured stable IDs.
 
-- [ ] **Step 7: Verify all TMDB TV tests and commit**
+- [ ] **Step 6: Verify all TMDB TV tests and commit**
 
 ```powershell
 dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Tests.csproj --filter "FullyQualifiedName~TmdbTvMetadataClientTests|FullyQualifiedName~TmdbTvEnrichmentServiceTests|FullyQualifiedName~TmdbMovieEnrichmentServiceTests"
@@ -1434,7 +1435,7 @@ Use manifest ID `generation:{generationId}` and pointer ID `published-tv`.
 supplied hashes/counts, then performs one atomic replace-upsert of the pointer.
 It must never update a TV show row during pointer publication.
 
-- [ ] **Step 5: Add required indexes during bootstrap**
+- [ ] **Step 4: Add required indexes during bootstrap**
 
 Create these indexes idempotently:
 
@@ -1452,14 +1453,14 @@ the migration/sync hosted services; do not overload the movie bootstrapper.
 Do not create or seed a published TV pointer. Before the first successful Trakt
 generation, TV browse returns an empty list rather than sample desired state.
 
-- [ ] **Step 6: Implement coherent reads**
+- [ ] **Step 5: Implement coherent reads**
 
 `MongoTvShowReadRepository.GetPublishedAsync` reads `published-tv` once, reads its
 immutable manifest once, then filters `tv_shows` by `DocumentKind=generation`
 and that exact generation ID. If pointer, manifest, or row counts disagree,
 throw `TvPublishedGenerationInvalidException`; never fall back to all TV rows.
 
-- [ ] **Step 7: Run repository and bootstrap regression tests**
+- [ ] **Step 6: Run repository and bootstrap regression tests**
 
 Run:
 
@@ -1469,7 +1470,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 
 Expected: all selected tests pass and no TV seed creates a published pointer.
 
-- [ ] **Step 8: Commit publish-last persistence**
+- [ ] **Step 7: Commit publish-last persistence**
 
 ```powershell
 git add backend/src backend/tests/Watchlist.Application.Tests
@@ -1541,14 +1542,14 @@ dotnet test backend\tests\Watchlist.Api.Tests\Watchlist.Api.Tests.csproj --filte
 Expected: compile/assertion failure because the legacy migration does not
 exist and the old read repository still returns TV rows.
 
-- [ ] **Step 5: Disable every legacy TV write before migrating**
+- [ ] **Step 4: Disable every legacy TV write before migrating**
 
 Map the protected route to the fixed `410` response and make the combined
 orchestrator construct its compatibility disabled result without resolving or
 calling `ITmdbTvWatchlistSyncService`. Keep the old types registered only as
 needed for migration compatibility; they have no reachable mutation route.
 
-- [ ] **Step 6: Implement one-way inert migration**
+- [ ] **Step 5: Implement one-way inert migration**
 
 Copy legacy title, year, artwork, overview, exact IDs, original source ID,
 added/updated timestamps, genres, language, and vote data into one
@@ -1560,13 +1561,13 @@ show to the tracked catalog.
 The hosted migration runs after Mongo index bootstrap and before the scheduler
 can publish its first generation. It logs only migrated/quarantined counts.
 
-- [ ] **Step 7: Make `watchlist_items` movie-only for active reads**
+- [ ] **Step 6: Make `watchlist_items` movie-only for active reads**
 
 Change `MongoWatchlistReadRepository` to add `MediaType == Movie` to its
 existing Letterboxd lifecycle filter. The new `ITvShowReadRepository` is the only
 TV read path. Do not delete old documents in Phase 1.
 
-- [ ] **Step 8: Verify migration and movie regressions**
+- [ ] **Step 7: Verify migration and movie regressions**
 
 Run the focused command from Step 4, then:
 
@@ -1576,7 +1577,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 
 Expected: migration tests and all selected movie lifecycle/read tests pass.
 
-- [ ] **Step 9: Commit the legacy migration boundary**
+- [ ] **Step 8: Commit the legacy migration boundary**
 
 ```powershell
 git add backend/src backend/tests/Watchlist.Application.Tests
@@ -1682,7 +1683,7 @@ public sealed record TvSyncResultDto(
 read through pointer publication. Phase 2 history writes use the same
 interface and singleton.
 
-- [ ] **Step 5: Implement complete tracked-catalog assembly**
+- [ ] **Step 4: Implement complete tracked-catalog assembly**
 
 Within the coordinator lease:
 
@@ -1718,7 +1719,7 @@ handoff test that publishes an S00E03 identity with exact Trakt/TVDB episode
 IDs and proves the Phase 2 resolver can select it, while browse/detail/worker
 progress projections remain unchanged and contain no season 0.
 
-- [ ] **Step 6: Implement the five-minute scheduler**
+- [ ] **Step 5: Implement the five-minute scheduler**
 
 `TvSyncHostedService` uses `PeriodicTimer(TraktOptions.ActivityPollInterval)`.
 Each cycle reads connection status and the published manifest, then calls
@@ -1726,7 +1727,7 @@ Each cycle reads connection status and the published manifest, then calls
 hosted service survives upstream failure; never publish a synthetic failure
 generation and never advance the activity cursor outside publication.
 
-- [ ] **Step 7: Verify orchestration, lifecycle, and repository integration**
+- [ ] **Step 6: Verify orchestration, lifecycle, and repository integration**
 
 Run:
 
@@ -1737,7 +1738,7 @@ dotnet test backend\tests\Watchlist.Application.Tests\Watchlist.Application.Test
 Expected: all selected tests pass, including zero publication on activity race
 or source failure.
 
-- [ ] **Step 8: Commit complete scheduled TV publication**
+- [ ] **Step 7: Commit complete scheduled TV publication**
 
 ```powershell
 git add backend/src backend/tests/Watchlist.Application.Tests
@@ -1922,7 +1923,7 @@ TV `ReleaseStatus` is `unreleased` only when aired is zero and the next episode
 has a future air date; otherwise it is `released` when aired is positive and
 `unknown` when neither fact is known.
 
-- [ ] **Step 5: Parse and enforce the state query in the API**
+- [ ] **Step 4: Parse and enforce the state query in the API**
 
 Add `string? state` to `GET /api/watchlist`. Return `400` with
 `{"error":"Invalid TV state."}` for every invalid combination. Preserve the
@@ -1933,7 +1934,7 @@ still uses backend-relative image URLs. Provider logo URLs are also rewritten
 through `/api/images/tmdb/w500/{fileName}`; the TMDB provider link remains an
 absolute URL supplied by TMDB.
 
-- [ ] **Step 6: Verify browse/detail and all movie regressions**
+- [ ] **Step 5: Verify browse/detail and all movie regressions**
 
 Run:
 
@@ -1945,7 +1946,7 @@ dotnet test backend\tests\Watchlist.Api.Tests\Watchlist.Api.Tests.csproj --filte
 Expected: TV state and detail tests pass; all existing movie browse/detail
 tests still pass.
 
-- [ ] **Step 7: Commit TV browse and detail contracts**
+- [ ] **Step 6: Commit TV browse and detail contracts**
 
 ```powershell
 git add backend/src backend/tests
@@ -2143,7 +2144,7 @@ published strings in `TvBlockerCodes`; include the future v1 codes
 `trakt_next_episode_known` so later phases extend behavior without renaming the
 wire contract.
 
-- [ ] **Step 5: Replace combined TMDB-TV sync with separately reported Trakt TV sync**
+- [ ] **Step 4: Replace combined TMDB-TV sync with separately reported Trakt TV sync**
 
 Change `CombinedSyncResultDto.TmdbTv` to `Tv` of type `TvSyncResultDto`. Preserve
 the current movie stage ordering, then run TV as its own final stage. Catch
@@ -2152,7 +2153,7 @@ result with `Status=failed`, empty generation ID, zero counts, and a stable
 health reason, and set overall status `partial`. Do not mask or relabel movie
 stage failures.
 
-- [ ] **Step 6: Map typed source failures without leaking response bodies**
+- [ ] **Step 5: Map typed source failures without leaking response bodies**
 
 Add exception-handler mappings in this order:
 
@@ -2168,7 +2169,7 @@ TraktConnectionUnreadableException -> 503 trakt_connection_unreadable
 Return `{ "code": "...", "error": "..." }` with fixed text. Never include
 the upstream exception message for parse, auth, or transport failures.
 
-- [ ] **Step 7: Map routes and preserve compatibility boundaries**
+- [ ] **Step 6: Map routes and preserve compatibility boundaries**
 
 Map protected `POST /api/sync/tv`, update protected `POST /api/sync/all`, map
 read-only `GET /api/export/tv/sync-state`, and extend `GET /api/sync/status`.
@@ -2178,7 +2179,7 @@ separately reported Trakt `TvSyncResultDto`; a TV failure makes the combined
 result partial and cannot mask movie results. Keep `GET /api/export/sonarr/tv`
 empty and add response header `X-Watchlist-Contract: compatibility-only`.
 
-- [ ] **Step 8: Verify all export, status, API, and movie regressions**
+- [ ] **Step 7: Verify all export, status, API, and movie regressions**
 
 Run the commands from Step 3, then:
 
@@ -2189,532 +2190,11 @@ dotnet test backend\tests\Watchlist.Api.Tests\Watchlist.Api.Tests.csproj
 Expected: all API tests pass; TV failures are typed and redacted; the existing
 movie API contract remains unchanged except for the additive nullable TV status.
 
-- [ ] **Step 9: Commit Phase 1 backend HTTP contracts**
+- [ ] **Step 8: Commit Phase 1 backend HTTP contracts**
 
 ```powershell
 git add backend/src backend/tests
 git commit -m "feat: expose read-only TV API contracts"
-```
-
-### Task 12: Lock Backend And Android To Shared Versioned Fixtures
-
-**Files:**
-- Create: `contracts/tv/watchlist-browse-v1.json`
-- Create: `contracts/tv/watchlist-detail-v1.json`
-- Create: `contracts/tv/worker-sync-state-v1.json`
-- Create: `contracts/tv/enums-v1.json`
-- Create: `backend/tests/Watchlist.Api.Tests/TvAndroidContractTests.cs`
-- Create: `backend/tests/Watchlist.Api.Tests/TvWorkerContractTests.cs`
-- Modify: `backend/tests/Watchlist.Api.Tests/Watchlist.Api.Tests.csproj`
-- Modify: `backend/tests/Watchlist.Api.Tests/SeededApiFactory.cs`
-
-- [ ] **Step 1: Add the canonical browse fixture**
-
-Commit this semantic shape with real JSON values and no comments:
-
-```json
-[
-  {
-    "id": "tv-trakt-12345",
-    "mediaType": "tv",
-    "source": "trakt",
-    "sourceId": "12345",
-    "title": "Example Show",
-    "year": 2024,
-    "overview": "An example TV show used by the shared contract test.",
-    "posterUrl": "/api/images/tmdb/w500/example-poster.jpg",
-    "backdropUrl": "/api/images/tmdb/w1280/example-backdrop.jpg",
-    "releaseStatus": "released",
-    "availabilityStatus": "unknown_match",
-    "libraryMembership": "watchlist",
-    "vodReleaseKnown": true,
-    "releasedOnVod": true,
-    "vodRegions": ["PL"],
-    "ownedServiceAvailability": ["Prime Video"],
-    "addedAt": "2026-07-01T12:00:00+00:00",
-    "updatedAt": "2026-07-13T12:00:00+00:00",
-    "tv": {
-      "contractVersion": 1,
-      "lifecycleState": "active",
-      "lastLifecycleEvent": "reactivated",
-      "traktStatus": "returning series",
-      "inWatchlist": false,
-      "identityStatus": "verified",
-      "airedEpisodes": 12,
-      "completedEpisodes": 11,
-      "nextEpisode": {
-        "seasonNumber": 2,
-        "episodeNumber": 4,
-        "title": "The Next Episode",
-        "airedAt": "2026-07-16T19:00:00+00:00",
-        "watched": false,
-        "watchedAt": null
-      },
-      "seasonCleanupPending": false,
-      "plexAvailability": "unknown",
-      "availability": {
-        "state": "available",
-        "region": "PL",
-        "fetchedAt": "2026-07-13T11:00:00+00:00",
-        "link": "https://www.themoviedb.org/tv/999/watch",
-        "offers": [
-          {
-            "providerId": 119,
-            "providerName": "Prime Video",
-            "category": "flatrate",
-            "logoUrl": "/api/images/tmdb/w500/prime.jpg"
-          }
-        ]
-      },
-      "relevantSeasonNumber": 2,
-      "relevantSeasonAvailability": {
-        "state": "available",
-        "region": "PL",
-        "fetchedAt": "2026-07-13T11:00:00+00:00",
-        "link": "https://www.themoviedb.org/tv/999/season/2/watch",
-        "offers": []
-      }
-    }
-  }
-]
-```
-
-- [ ] **Step 2: Add detail, worker, and enum fixtures**
-
-`watchlist-detail-v1.json` uses the same common fields and TV summary, then adds
-`genres`, nullable movie metadata, the disabled primary action, and this `tv`
-detail object:
-
-```json
-{
-  "contractVersion": 1,
-  "lifecycleState": "active",
-  "lastLifecycleEvent": "reactivated",
-  "traktStatus": "returning series",
-  "inWatchlist": false,
-  "identityStatus": "verified",
-  "airedEpisodes": 12,
-  "completedEpisodes": 11,
-  "lastWatchedEpisode": {
-    "seasonNumber": 2,
-    "episodeNumber": 3,
-    "title": "Previously",
-    "airedAt": "2026-07-09T19:00:00+00:00",
-    "watched": true,
-    "watchedAt": "2026-07-10T20:30:00+00:00"
-  },
-  "nextEpisode": {
-    "seasonNumber": 2,
-    "episodeNumber": 4,
-    "title": "The Next Episode",
-    "airedAt": "2026-07-16T19:00:00+00:00",
-    "watched": false,
-    "watchedAt": null
-  },
-  "availability": {
-    "state": "available",
-    "region": "PL",
-    "fetchedAt": "2026-07-13T11:00:00+00:00",
-    "link": "https://www.themoviedb.org/tv/999/watch",
-    "offers": []
-  },
-  "destinations": {
-    "sonarrState": "unknown",
-    "plexWatchlistState": "unknown",
-    "observedAt": null
-  },
-  "seasons": [
-    {
-      "seasonNumber": 2,
-      "airedEpisodes": 4,
-      "completedEpisodes": 3,
-      "hasKnownFutureEpisode": true,
-      "cleanupState": "none",
-      "availability": {
-        "state": "unknown",
-        "region": "PL",
-        "fetchedAt": null,
-        "link": null,
-        "offers": []
-      },
-      "episodes": []
-    }
-  ]
-}
-```
-
-`enums-v1.json` contains exactly:
-
-```json
-{
-  "contractVersion": 1,
-  "lifecycleStates": ["active", "caught_up", "source_removed", "terminal_cleanup_pending", "retired_terminal"],
-  "lifecycleEvents": ["added", "caught_up", "reactivated", "source_removed", "season_candidate_started", "season_cleanup_authorized", "season_cleanup_completed", "terminal_candidate_started", "terminal_cleanup_authorized", "terminal_cleanup_completed", "cleanup_canceled", "destination_drift"],
-  "identityStates": ["verified", "missing", "conflict", "legacy_unresolved"],
-  "providerStates": ["available", "confirmed_unavailable", "unknown", "stale"],
-  "providerCategories": ["flatrate", "free", "ads", "rent", "buy"],
-  "destinationStates": ["unknown", "present", "absent", "monitored", "unmonitored"]
-}
-```
-
-`worker-sync-state-v1.json` is a complete capable example serialized from the
-Task 11 records. It uses `schemaVersion: "1"`, a string
-`plexHistory.librarySectionId`, `librarySectionTitle`, timestamp-valued
-`collectedAt` and `watermark`, full episode objects for last/next/season rows,
-positive `traktEpisodeId` values on every episode object, the exact
-`inTraktWatchlist`/`aired`/`completed`/desired-state vocabulary, one
-active and one caught-up show, Poland availability, and both cleanup action
-shapes. Runtime Phase 1 still emits `mutationCapable=false` and no
-authorizations; constructing the capable DTO in a serialization test locks the
-future wire shape without claiming Phase 2 capability.
-
-- [ ] **Step 3: Write failing backend semantic fixture tests**
-
-Configure `Watchlist.Api.Tests.csproj` to copy
-`../../../contracts/tv/*.json` to `Contracts/Tv` in test output.
-`TvAndroidContractTests` calls the seeded browse/detail endpoints.
-`TvWorkerContractTests` constructs the exact capable `WorkerTvSnapshotDto`.
-Both parse expected and actual with `JsonDocument` and compare semantic JSON
-rather than whitespace.
-
-It also recursively rejects property names matching this case-insensitive set:
-
-```text
-clientSecret accessToken refreshToken plexToken sonarrApiKey syncKey
-connectionString protectedAccessToken protectedRefreshToken
-```
-
-- [ ] **Step 4: Run the backend contract test and make the seeded API match**
-
-Run:
-
-```powershell
-dotnet test backend\tests\Watchlist.Api.Tests\Watchlist.Api.Tests.csproj --filter "FullyQualifiedName~TvAndroidContractTests|FullyQualifiedName~TvWorkerContractTests"
-```
-
-Expected before seeded DTO updates: semantic JSON mismatch. Update only the
-seeded TV repository/service values needed to produce the committed browse and
-detail fixtures and the constructed worker DTO values, then rerun and expect
-all contract tests to pass.
-
-- [ ] **Step 5: Commit the shared contract authority**
-
-```powershell
-git add contracts/tv backend/tests/Watchlist.Api.Tests
-git commit -m "test: lock TV client contract fixtures"
-```
-
-### Task 13: Parse The Shared TV Contract In Android And Remove Client Writes
-
-**Files:**
-
-- Create: `android/app/src/main/java/com/watchlist/tv/TvEpisodeProgress.java`
-- Create: `android/app/src/main/java/com/watchlist/tv/TvProviderOffer.java`
-- Create: `android/app/src/main/java/com/watchlist/tv/TvProviderAvailability.java`
-- Create: `android/app/src/main/java/com/watchlist/tv/TvBrowseSummary.java`
-- Create: `android/app/src/main/java/com/watchlist/tv/TvSeasonProgress.java`
-- Create: `android/app/src/main/java/com/watchlist/tv/TvDestinationSummary.java`
-- Create: `android/app/src/main/java/com/watchlist/tv/TvDetails.java`
-- Create: `android/app/src/test/java/com/watchlist/tv/TvContractFixtureTest.java`
-- Modify: `android/app/src/main/java/com/watchlist/tv/WatchlistItem.java`
-- Modify: `android/app/src/main/java/com/watchlist/tv/WatchlistItemDetails.java`
-- Modify: `android/app/src/main/java/com/watchlist/tv/WatchlistApiClient.java`
-- Modify: `android/app/src/main/java/com/watchlist/tv/BrowsingState.java`
-- Modify: `android/app/src/main/java/com/watchlist/tv/MainActivity.java`
-- Modify: `android/app/src/test/java/com/watchlist/tv/WatchlistApiClientTest.java`
-- Modify: `android/app/src/test/java/com/watchlist/tv/WatchlistItemDetailsTest.java`
-- Modify: `android/app/src/test/java/com/watchlist/tv/BrowsingStateTest.java`
-- Modify: `android/app/build.gradle`
-- Delete: `android/app/src/main/java/com/watchlist/tv/AvailabilityRefreshResult.java`
-
-- [ ] **Step 1: Make the backend fixture directory a unit-test resource**
-
-Add this source set inside the existing `android {}` block:
-
-```groovy
-sourceSets {
-    test.resources.srcDir rootProject.file("../contracts")
-}
-```
-
-`TvContractFixtureTest` must load `/tv/watchlist-browse-v1.json`,
-`/tv/watchlist-detail-v1.json`, and `/tv/enums-v1.json` with the test class
-loader. This makes the backend fixtures the sole payload authority; do not copy
-their JSON into an Android-only fixture.
-
-- [ ] **Step 2: Write failing parser, immutability, and URL tests**
-
-Cover all of these assertions before changing production Java:
-
-```text
-the browse fixture parses tv.contractVersion, tv.lifecycleState,
-tv.inWatchlist, aired/completed, next episode, seasonCleanupPending,
-plexAvailability, and series/relevant-season provider state/offers/freshness
-the detail fixture parses tv.contractVersion plus ordered seasons and episodes
-without dropping nulls
-all returned lists are unmodifiable defensive copies
-unknown enum strings remain displayable raw values and do not crash parsing
-TV active uses /api/watchlist?collection=tv&state=active&availability=plex,not_on_plex,unreleased,unknown_match&sort=added_desc
-TV caught-up uses state=caught_up and alphabetical uses sort=title_asc
-TV retired uses state=retired and the same availability set
-movie and all requests do not send a state parameter
-no Android model exposes accessToken, refreshToken, clientSecret, Plex token,
-Sonarr key, cleanup authorizations, or mutationCapable as an editable property
-```
-
-Model lifecycle filters as constants on `BrowsingState`:
-
-```java
-public static final String TV_STATE_ACTIVE = "active";
-public static final String TV_STATE_CAUGHT_UP = "caught_up";
-public static final String TV_STATE_RETIRED = "retired";
-```
-
-`BrowsingState.defaults()` retains `TV_STATE_ACTIVE` even while media type is
-`all`; `withMediaType`, `withSortMode`, and every existing copy method must
-preserve it, and `withTvState` must preserve the other fields.
-
-- [ ] **Step 3: Run the focused Android tests and observe contract failures**
-
-Run from `android`:
-
-```powershell
-./gradlew.bat testDebugUnitTest --tests "com.watchlist.tv.TvContractFixtureTest" --tests "com.watchlist.tv.WatchlistApiClientTest" --tests "com.watchlist.tv.BrowsingStateTest"
-```
-
-Expected: compilation fails because the TV value objects and `withTvState` do
-not exist, followed by parser/URL failures once those signatures are added.
-
-- [ ] **Step 4: Add immutable TV value objects and attach them additively**
-
-Use final Java classes implementing `Serializable`, with constructor
-validation, final fields, accessors, and `List.copyOf`. Every nested type
-attached to `WatchlistItem` or `WatchlistItemDetails` must also implement
-`Serializable` because the existing activities pass items through an Intent.
-Keep the JSON names and nullable behavior identical to the shared fixtures.
-The browse and detail aggregates remain distinct:
-
-```java
-public final class TvBrowseSummary implements Serializable {
-    private final int contractVersion;
-    private final String lifecycleState;
-    private final String lastLifecycleEvent;
-    private final String traktStatus;
-    private final boolean inWatchlist;
-    private final String identityStatus;
-    private final int airedEpisodes;
-    private final int completedEpisodes;
-    private final TvEpisodeProgress nextEpisode;
-    private final boolean seasonCleanupPending;
-    private final String plexAvailability;
-    private final TvProviderAvailability availability;
-    private final Integer relevantSeasonNumber;
-    private final TvProviderAvailability relevantSeasonAvailability;
-}
-
-public final class TvDetails implements Serializable {
-    private final int contractVersion;
-    private final String lifecycleState;
-    private final String lastLifecycleEvent;
-    private final String traktStatus;
-    private final boolean inWatchlist;
-    private final String identityStatus;
-    private final int airedEpisodes;
-    private final int completedEpisodes;
-    private final TvEpisodeProgress lastWatchedEpisode;
-    private final TvEpisodeProgress nextEpisode;
-    private final TvProviderAvailability availability;
-    private final TvDestinationSummary destinations;
-    private final List<TvSeasonProgress> seasons;
-}
-```
-
-Add nullable `TvBrowseSummary tv()` to `WatchlistItem` and nullable
-`TvDetails tv()` to `WatchlistItemDetails`. Existing movie constructors may
-delegate to overloads that pass `null`, so all movie tests and payloads remain
-source-compatible. Parse provider offers in server order and seasons/episodes
-in numeric order as delivered; the client must not infer watched status or
-provider availability.
-
-- [ ] **Step 5: Make watchlist reads lifecycle-aware and remove every POST path**
-
-Change the client signatures to:
-
-```java
-public List<WatchlistItem> getWatchlist(
-        String collection,
-        String tvState,
-        String sortMode,
-        boolean includeUnavailable) throws IOException, JSONException;
-
-public static String buildWatchlistPath(
-        String mediaType,
-        String tvState,
-        String sortMode,
-        boolean includeUnavailable);
-```
-
-Append `state=` only for `collection=tv`, encode every query value with
-`URLEncoder.encode(value, StandardCharsets.UTF_8)`, and retain the current
-availability semantics. Delete `refreshAvailability`,
-`buildAvailabilityRefreshPath`, `parseAvailabilityRefreshResult`, the private
-`post` transport, and `AvailabilityRefreshResult.java`. Remove the startup
-availability-refresh branch and its status text from `MainActivity`; startup
-performs only the existing GET status/watchlist calls.
-
-- [ ] **Step 6: Prove Android is read-only at the transport boundary**
-
-Add a reflection/source assertion in `WatchlistApiClientTest` that the client
-declares only GET-backed public network methods and that its compiled source
-contains neither `setRequestMethod("POST")` nor `/api/sync/`. Rerun:
-
-```powershell
-./gradlew.bat testDebugUnitTest --tests "com.watchlist.tv.*"
-```
-
-Expected: all Android unit tests pass, including the unchanged movie parser
-tests and the three shared-fixture tests.
-
-- [ ] **Step 7: Commit the read-only Android contract**
-
-```powershell
-git add android contracts/tv
-git commit -m "feat: parse TV read models on Android"
-```
-
-### Task 14: Present TV Lifecycle, Progress, And Polish Providers On Android TV
-
-**Files:**
-
-- Create: `android/app/src/main/java/com/watchlist/tv/TvPresentation.java`
-- Create: `android/app/src/test/java/com/watchlist/tv/TvPresentationTest.java`
-- Modify: `android/app/src/main/java/com/watchlist/tv/MainActivity.java`
-- Modify: `android/app/src/main/java/com/watchlist/tv/DetailsActivity.java`
-- Modify: `android/app/src/main/res/values/strings.xml`
-- Modify: `android/app/src/test/java/com/watchlist/tv/BrowsingStateTest.java`
-- Modify: `android/app/src/test/java/com/watchlist/tv/WatchlistApiClientTest.java`
-
-- [ ] **Step 1: Write failing presentation tests for every backend state**
-
-Keep string construction outside activities in `TvPresentation`. Lock these
-English labels exactly so null and unknown states stay honest:
-
-```text
-active -> Watching
-caught_up -> Caught up
-source_removed -> Removed from Trakt
-terminal_cleanup_pending -> Cleanup pending
-retired_terminal -> Finished
-12 / 18 aired episodes watched -> 12/18 aired watched
-next episode with air date -> Next: S02E05 · 20 Jul 2026
-next episode without air date -> Next: S02E05 · Air date unknown
-no next aired/future episode -> No announced next episode
-available with flatrate offer -> Stream in Poland: {provider}
-confirmed_unavailable -> Not available on configured Polish services
-unknown -> Streaming availability unknown
-stale -> Streaming availability may be outdated
-plexWatchlistState unknown -> Plex watchlist: not checked in Phase 1
-sonarrState unknown -> Sonarr: not checked in Phase 1
-```
-
-Also test that `rent` and `buy` are labeled separately from streaming, that a
-provider link is only rendered when present, and that the UI never turns
-`unknown` or `stale` into “not available.”
-
-- [ ] **Step 2: Run the presentation tests and confirm the missing class**
-
-```powershell
-Set-Location android
-./gradlew.bat testDebugUnitTest --tests "com.watchlist.tv.TvPresentationTest"
-Set-Location ..
-```
-
-Expected: compilation fails because `TvPresentation` has not been created.
-
-- [ ] **Step 3: Implement pure presentation helpers**
-
-Give `TvPresentation` only static, deterministic methods that accept the parsed
-models and `Locale`; it must not perform HTTP, parse JSON, read credentials, or
-compute lifecycle transitions. Format calendar dates in `Europe/Warsaw` and
-include the fixture's provider freshness time beneath the provider section.
-Return a neutral “Data unavailable” line when the entire nullable TV block is
-absent.
-
-- [ ] **Step 4: Add lifecycle filters only to the TV browsing mode**
-
-In the existing filter overlay, show a three-choice lifecycle row only when
-`BrowsingState.MEDIA_TV` is selected:
-
-```text
-Watching | Caught up | Retired
-```
-
-Map the choices to `active`, `caught_up`, and `retired`. Selecting movies or
-all hides the row but preserves the selected TV state for the next TV visit.
-Changing the choice issues a new GET and restores focus using the existing
-focused-item behavior. No lifecycle controls may call a sync endpoint.
-
-- [ ] **Step 5: Add compact TV progress to browse cards**
-
-For TV cards, render title/year followed by lifecycle label, aired progress,
-next episode, and the provider summary. Keep movie cards unchanged. Missing
-posters, absent progress, and long provider names must use the existing focus
-and ellipsize behavior rather than changing grid width.
-
-- [ ] **Step 6: Build a scrollable TV details section**
-
-When `details.tv()` is non-null, `DetailsActivity` renders these sections in
-order:
-
-```text
-Progress
-Next episode
-Seasons (season number, aired/watched counts, episode rows, air status)
-Where to watch in Poland (stream/free/ads/rent/buy groups and freshness)
-Destinations (explicit Phase 1 unknown labels)
-Data source: Trakt; provider data: TMDB / JustWatch
-```
-
-Keep the existing movie details route and action behavior unchanged. Show the
-required TMDB and JustWatch attribution beside the backend-provided TMDB
-provider link; do not construct a service deep link. Phase 1 adds no browser
-launch or write action. `cleanupState` is informational and must never become
-a delete button.
-
-- [ ] **Step 7: Run unit tests and compile the debug APK**
-
-```powershell
-Set-Location android
-./gradlew.bat testDebugUnitTest
-./gradlew.bat assembleDebug
-Set-Location ..
-```
-
-Expected: both commands exit zero and produce
-`android/app/build/outputs/apk/debug/app-debug.apk`.
-
-- [ ] **Step 8: Perform the D-pad/read-only acceptance check**
-
-Against a seeded backend, verify on an Android TV emulator or device:
-
-1. Focus travels into and out of the lifecycle filter without a trap.
-2. TV state changes refresh the grid and restore focus to a surviving item.
-3. A TV card opens the scrollable detail page and Back returns to the same
-   card.
-4. `unknown`, `stale`, and `confirmed_unavailable` appear as three distinct
-   messages.
-5. No screen offers “sync,” “mark watched,” “delete,” or destination controls.
-6. Backend access logs contain only Android `GET /api/watchlist`,
-   `GET /api/watchlist/{id}`, and `GET /api/sync/status` requests.
-
-Expected: all six checks pass with no focus trap, clipped status text, crash,
-or non-GET Android request.
-
-- [ ] **Step 9: Commit the Android TV presentation**
-
-```powershell
-git add android
-git commit -m "feat: present TV progress on Android"
 ```
 
 ### Task 15: Mount The Keyring, Lock Mutation Gates, And Extend CI
@@ -2733,7 +2213,6 @@ git commit -m "feat: present TV progress on Android"
 - Modify: `deploy/local-cd/watchlist-deploy.env.example`
 - Modify: `scripts/deploy-movie-sync.sh`
 - Modify: `tests/deployment/test_deploy_script.py`
-- Modify: `.github/workflows/android-ci.yml`
 - Modify: `.github/workflows/movie-ci.yml`
 
 - [ ] **Step 1: Write failing deployment invariants before editing Compose**
@@ -2758,8 +2237,7 @@ TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION=false
 TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE=false
 worker Compose receives the same six false values
 deploy script creates the host keyring directory before docker compose up
-Android CI includes contracts/tv and backend DTO path triggers
-movie CI runs backend, worker, deployment, and Android contract tests
+movie CI runs backend, worker, and deployment tests
 no example file contains a token, API key, sync key, or usable client secret
 ```
 
@@ -2847,7 +2325,7 @@ standalone named volume. `scripts/deploy-movie-sync.sh` creates
 UID/GID, applies mode `0700`, preserves it through cutover/rollback, and then
 runs Compose. It must not print Trakt credentials or protected tokens.
 
-- [ ] **Step 5: Declare secrets and all six false gates in examples/Compose**
+- [ ] **Step 4: Declare secrets and all six false gates in examples/Compose**
 
 Use these exact environment names:
 
@@ -2871,26 +2349,22 @@ TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE=false
 The backend option values are passed only to the backend. The six gates
 are present and false in both backend and worker environments so an image from
 a later phase cannot mutate TV destinations when deployed with Phase 1
-configuration. Do not introduce Plex or Sonarr credentials into Android or
-the TV export response.
+configuration. Do not introduce Plex or Sonarr credentials into the TV export response.
 
-- [ ] **Step 6: Extend CI around the shared contract and gate invariants**
+- [ ] **Step 5: Extend CI around deployment gate invariants**
 
-In `android-ci.yml`, include `contracts/tv/**`, the additive backend TV DTOs,
-and Android sources in path filters, then run `testDebugUnitTest` and
-`assembleDebug`. In `movie-ci.yml`, add named steps for:
+In `movie-ci.yml`, add named steps for:
 
 ```powershell
 dotnet test backend/Watchlist.sln --configuration Release --no-restore
 cd workers/vod-filter && python -m pytest -q
 python -m pytest tests/deployment/test_tv_phase1_deployment.py -q
-cd android && ./gradlew testDebugUnitTest
 ```
 
 Use the workflow's native Bash equivalents where appropriate. Preserve the
 existing secret scan and Docker build jobs.
 
-- [ ] **Step 7: Validate configuration without production credentials**
+- [ ] **Step 6: Validate configuration without production credentials**
 
 ```powershell
 python -m pytest tests/deployment/test_tv_phase1_deployment.py -q
@@ -2917,10 +2391,10 @@ Expected: the deployment test passes and all three Compose commands exit zero
 without starting containers. Empty Trakt credentials are permitted at config
 render time; the integration status remains disconnected until configured.
 
-- [ ] **Step 8: Commit the secret-safe deployment boundary**
+- [ ] **Step 7: Commit the secret-safe deployment boundary**
 
 ```powershell
-git add backend/src/Watchlist.Api/appsettings.json backend/src/Watchlist.Api/appsettings.Development.Local.example.json backend/src/Watchlist.Api/Dockerfile deploy scripts/deploy-movie-sync.sh tests/deployment .github/workflows
+git add backend/src/Watchlist.Api/appsettings.json backend/src/Watchlist.Api/appsettings.Development.Local.example.json backend/src/Watchlist.Api/Dockerfile deploy scripts/deploy-movie-sync.sh tests/deployment .github/workflows/movie-ci.yml
 git commit -m "ops: deploy TV read model safely"
 ```
 
@@ -2951,11 +2425,9 @@ git commit -m "ops: deploy TV read model safely"
 - Modify: `docs/data_models/sync_run.md`
 - Modify: `docs/systems/index.md`
 - Modify: `docs/systems/backend_service.md`
-- Modify: `docs/systems/android_tv_client.md`
 - Modify: `docs/systems/deployment_tooling.md`
 - Modify: `docs/systems/vod_filter_worker.md`
 - Modify: `docs/decisions/index.md`
-- Modify: `docs/decisions/android_tv_read_only_v1.md`
 - Modify: `docs/decisions/backend_owns_integrations.md`
 - Modify: `docs/decisions/sync_correctness_priority.md`
 - Modify: `docs/runbooks/index.md`
@@ -2980,7 +2452,6 @@ Trakt: TV watchlist, watched progress, episode/season/show status
 TMDB: exact-ID metadata and PL watch-provider observations
 MongoDB: encrypted connection plus immutable generation/read lifecycle state
 backend: OAuth, synchronization, lifecycle reduction, publishing, read API
-Android: unauthenticated-integration read client only; no third-party secrets
 worker: movie behavior only in Phase 1; every TV apply/adoption/delete gate false
 Plex/Sonarr: no Phase 1 observations or mutations
 ```
@@ -3013,7 +2484,6 @@ cursor-race rejection left the old pointer unchanged
 source failure left the old pointer unchanged
 provider failure published unknown rather than unavailable
 legacy row quarantined or migrated deterministically
-Android shared fixtures and read-only transport passed
 all six TV mutation gates observed false
 ```
 
@@ -3026,7 +2496,7 @@ Add links from every listed index and update the project/architecture/system
 pages so agents reach the TV read-model docs from `docs/index.md`. Preserve
 the existing movie authority. The three decision pages receive additive Phase
 1 consequences: Trakt credentials remain server-side, publish-last generations
-are required for correctness, and Android never owns TV sync.
+are required for correctness, and client integrations never own TV sync.
 
 Move only Phase 1 read-model items to completed in the roadmap after their
 tests pass. Keep Plex history ingestion, Trakt history writes, Sonarr/Plex
@@ -3046,7 +2516,7 @@ their section indexes and the root knowledge index. Resolve every missing
 frontmatter key, broken relative link, orphaned concept, and contradictory
 Phase 1 mutation claim before committing.
 
-- [ ] **Step 5: Commit the knowledge layer**
+- [ ] **Step 4: Commit the knowledge layer**
 
 ```powershell
 git add docs
@@ -3107,18 +2577,7 @@ Expected: pytest and compileall exit zero. Every environment assignment shown
 by the search is `false`; there is no Phase 1 Python code that calls Sonarr,
 Plex watchlist, or Trakt history for TV.
 
-- [ ] **Step 4: Run Android contract, unit, and APK gates**
-
-```powershell
-Set-Location android
-./gradlew.bat clean testDebugUnitTest assembleDebug
-Set-Location ..
-```
-
-Expected: the command exits zero, shared backend fixtures are parsed, and the
-debug APK exists at `android/app/build/outputs/apk/debug/app-debug.apk`.
-
-- [ ] **Step 5: Run deployment, Compose, image, and shell checks**
+- [ ] **Step 4: Run deployment, Compose, image, and shell checks**
 
 ```powershell
 python -m pytest tests/deployment/test_tv_phase1_deployment.py -q
@@ -3147,20 +2606,19 @@ Remove-Item -Recurse -Force $validationRoot
 Expected: every command exits zero; image builds do not require real Trakt
 credentials and no container is started by the config checks.
 
-- [ ] **Step 6: Run secret, write-surface, and scope scans**
+- [ ] **Step 5: Run secret, write-surface, and scope scans**
 
 ```powershell
 gitleaks detect --source . --no-banner --redact
-rg -n -i "clientSecret|accessToken|refreshToken|protectedAccessToken|protectedRefreshToken|plexToken|sonarrApiKey" contracts android docs/reports
-rg -n "setRequestMethod\(\"POST\"\)|/api/sync/" android/app/src/main
-rg -n "mutationCapable\s*[:=]\s*true|TV_.*_APPLY\s*=\s*true|ADOPT_EXISTING_DESTINATIONS\s*=\s*true" backend android compose.yaml deploy workers
+rg -n -i "clientSecret|accessToken|refreshToken|protectedAccessToken|protectedRefreshToken|plexToken|sonarrApiKey" contracts docs/reports
+rg -n "mutationCapable\s*[:=]\s*true|TV_.*_APPLY\s*=\s*true|ADOPT_EXISTING_DESTINATIONS\s*=\s*true" backend compose.yaml deploy workers
 ```
 
 Expected: gitleaks exits zero. The sensitive-name scan finds only explicitly
-redacted documentation/test assertions and no values; the Android POST/sync
-scan and true-gate scan return no matches.
+redacted documentation/test assertions and no values; the true-gate scan
+returns no matches.
 
-- [ ] **Step 7: Exercise the publish-last failure matrix**
+- [ ] **Step 6: Exercise the publish-last failure matrix**
 
 Run the integration test fixture with its Trakt/TMDB handlers configured for
 these four sequences and record the published generation ID before and after:
@@ -3177,7 +2635,7 @@ separate hourly full-sync timestamps. Expected: first absence keeps the prior
 lifecycle; second absence emits one stable `source_removed` event and publishes
 the new generation. Activity-poll retries do not increment the absence count.
 
-- [ ] **Step 8: Exercise connection/keyring recovery without exposing tokens**
+- [ ] **Step 7: Exercise connection/keyring recovery without exposing tokens**
 
 Use the fake Trakt server from the API integration suite to complete device
 authorization, restart the backend against the same keyring, and confirm the
@@ -3188,7 +2646,7 @@ encrypted Mongo fields remain unchanged, and logs contain neither token.
 Expected: restoring the original keyring restores the connection with no
 re-authorization and no Mongo document edit.
 
-- [ ] **Step 9: Update rollout evidence and final knowledge validation**
+- [ ] **Step 8: Update rollout evidence and final knowledge validation**
 
 Record command timestamps, commit SHA, generation IDs, redacted log/artifact
 paths, and pass/fail outcomes in the Phase 1 section of
@@ -3203,9 +2661,9 @@ git status --short
 
 Expected: OKF validation and whitespace checks exit zero. Status contains only
 intentional Phase 1 changes and no `.artifacts`, keyring files, tokens, local
-environment files, database dumps, or generated APKs.
+environment files, database dumps.
 
-- [ ] **Step 10: Commit the verified rollout record**
+- [ ] **Step 9: Commit the verified rollout record**
 
 ```powershell
 git add docs/reports/tv_integration_rollout.md docs/log.md
@@ -3213,7 +2671,7 @@ git commit -m "docs: record TV Phase 1 validation"
 ```
 
 Phase 1 is complete only when the backend publishes coherent Trakt-derived TV
-read generations, provider failures remain explicitly unknown, Android is
+read generations, provider failures remain explicitly unknown, clients are
 read-only, secrets survive restart through the mounted keyring, and all six TV
 mutation gates are false. Plex history ingestion, Trakt watched writes,
 Sonarr/Plex adoption, season deletion, and terminal show deletion remain for
