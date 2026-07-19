@@ -7,12 +7,22 @@ services:
       context: ../..
       dockerfile: backend/src/Watchlist.Api/Dockerfile
     container_name: watchlist-prod-api
+    user: "${WATCHLIST_RUNTIME_UID:-10001}:${WATCHLIST_RUNTIME_GID:-10001}"
     restart: unless-stopped
     init: true
     env_file:
       - ${WATCHLIST_CONFIG_DIR:?WATCHLIST_CONFIG_DIR is required}/backend.env
+    environment:
+      TRAKT_HISTORY_SYNC_APPLY: "false"
+      TV_SYNC_APPLY: "false"
+      TV_SYNC_ADOPT_EXISTING_DESTINATIONS: "false"
+      TV_SYNC_ALLOW_SEASON_FILE_DELETION: "false"
+      TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION: "false"
+      TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE: "false"
     ports:
       - "${WATCHLIST_BIND_ADDRESS:-0.0.0.0}:${WATCHLIST_API_PORT:-5000}:8080"
+    volumes:
+      - ${WATCHLIST_DATA_DIR:-./data}/backend/data-protection-keys:/var/lib/watchlist/keyring
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
@@ -40,6 +50,12 @@ services:
       WATCHLIST_APP_URL: http://watchlist-api:8080
       DATABASE_PATH: /app/data/vod-filter.db
       WORKER_HEARTBEAT_PATH: /app/data/last-run.json
+      TRAKT_HISTORY_SYNC_APPLY: "false"
+      TV_SYNC_APPLY: "false"
+      TV_SYNC_ADOPT_EXISTING_DESTINATIONS: "false"
+      TV_SYNC_ALLOW_SEASON_FILE_DELETION: "false"
+      TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION: "false"
+      TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE: "false"
     volumes:
       - ${WATCHLIST_DATA_DIR:?WATCHLIST_DATA_DIR is required}/worker:/app/data
     read_only: true

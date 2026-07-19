@@ -17,7 +17,8 @@ FROM runtime AS final
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && install -d -o app -g app -m 0700 /var/lib/watchlist/keyring
 COPY --from=build --chown=app:app /app/publish .
 ENV ASPNETCORE_URLS=http://+:8080
 USER app

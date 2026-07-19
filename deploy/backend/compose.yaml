@@ -6,6 +6,18 @@ services:
     container_name: watchlist-api
     restart: unless-stopped
     env_file:
-      - ./watchlist-backend.env
+      - ${WATCHLIST_BACKEND_ENV_FILE:-./watchlist-backend.env}
+    environment:
+      TRAKT_HISTORY_SYNC_APPLY: "false"
+      TV_SYNC_APPLY: "false"
+      TV_SYNC_ADOPT_EXISTING_DESTINATIONS: "false"
+      TV_SYNC_ALLOW_SEASON_FILE_DELETION: "false"
+      TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION: "false"
+      TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE: "false"
+    volumes:
+      - watchlist_backend_keyring:/var/lib/watchlist/keyring
     ports:
       - "5000:8080"
+
+volumes:
+  watchlist_backend_keyring:

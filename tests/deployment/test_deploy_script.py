@@ -180,6 +180,7 @@ def test_deployer_runs_validated_release_with_fake_boundaries(tmp_path: Path) ->
 
     assert result.returncode == 0, result.stderr
     assert (deploy_root / "state/last-successful.sha").read_text(encoding="utf-8").strip() == SHA
+    assert (deploy_root / "data/backend/data-protection-keys").is_dir()
     log = command_log.read_text(encoding="utf-8")
     assert f"checkout --detach --force {SHA}" in log
     assert "compose" in log and "build --pull" in log

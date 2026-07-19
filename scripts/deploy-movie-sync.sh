@@ -27,6 +27,7 @@ WATCHLIST_RUNTIME_GID="${WATCHLIST_RUNTIME_GID:-$(id -g)}"
 COMPOSE_RELATIVE_PATH="deploy/production/compose.yaml"
 BACKEND_ENV_FILE="$CONFIG_DIR/backend.env"
 WORKER_ENV_FILE="$CONFIG_DIR/worker.env"
+KEYRING_DIR="$DATA_DIR/backend/data-protection-keys"
 WORKER_CONTAINER="watchlist-prod-worker"
 WORKER_HEARTBEAT_FILE="${WORKER_HEARTBEAT_FILE:-$DATA_DIR/worker/last-run.json}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -169,6 +170,7 @@ mkdir -p \
   "$DEPLOY_ROOT" \
   "$DEPLOY_ROOT/.docker" \
   "$CONFIG_DIR" \
+  "$KEYRING_DIR" \
   "$DATA_DIR/worker" \
   "$STATE_DIR" \
   "$DEPLOYER_DIR"
@@ -183,6 +185,8 @@ fi
 chmod 600 "$BACKEND_ENV_FILE" "$WORKER_ENV_FILE"
 is_numeric_id "$WATCHLIST_RUNTIME_UID" || fail "WATCHLIST_RUNTIME_UID must be numeric."
 is_numeric_id "$WATCHLIST_RUNTIME_GID" || fail "WATCHLIST_RUNTIME_GID must be numeric."
+chown "$WATCHLIST_RUNTIME_UID:$WATCHLIST_RUNTIME_GID" "$KEYRING_DIR"
+chmod 700 "$KEYRING_DIR"
 
 if [[ ! -d "$REPOSITORY_DIR/.git" ]]; then
   [[ ! -e "$REPOSITORY_DIR" || -z "$(ls -A "$REPOSITORY_DIR" 2>/dev/null)" ]] \
