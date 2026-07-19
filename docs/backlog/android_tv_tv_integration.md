@@ -21,5 +21,6 @@ version: 1.0.0
 1. Shared Android fixtures and Android contract tests formerly Task 12.
 2. Android models, parsing, and read-only transport formerly Task 13.
 3. Android lifecycle, progress, and provider UI formerly Task 14.
-4. Android CI, Gradle, APK, and release checks formerly Tasks 15 and 17.
+4. Android CI triggers, Gradle tests, APK validation, and Android-only release
+   checks formerly Tasks 15 and 17.
 5. Android TV client and read-only decision documentation formerly Task 16.
