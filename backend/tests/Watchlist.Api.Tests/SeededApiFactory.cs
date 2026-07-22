@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -25,7 +26,7 @@ public sealed class SeededApiFactory(
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        ConfigureTestHost(builder);
 
         if (syncApiKey is not null)
         {
@@ -102,6 +103,18 @@ public sealed class SeededApiFactory(
         }
     }
 
+    internal static void ConfigureTestHost(IWebHostBuilder builder)
+    {
+        builder.UseEnvironment("Testing");
+        builder.ConfigureAppConfiguration((_, configuration) =>
+        {
+            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"{DataProtectionKeyRingOptions.SectionName}:KeyRingPath"] = TestKeyRingPath
+            });
+        });
+    }
+
     private static void RemoveTraktHostedService(IServiceCollection services)
     {
         ServiceDescriptor? traktDescriptor = services.FirstOrDefault(descriptor =>
@@ -113,6 +126,11 @@ public sealed class SeededApiFactory(
             services.Remove(traktDescriptor);
         }
     }
+
+    private static string TestKeyRingPath { get; } = Path.Combine(
+        Path.GetTempPath(),
+        "watchlist-api-tests",
+        "data-protection-keys");
 
     internal static void RemoveLegacyTvMigrationHostedService(IServiceCollection services)
     {
