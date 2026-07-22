@@ -28,7 +28,9 @@ status or written to logs.
 
 Every Trakt OAuth request includes the required `trakt-api-version: 2` and
 `trakt-api-key` headers; the API key value is the configured Client ID and is
-kept server-side with the rest of the integration configuration.
+kept server-side with the rest of the integration configuration. Requests also
+identify the backend with a stable User-Agent so Trakt's Cloudflare edge does
+not reject the server-side device flow as an anonymous automated request.
 
 MongoDB stores the singleton connection in `trakt_connections` after values
 are protected with the persistent ASP.NET Data Protection key ring. The

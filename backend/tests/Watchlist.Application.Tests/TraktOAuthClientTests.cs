@@ -65,6 +65,7 @@ public sealed class TraktOAuthClientTests
         request.ContentType.Should().Be("application/json");
         request.TraktApiVersion.Should().Be("2");
         request.TraktApiKey.Should().Be("client-id");
+        request.UserAgent.Should().Be("WatchlistApp/1.0 (+https://github.com/dlaczny/universal-watchlist-synchronizer)");
         AssertJson(request.Body, """{"client_id":"client-id"}""");
         result.Should().Be(new TraktDeviceCode(
             "device-code",
@@ -435,6 +436,7 @@ public sealed class TraktOAuthClientTests
         string? ContentType,
         string? TraktApiVersion,
         string? TraktApiKey,
+        string UserAgent,
         string Body);
 
     private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
@@ -459,6 +461,7 @@ public sealed class TraktOAuthClientTests
                 request.Headers.TryGetValues("trakt-api-key", out IEnumerable<string>? apiKeys)
                     ? apiKeys.Single()
                     : null,
+                request.Headers.UserAgent.ToString(),
                 body));
             return responseFactory(request);
         }

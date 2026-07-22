@@ -16,6 +16,8 @@ public sealed class TraktOAuthClient(
 {
     public const string HttpClientName = "TraktOAuth";
 
+    private const string UserAgent = "WatchlistApp/1.0 (+https://github.com/dlaczny/universal-watchlist-synchronizer)";
+
     public async Task<TraktDeviceCode> StartDeviceAsync(CancellationToken cancellationToken)
     {
         using HttpClient httpClient = httpClientFactory.CreateClient(HttpClientName);
@@ -123,6 +125,7 @@ public sealed class TraktOAuthClient(
         };
         request.Headers.Add("trakt-api-version", "2");
         request.Headers.Add("trakt-api-key", options.Value.ClientId);
+        request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
         try
         {
             return await httpClient.SendAsync(request, cancellationToken);
