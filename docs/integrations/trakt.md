@@ -49,6 +49,11 @@ preserve Trakt's exact `X-Pagination-Page-Count` and request page size in the
 generation manifest. Malformed, duplicate, missing, or inconsistent identities
 and pagination are rejected before publication.
 
+S00 specials with a valid Trakt episode identity but no optional TVDB identity
+are excluded from the special-identity list; they do not invalidate an otherwise
+complete source snapshot. Conflicting, duplicate, or malformed special entries
+remain publication-blocking.
+
 The synchronizer compares the activity cursor before and after collecting the
 candidate. A cursor change is a race: no candidate is published. HTTP 429 is
 reported as a typed rate-limit failure with the parsed `Retry-After` delay; the

@@ -454,6 +454,7 @@ public sealed class TvSyncService(
     {
         ArgumentNullException.ThrowIfNull(schedule);
         Dictionary<int, TvSpecialEpisodeIdentity> identities = [];
+        HashSet<int> episodeNumbers = [];
         HashSet<long> traktIds = [];
         HashSet<int> tvdbIds = [];
         foreach (TraktSeasonEpisode? candidate in schedule)
@@ -462,20 +463,26 @@ public sealed class TvSyncService(
                 || candidate.SeasonNumber != 0
                 || candidate.EpisodeNumber <= 0
                 || candidate.TraktEpisodeId <= 0
-                || candidate.TvdbId is not int tvdbId
-                || tvdbId <= 0
-                || !identities.TryAdd(
-                    candidate.EpisodeNumber,
-                    new TvSpecialEpisodeIdentity(
-                        candidate.TraktEpisodeId,
-                        tvdbId,
-                        0,
-                        candidate.EpisodeNumber))
+                || candidate.TvdbId is int tvdbId && tvdbId <= 0
+                || !episodeNumbers.Add(candidate.EpisodeNumber)
                 || !traktIds.Add(candidate.TraktEpisodeId)
-                || !tvdbIds.Add(tvdbId))
+                || candidate.TvdbId is int identifiedTvdbId && !tvdbIds.Add(identifiedTvdbId))
             {
                 throw Rejected("tv_special_schedule_invalid");
             }
+
+            if (candidate.TvdbId is not int specialTvdbId)
+            {
+                continue;
+            }
+
+            identities.Add(
+                candidate.EpisodeNumber,
+                new TvSpecialEpisodeIdentity(
+                    candidate.TraktEpisodeId,
+                    specialTvdbId,
+                    0,
+                    candidate.EpisodeNumber));
         }
 
         return identities.Values.OrderBy(identity => identity.EpisodeNumber).ToArray();

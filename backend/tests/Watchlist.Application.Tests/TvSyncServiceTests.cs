@@ -318,7 +318,6 @@ public sealed class TvSyncServiceTests
     [Theory]
     [InlineData("wrong_season")]
     [InlineData("missing_trakt_identity")]
-    [InlineData("missing_tvdb_identity")]
     [InlineData("invalid_tvdb_identity")]
     [InlineData("duplicate_episode")]
     public async Task SyncAsync_MalformedOrPartialSeasonZeroSchedule_RejectsBeforeStage(
@@ -330,7 +329,6 @@ public sealed class TvSyncServiceTests
         {
             "wrong_season" => [valid with { SeasonNumber = 1 }],
             "missing_trakt_identity" => [valid with { TraktEpisodeId = 0 }],
-            "missing_tvdb_identity" => [valid with { TvdbId = null }],
             "invalid_tvdb_identity" => [valid with { TvdbId = 0 }],
             "duplicate_episode" => [valid, valid with { TraktEpisodeId = 8_002, TvdbId = 9_002 }],
             _ => throw new InvalidOperationException()
@@ -344,6 +342,21 @@ public sealed class TvSyncServiceTests
             .Which;
         exception.Message.Should().Be("tv_special_schedule_invalid");
         harness.Repository.StageCalls.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task SyncAsync_SpecialWithoutTvdbIdentity_IsExcludedWithoutRejectingSnapshot()
+    {
+        Harness harness = Harness.Create();
+        harness.Trakt.Seasons[(42, 0)] =
+        [
+            new TraktSeasonEpisode(8_001, null, 0, 1, "Special", Now.AddYears(-1))
+        ];
+
+        TvSyncResultDto result = await harness.SyncAsync(TvGenerationKind.ScheduledFull);
+
+        harness.PublishedShow().SpecialEpisodeIdentities.Should().BeEmpty();
+        result.ShowsPublished.Should().Be(1);
     }
 
     [Fact]
