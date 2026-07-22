@@ -63,6 +63,8 @@ public sealed class TraktOAuthClientTests
         request.Method.Should().Be(HttpMethod.Post);
         request.PathAndQuery.Should().Be("/oauth/device/code");
         request.ContentType.Should().Be("application/json");
+        request.TraktApiVersion.Should().Be("2");
+        request.TraktApiKey.Should().Be("client-id");
         AssertJson(request.Body, """{"client_id":"client-id"}""");
         result.Should().Be(new TraktDeviceCode(
             "device-code",
@@ -431,6 +433,8 @@ public sealed class TraktOAuthClientTests
         HttpMethod Method,
         string PathAndQuery,
         string? ContentType,
+        string? TraktApiVersion,
+        string? TraktApiKey,
         string Body);
 
     private sealed class RecordingHandler(Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
@@ -449,6 +453,12 @@ public sealed class TraktOAuthClientTests
                 request.Method,
                 request.RequestUri!.PathAndQuery,
                 request.Content?.Headers.ContentType?.MediaType,
+                request.Headers.TryGetValues("trakt-api-version", out IEnumerable<string>? apiVersions)
+                    ? apiVersions.Single()
+                    : null,
+                request.Headers.TryGetValues("trakt-api-key", out IEnumerable<string>? apiKeys)
+                    ? apiKeys.Single()
+                    : null,
                 body));
             return responseFactory(request);
         }

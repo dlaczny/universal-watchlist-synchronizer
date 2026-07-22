@@ -26,6 +26,10 @@ explicitly disconnect the singleton connection. Device code, access token,
 refresh token, client secret, and protected ciphertext are never returned by
 status or written to logs.
 
+Every Trakt OAuth request includes the required `trakt-api-version: 2` and
+`trakt-api-key` headers; the API key value is the configured Client ID and is
+kept server-side with the rest of the integration configuration.
+
 MongoDB stores the singleton connection in `trakt_connections` after values
 are protected with the persistent ASP.NET Data Protection key ring. The
 key-ring hosted service validates a writable key-ring before the service is

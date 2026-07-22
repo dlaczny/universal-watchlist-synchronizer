@@ -121,6 +121,8 @@ public sealed class TraktOAuthClient(
         {
             Content = content
         };
+        request.Headers.Add("trakt-api-version", "2");
+        request.Headers.Add("trakt-api-key", options.Value.ClientId);
         try
         {
             return await httpClient.SendAsync(request, cancellationToken);
