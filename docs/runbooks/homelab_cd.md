@@ -63,9 +63,11 @@ its systemd filesystem sandbox. The deployer exports that service account's
 numeric UID/GID to Compose so the worker can write the private bind-mounted data
 directory without changing it to world-writable permissions.
 
-The default deploy health gate waits up to 240 five-second attempts. This
-20-minute window is deliberately longer than the 15-minute full-sync timeout;
-ordinary backend reads still fail after 30 seconds by default.
+The default deploy health gate waits up to 240 five-second attempts. The
+deployer first waits for the replacement API HTTP health, then starts the
+worker and waits for its fresh heartbeat/container health. This 20-minute
+window is deliberately longer than the 15-minute full-sync timeout; ordinary
+backend reads still fail after 30 seconds by default.
 
 Cutover stops the old worker and removes `data/worker/last-run.json`. The state
 SHA is recorded only after the replacement worker writes a fresh heartbeat;

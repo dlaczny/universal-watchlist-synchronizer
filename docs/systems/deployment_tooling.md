@@ -59,8 +59,10 @@ new path has proved stable.
 The systemd service takes `flock`, resolves `origin/main`, requires a completed
 successful `Movie CI` push run for that exact SHA, checks it out detached,
 validates Compose, prunes stale build cache, and builds SHA-tagged images. It
-then stops the legacy backend when present, starts the new Compose project, and
-requires both backend HTTP health and a healthy worker heartbeat.
+then stops the legacy backend when present, starts and verifies the new API
+before starting the worker, and requires both backend HTTP health and a healthy
+worker heartbeat. This avoids treating a transient API-container health state
+during process startup as a release failure.
 
 At cutover, the deployer stops the previous worker and removes its persisted
 heartbeat. A release is accepted only after the new worker writes a nonempty

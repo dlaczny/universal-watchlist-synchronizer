@@ -259,7 +259,9 @@ if [[ "$legacy_was_running" == "true" ]]; then
 fi
 
 reset_worker_heartbeat
-docker compose -f "$COMPOSE_FILE" up -d --no-build --remove-orphans
+docker compose -f "$COMPOSE_FILE" up -d --no-build --remove-orphans watchlist-api
+wait_for_backend || fail "New backend did not become healthy."
+docker compose -f "$COMPOSE_FILE" up -d --no-build --no-deps movie-sync-worker
 wait_for_release || fail "New backend or movie worker did not become healthy."
 
 if is_sha "$previous_sha"; then

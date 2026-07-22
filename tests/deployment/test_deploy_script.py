@@ -113,7 +113,7 @@ def run_fake_deployer(
         "}\n"
         "docker() {\n"
         "printf 'docker %s\\n' \"$*\" >> \"$COMMAND_LOG\"\n"
-        "if [[ \"$*\" == *'compose'*'up -d'* ]]; then\n"
+        "if [[ \"$*\" == *'compose'*'up -d'* && \"$*\" != *'watchlist-api'* ]]; then\n"
         "  if [[ -s \"$WORKER_HEARTBEAT_FILE\" ]]; then\n"
         "    printf 'stale worker heartbeat reused\\n' >> \"$COMMAND_LOG\"\n"
         "  fi\n"
@@ -133,7 +133,7 @@ def run_fake_deployer(
         "fi\n"
         "return 0\n"
         "}\n"
-        "curl() { return 0; }\n"
+        "curl() { printf 'curl %s\\n' \"$*\" >> \"$COMMAND_LOG\"; return 0; }\n"
         "flock() { return 0; }\n"
         "python3() { return 0; }\n",
         encoding="utf-8",
@@ -187,6 +187,18 @@ def test_deployer_runs_validated_release_with_fake_boundaries(tmp_path: Path) ->
     assert "compose" in log and "up -d --no-build" in log
     assert "test-only" not in result.stdout
     assert "test-only" not in result.stderr
+
+
+def test_deployer_waits_for_api_before_starting_worker(tmp_path: Path) -> None:
+    result, _, command_log = run_fake_deployer(tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    log = command_log.read_text(encoding="utf-8")
+    api_start = "up -d --no-build --remove-orphans watchlist-api"
+    worker_start = "up -d --no-build --no-deps movie-sync-worker"
+    assert api_start in log
+    assert worker_start in log
+    assert log.index(api_start) < log.index("curl ") < log.index(worker_start)
 
 
 def test_deployer_discards_stale_worker_heartbeat_before_cutover(tmp_path: Path) -> None:
