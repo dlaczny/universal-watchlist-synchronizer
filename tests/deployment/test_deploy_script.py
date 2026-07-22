@@ -59,7 +59,7 @@ def test_shell_and_systemd_security_contracts() -> None:
     assert 'rm -f "$WORKER_HEARTBEAT_FILE"' in text
     assert 'user: "${WATCHLIST_RUNTIME_UID' in compose
     assert "${WATCHLIST_RUNTIME_GID" in compose
-    assert "COPY --from=build --chown=app:app /app/publish ." in backend_dockerfile
+    assert "COPY --from=build --chown=app:app --chmod=0444 /app/publish ." in backend_dockerfile
     assert "COPY --from=builder --chown=watchlist:watchlist --chmod=0555" in worker_dockerfile
     assert worker_dockerfile.count("--chmod=0555") == 3
     assert "set -x" not in text

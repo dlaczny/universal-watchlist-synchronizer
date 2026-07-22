@@ -80,6 +80,9 @@ release images.
 - Public Git and GitHub Actions contain examples and placeholders only.
 - Backend, worker, MongoDB, Radarr, Plex, TMDB, and sync keys live only on the
   trusted host or ignored developer files.
+- The API image keeps its published runtime files world-readable so Compose can
+  run it as the host service UID; credentials remain in the separately mounted,
+  mode-`0600` host environment file.
 - The public Actions API requires no token for the polling rate used here.
 - Scripts never enable shell tracing or print environment-file contents.
 - The Trakt client secret and persisted key-ring stay host-local. Compose

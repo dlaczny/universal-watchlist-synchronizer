@@ -19,7 +19,7 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
     && install -d -o app -g app -m 0700 /var/lib/watchlist/keyring
-COPY --from=build --chown=app:app /app/publish .
+COPY --from=build --chown=app:app --chmod=0444 /app/publish .
 ENV ASPNETCORE_URLS=http://+:8080
 USER app
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
