@@ -52,7 +52,8 @@ public sealed class TraktTvClientTests
             && request.AuthorizationScheme == "Bearer"
             && request.AuthorizationParameter == AccessToken
             && request.ApiVersion == "2"
-            && request.ApiKey == ClientId);
+            && request.ApiKey == ClientId
+            && request.UserAgent == "WatchlistApp/1.0 (+https://github.com/dlaczny/universal-watchlist-synchronizer)");
     }
 
     [Fact]
@@ -1411,7 +1412,8 @@ public sealed class TraktTvClientTests
         string? AuthorizationScheme,
         string? AuthorizationParameter,
         string? ApiVersion,
-        string? ApiKey);
+        string? ApiKey,
+        string UserAgent);
 
     private sealed class RecordingHandler(Func<RecordedRequest, HttpResponseMessage> responseFactory)
         : HttpMessageHandler
@@ -1430,7 +1432,8 @@ public sealed class TraktTvClientTests
                 request.Headers.Authorization?.Scheme,
                 request.Headers.Authorization?.Parameter,
                 apiVersionValues?.SingleOrDefault(),
-                apiKeyValues?.SingleOrDefault());
+                apiKeyValues?.SingleOrDefault(),
+                request.Headers.UserAgent.ToString());
             Requests.Add(recordedRequest);
             return Task.FromResult(responseFactory(recordedRequest));
         }

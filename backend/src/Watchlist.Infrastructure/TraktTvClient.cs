@@ -20,6 +20,8 @@ public sealed class TraktTvClient(
 
     internal const int MaximumPageSize = 100;
 
+    private const string UserAgent = "WatchlistApp/1.0 (+https://github.com/dlaczny/universal-watchlist-synchronizer)";
+
     // At the supported page size this still permits a complete 100,000-row source catalog.
     private const int MaximumPageCount = 1_000;
 
@@ -329,6 +331,7 @@ public sealed class TraktTvClient(
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", normalizedAccessToken);
         request.Headers.TryAddWithoutValidation("trakt-api-version", "2");
         request.Headers.TryAddWithoutValidation("trakt-api-key", clientId);
+        request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
 
         try
         {

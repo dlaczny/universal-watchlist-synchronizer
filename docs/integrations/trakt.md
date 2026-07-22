@@ -26,7 +26,7 @@ explicitly disconnect the singleton connection. Device code, access token,
 refresh token, client secret, and protected ciphertext are never returned by
 status or written to logs.
 
-Every Trakt OAuth request includes the required `trakt-api-version: 2` and
+Every Trakt request includes the required `trakt-api-version: 2` and
 `trakt-api-key` headers; the API key value is the configured Client ID and is
 kept server-side with the rest of the integration configuration. Requests also
 identify the backend with a stable User-Agent so Trakt's Cloudflare edge does
