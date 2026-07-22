@@ -25,6 +25,8 @@ public sealed class SeededApiFactory(
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.UseEnvironment("Testing");
+
         if (syncApiKey is not null)
         {
             builder.UseSetting("Sync:ApiKey", syncApiKey);

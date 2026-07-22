@@ -7,10 +7,13 @@ using Watchlist.Infrastructure;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-builder.Configuration.AddJsonFile(
-    "appsettings.Development.Local.json",
-    optional: true,
-    reloadOnChange: true);
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddJsonFile(
+        "appsettings.Development.Local.json",
+        optional: true,
+        reloadOnChange: true);
+}
 
 if (builder.Environment.IsProduction()
     && string.IsNullOrWhiteSpace(builder.Configuration["Sync:ApiKey"]))
