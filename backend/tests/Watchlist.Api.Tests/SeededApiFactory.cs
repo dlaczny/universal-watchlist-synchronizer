@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -24,11 +23,9 @@ public sealed class SeededApiFactory(
     Action? tmdbTvSyncInvoked = null,
     Exception? tvSyncException = null) : WebApplicationFactory<Program>
 {
-    private readonly string testKeyRingPath = CreateTestKeyRingPath();
-
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        ConfigureTestHost(builder, testKeyRingPath);
+        builder.UseEnvironment("Testing");
 
         if (syncApiKey is not null)
         {
@@ -56,6 +53,7 @@ public sealed class SeededApiFactory(
             services.RemoveAll<ITraktConnectionService>();
             services.RemoveAll<ITraktAccessTokenProvider>();
             RemoveBootstrapHostedService(services);
+            RemoveDataProtectionKeyRingHostedService(services);
             RemoveTraktHostedService(services);
             RemoveLegacyTvMigrationHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
@@ -105,16 +103,16 @@ public sealed class SeededApiFactory(
         }
     }
 
-    internal static void ConfigureTestHost(IWebHostBuilder builder, string keyRingPath)
+    internal static void RemoveDataProtectionKeyRingHostedService(IServiceCollection services)
     {
-        builder.UseEnvironment("Testing");
-        builder.ConfigureAppConfiguration((_, configuration) =>
+        ServiceDescriptor? keyRingDescriptor = services.FirstOrDefault(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(DataProtectionKeyRingHostedService));
+
+        if (keyRingDescriptor is not null)
         {
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                [$"{DataProtectionKeyRingOptions.SectionName}:KeyRingPath"] = keyRingPath
-            });
-        });
+            services.Remove(keyRingDescriptor);
+        }
     }
 
     private static void RemoveTraktHostedService(IServiceCollection services)
@@ -127,14 +125,6 @@ public sealed class SeededApiFactory(
         {
             services.Remove(traktDescriptor);
         }
-    }
-
-    internal static string CreateTestKeyRingPath()
-    {
-        return Path.Combine(
-            Path.GetTempPath(),
-            "watchlist-api-tests",
-            Guid.NewGuid().ToString("N"));
     }
 
     internal static void RemoveLegacyTvMigrationHostedService(IServiceCollection services)

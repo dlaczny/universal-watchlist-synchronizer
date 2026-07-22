@@ -1,6 +1,6 @@
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting;
 using Watchlist.Infrastructure;
 
 namespace Watchlist.Api.Tests;
@@ -8,44 +8,20 @@ namespace Watchlist.Api.Tests;
 public sealed class ApiTestKeyRingConfigurationTests
 {
     [Fact]
-    public void SeededFactory_UsesTemporaryDataProtectionKeyRing()
+    public void SeededFactory_DoesNotStartPersistentDataProtectionKeyRingService()
     {
         using SeededApiFactory factory = new();
 
-        DataProtectionKeyRingOptions options = factory.Services
-            .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
-            .Value;
-
-        options.KeyRingPath.Should().StartWith(Path.GetTempPath());
+        factory.Services.GetServices<IHostedService>()
+            .Should().NotContain(service => service is DataProtectionKeyRingHostedService);
     }
 
     [Fact]
-    public void MongoUnavailableFactory_UsesTemporaryDataProtectionKeyRing()
+    public void MongoUnavailableFactory_DoesNotStartPersistentDataProtectionKeyRingService()
     {
         using MongoUnavailableApiFactory factory = new();
 
-        DataProtectionKeyRingOptions options = factory.Services
-            .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
-            .Value;
-
-        options.KeyRingPath.Should().StartWith(Path.GetTempPath());
-    }
-
-    [Fact]
-    public void SeededFactories_UseDistinctDataProtectionKeyRings()
-    {
-        using SeededApiFactory first = new();
-        using SeededApiFactory second = new();
-
-        string firstPath = first.Services
-            .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
-            .Value
-            .KeyRingPath;
-        string secondPath = second.Services
-            .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
-            .Value
-            .KeyRingPath;
-
-        firstPath.Should().NotBe(secondPath);
+        factory.Services.GetServices<IHostedService>()
+            .Should().NotContain(service => service is DataProtectionKeyRingHostedService);
     }
 }
