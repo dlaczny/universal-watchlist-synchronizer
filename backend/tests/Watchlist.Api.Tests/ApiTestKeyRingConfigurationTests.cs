@@ -30,4 +30,22 @@ public sealed class ApiTestKeyRingConfigurationTests
 
         options.KeyRingPath.Should().StartWith(Path.GetTempPath());
     }
+
+    [Fact]
+    public void SeededFactories_UseDistinctDataProtectionKeyRings()
+    {
+        using SeededApiFactory first = new();
+        using SeededApiFactory second = new();
+
+        string firstPath = first.Services
+            .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
+            .Value
+            .KeyRingPath;
+        string secondPath = second.Services
+            .GetRequiredService<IOptions<DataProtectionKeyRingOptions>>()
+            .Value
+            .KeyRingPath;
+
+        firstPath.Should().NotBe(secondPath);
+    }
 }

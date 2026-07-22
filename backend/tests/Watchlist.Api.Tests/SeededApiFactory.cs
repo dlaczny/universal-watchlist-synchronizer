@@ -24,9 +24,11 @@ public sealed class SeededApiFactory(
     Action? tmdbTvSyncInvoked = null,
     Exception? tvSyncException = null) : WebApplicationFactory<Program>
 {
+    private readonly string testKeyRingPath = CreateTestKeyRingPath();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        ConfigureTestHost(builder);
+        ConfigureTestHost(builder, testKeyRingPath);
 
         if (syncApiKey is not null)
         {
@@ -103,14 +105,14 @@ public sealed class SeededApiFactory(
         }
     }
 
-    internal static void ConfigureTestHost(IWebHostBuilder builder)
+    internal static void ConfigureTestHost(IWebHostBuilder builder, string keyRingPath)
     {
         builder.UseEnvironment("Testing");
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                [$"{DataProtectionKeyRingOptions.SectionName}:KeyRingPath"] = TestKeyRingPath
+                [$"{DataProtectionKeyRingOptions.SectionName}:KeyRingPath"] = keyRingPath
             });
         });
     }
@@ -127,10 +129,13 @@ public sealed class SeededApiFactory(
         }
     }
 
-    private static string TestKeyRingPath { get; } = Path.Combine(
-        Path.GetTempPath(),
-        "watchlist-api-tests",
-        "data-protection-keys");
+    internal static string CreateTestKeyRingPath()
+    {
+        return Path.Combine(
+            Path.GetTempPath(),
+            "watchlist-api-tests",
+            Guid.NewGuid().ToString("N"));
+    }
 
     internal static void RemoveLegacyTvMigrationHostedService(IServiceCollection services)
     {

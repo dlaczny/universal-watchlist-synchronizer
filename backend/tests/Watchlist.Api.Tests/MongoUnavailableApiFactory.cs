@@ -10,9 +10,11 @@ namespace Watchlist.Api.Tests;
 
 public sealed class MongoUnavailableApiFactory : WebApplicationFactory<Program>
 {
+    private readonly string testKeyRingPath = SeededApiFactory.CreateTestKeyRingPath();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        SeededApiFactory.ConfigureTestHost(builder);
+        SeededApiFactory.ConfigureTestHost(builder, testKeyRingPath);
 
         builder.ConfigureServices(services =>
         {
