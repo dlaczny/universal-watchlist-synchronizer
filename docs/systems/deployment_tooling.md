@@ -1,7 +1,7 @@
 ---
 type: System
 title: Deployment Tooling
-description: Secret-free GitHub validation and exact-SHA local deployment of backend and movie-worker containers.
+description: Secret-free GitHub validation and exact-SHA local deployment of backend, protected TV read model, and movie-worker containers.
 tags:
   - deployment
   - ci
@@ -24,8 +24,9 @@ manual dispatch. It has read-only repository permission and these jobs:
 | `containers` | Backend and worker production image builds after all prior jobs pass. |
 
 Actions and the MongoDB/Gitleaks images are pinned to immutable revisions or
-digests. No production credentials enter GitHub. Android CI remains separate
-and is not a movie release prerequisite.
+digests. No production credentials enter GitHub. Android work is deferred and
+is not a release prerequisite. TV read-model validation includes key-ring
+mount/configuration and checks that every TV mutation gate remains false.
 
 # Production Files
 
@@ -44,6 +45,7 @@ and is not a movie release prerequisite.
 | `/opt/watchlist-prod/repository` | Dedicated detached production checkout. |
 | `/opt/watchlist-prod/config` | Mode-`0600` backend, worker, and deploy environment files. |
 | `/opt/watchlist-prod/data/worker` | SQLite, reports, and heartbeat. |
+| `/opt/watchlist-prod/data/backend/data-protection-keys` | Persistent protected Trakt key-ring mount. |
 | `/opt/watchlist-prod/state/last-successful.sha` | Atomic rollback release state. |
 | `/opt/watchlist-prod/state/previous-successful.sha` | Prior healthy release retained for audit/manual rollback. |
 | `/opt/watchlist-prod/deployer` | Stable scripts replaced only after a validated successful release. |
@@ -78,8 +80,13 @@ release images.
   trusted host or ignored developer files.
 - The public Actions API requires no token for the polling rate used here.
 - Scripts never enable shell tracing or print environment-file contents.
+- The Trakt client secret and persisted key-ring stay host-local. Compose
+  hard-overrides all six TV mutation flags to `false`, even if an env file is
+  edited accidentally. A Phase 1 deployment is a read-model deployment, not a
+  Sonarr/Plex/Trakt-history rollout.
 
 # Links
 
 - [Homelab CD](../runbooks/homelab_cd.md)
 - [Production Movie Sync](../architecture/movie_sync_production.md)
+- [TV Integration Rollout](../reports/tv_integration_rollout.md)

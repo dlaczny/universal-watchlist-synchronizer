@@ -1,7 +1,7 @@
 ---
 type: Integration
 title: TMDB
-description: Metadata, artwork, watch-provider data, and TV watchlist integration.
+description: Exact-ID movie/TV metadata, artwork, and Poland watch-provider observations.
 tags:
   - tmdb
   - metadata
@@ -12,8 +12,8 @@ version: 0.1.0
 
 # Purpose
 
-TMDB provides movie and TV metadata, artwork, watch-provider data, and the TV
-watchlist source of truth.
+TMDB provides movie and TV metadata, artwork, and watch-provider data. It is
+not the Phase 1 TV watchlist source; Trakt owns TV membership and progress.
 
 # Configuration
 
@@ -22,8 +22,8 @@ watchlist source of truth.
 | `Tmdb:AccessToken` / `TMDB__AccessToken` | TMDB v4 read token. |
 | `Tmdb:BaseUrl` | Defaults to `https://api.themoviedb.org/3`. |
 | `Tmdb:ImageBaseUrl` | Defaults to `https://image.tmdb.org/t/p`. |
-| `Tmdb:AccountId` / `TMDB__AccountId` | Account ID for TV watchlist sync. |
-| `Tmdb:SessionId` / `TMDB__SessionId` | Session ID for TV watchlist sync. |
+| `Tmdb:ProviderRegion` | TV provider region; Phase 1 default is `PL`. |
+| `Tmdb:OwnedProviderIds` | Stable subscribed provider IDs; never provider-name authority. |
 | `Tmdb:Language` | Defaults to `en-US`. |
 
 # Movie Enrichment
@@ -47,24 +47,22 @@ Rent and buy providers do not count as owned subscribed-service availability.
 `releasedOnVod` is true when Poland or the US has at least one flatrate, rent,
 or buy provider.
 
-# TV Watchlist Sync
+# TV Enrichment
 
-- Source: `/account/{account_id}/watchlist/tv`.
-- Pages through all results.
-- Fetches `/tv/{series_id}` and `/tv/{series_id}/external_ids`.
-- Stores records as `MediaType.TvShow`, `Source.Tmdb`, and IDs matching
-  `tv-tmdb-{tmdbId}`.
-- Deletes removed TMDB TV watchlist items from the backend store.
+The backend enriches a Trakt show only through its exact TMDB ID. It reads show
+metadata and PL watch providers, then relevant numbered-season provider data.
+Provider observations use `available`, `confirmed_unavailable`, `unknown`, or
+`stale`. A TMDB failure retains a prior usable observation as `stale` when
+possible, otherwise publishes `unknown`; it never asserts unavailable from a
+failed request. `POST /api/sync/tmdb/tv` intentionally returns `410 Gone` and
+does not call the former account-watchlist route.
 
-# Current Gap
-
-Plex TV inventory sync and availability matching are not implemented yet. TV
-records can show `not_on_plex`, `unreleased`, or `unknown_match` until TV Plex
-matching is added.
+Plex TV inventory matching remains unimplemented in Phase 1.
 
 # Links
 
-- Data model: [Watchlist Item](../data_models/watchlist_item.md)
+- Data model: [TV Show](../data_models/tv_show.md)
+- Source: [Trakt](trakt.md)
 - Integration: [Plex](plex.md)
 - Backlog: [Roadmap](../backlog/roadmap.md)
 

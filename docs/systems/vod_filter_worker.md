@@ -18,6 +18,10 @@ Radarr or the Plex watchlist. Production requires
 `WATCHLIST_SOURCE=watchlist_app`; Letterboxd and TMDB credentials are not needed
 inside the production worker because the backend owns source ingestion.
 
+Phase 1 TV data is not consumed by this worker. The backend's TV export is
+read-only and declares `mutationCapable=false`; the worker has no TV collector,
+planner, executor, ownership, Sonarr, Plex-history, or Plex-watchlist TV path.
+
 # Entry Points
 
 | File | Role |
@@ -92,6 +96,13 @@ Core production settings are documented in
 of `MOVIE_SYNC_APPLY`. Reports show authorization and `delete_files`, never
 credentials or this host control value.
 
+The committed worker example and production Compose hard-lock
+`TRAKT_HISTORY_SYNC_APPLY`, `TV_SYNC_APPLY`,
+`TV_SYNC_ADOPT_EXISTING_DESTINATIONS`, `TV_SYNC_ALLOW_SEASON_FILE_DELETION`,
+`TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION`, and
+`TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE` to `false`. These are not an invitation
+to configure a TV action in Phase 1.
+
 # Container Contract
 
 The worker image uses an exact production dependency lock, copies only the
@@ -105,3 +116,4 @@ bind mount remains writable. The root filesystem stays read-only and only
 - [VOD Filter Operations](../runbooks/vod_filter_operations.md)
 - [Export Endpoints](../apis/export_endpoints.md)
 - [Production Movie Sync](../architecture/movie_sync_production.md)
+- [TV Sync Read Model](../architecture/tv_sync_read_model.md)

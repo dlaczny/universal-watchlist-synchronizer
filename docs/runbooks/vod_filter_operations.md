@@ -187,9 +187,13 @@ failed run is unhealthy until a later accepted run.
   manual-Radarr-removal observation for the exact TMDB row. Ownership alone is
   not production deletion authority.
 - A boundary collection failure prevents all mutation.
+- Phase 1 TV export is not a worker input. Keep every TV-related switch false;
+  no movie-worker command may write Trakt history, call Sonarr, read Plex TV
+  history, or alter a Plex watchlist entry for a show.
 
 # Links
 
 - [VOD Filter Worker](../systems/vod_filter_worker.md)
 - [Production Movie Sync](../architecture/movie_sync_production.md)
 - [Homelab CD](homelab_cd.md)
+- [TV Sync Operations](tv_sync_operations.md)

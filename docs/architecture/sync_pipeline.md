@@ -56,12 +56,14 @@ version: 0.3.0
 # Other Paths
 
 `POST /api/sync/all` and the direct-source worker scripts remain compatibility
-or development paths. They are not invoked by the production container. TV and
-Sonarr synchronization are outside the active production flow, and Android TV
-work remains on hold.
+or development paths. They are not invoked by the production container. The
+separate Phase 1 TV pipeline reads Trakt and TMDB, validates a complete
+generation, and publishes it last; it does not call Plex, Sonarr, or a worker
+apply path. Android TV work is deferred until explicitly requested.
 
 # Links
 
 - [Production Movie Sync](movie_sync_production.md)
 - [Backend API](../apis/backend_api.md)
+- [TV Sync Read Model](tv_sync_read_model.md)
 - [VOD Filter Operations](../runbooks/vod_filter_operations.md)

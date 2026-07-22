@@ -30,6 +30,20 @@ production validation are complete.
 The ordered execution plans are indexed by
 [TV Integration Program](../plans/2026-07-13-tv-integration-program.md).
 
+## Phase 1 Implementation Status
+
+The non-destructive backend portion of Phase 1 is implemented and test
+validated: protected Trakt device OAuth, complete published TV generations,
+legacy migration, PL provider observations, browse/detail/status routes, and a
+read-only export. Its operational contract is [TV Sync Read Model](../../architecture/tv_sync_read_model.md).
+It has not been claimed as a production rollout in this document; evidence is
+recorded only in [TV Integration Rollout](../../reports/tv_integration_rollout.md).
+
+Android-specific work is deferred in the [Android TV Integration Backlog](../../backlog/android_tv_tv_integration.md)
+and may resume only after an explicit user request. The remaining Plex history,
+Trakt-write, Sonarr, Plex-watchlist, and deletion phases remain unimplemented
+and all TV mutation gates remain false.
+
 # Goal
 
 Use Trakt as the TV source of truth and provide one coherent TV workflow:

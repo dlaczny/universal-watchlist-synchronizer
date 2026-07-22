@@ -12,8 +12,9 @@ version: 0.4.0
 
 # Boundary
 
-The host at `192.168.50.163` deploys only backend and movie-worker containers.
-Android TV deployment is on hold. GitHub contains no runtime credentials and
+The host at `192.168.50.163` deploys backend and movie-worker containers.
+Phase 1 TV is backend read-model behavior only; Android TV deployment is
+deferred. GitHub contains no runtime credentials and
 the host accepts a release only after `Movie CI` succeeds for the exact `main`
 push SHA.
 
@@ -26,6 +27,7 @@ push SHA.
 | `/opt/watchlist-prod/config/worker.env` | Worker credentials, policy, and interval. |
 | `/opt/watchlist-prod/config/deploy.env` | Public repository/deployment settings only. |
 | `/opt/watchlist-prod/data/worker` | SQLite, reports, and heartbeat. |
+| `/opt/watchlist-prod/data/backend/data-protection-keys` | Persistent ASP.NET Data Protection key ring for Trakt state. |
 | `/opt/watchlist-prod/state/last-successful.sha` | Current rollback reference. |
 | `/opt/watchlist-prod/state/previous-successful.sha` | Prior successful release SHA after a later cutover. |
 | `/opt/watchlist-prod/deployer` | Stable validated deploy scripts. |
@@ -46,6 +48,10 @@ checkout and first-cutover backend rollback.
    `WATCHLIST_APP_SYNC_FIRST=true`, `WATCHLIST_APP_SYNC_TIMEOUT_SECONDS=900`,
    `MOVIE_SYNC_APPLY=false`, and
    `MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION=false` for the first release.
+   Keep every `TRAKT_HISTORY_SYNC_APPLY` and `TV_SYNC_*` value false. Compose
+   overrides them false for Phase 1 in every case. Set
+   `DataProtection__KeyRingPath=/var/lib/watchlist/keyring` and preserve its
+   private host mount across releases.
 5. Install the validated `deploy-movie-sync.sh` and `check-movie-ci.py` under
    `/opt/watchlist-prod/deployer`.
 6. Install the service and timer from `deploy/local-cd/systemd/` under
@@ -131,3 +137,4 @@ after the production path has completed an agreed rollback-observation period.
 - [Deployment Tooling](../systems/deployment_tooling.md)
 - [VOD Filter Operations](vod_filter_operations.md)
 - [Validation](validation.md)
+- [TV Sync Operations](tv_sync_operations.md)

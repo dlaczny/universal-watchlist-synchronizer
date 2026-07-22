@@ -22,6 +22,16 @@ Use the ignored
 `backend/src/Watchlist.Api/appsettings.Development.Local.json` for local
 credentials. Set `Sync:ApiKey` there when testing authenticated mutation.
 
+For a local Phase 1 TV read-model test, use a disposable Trakt connection and
+an absolute ignored key-ring path. Keep every TV mutation flag false; a TV sync
+only reads and publishes MongoDB state.
+
+```powershell
+$env:DataProtection__KeyRingPath=(Resolve-Path .artifacts).Path + "\\tv-keyring"
+$env:TRAKT_HISTORY_SYNC_APPLY="false"
+$env:TV_SYNC_APPLY="false"
+```
+
 # Movie Worker
 
 Run from `workers/vod-filter` after creating an ignored `.env`:
@@ -39,15 +49,12 @@ direct-source commands are compatibility tools, not the production path.
 
 # Android TV
 
-Android TV feature work is on hold. For required contract-preserving changes:
-
-```powershell
-$env:JAVA_HOME='C:\Program Files\Android\Android Studio\jbr'
-android\gradlew.bat -p android :app:testDebugUnitTest --no-daemon
-android\gradlew.bat -p android :app:assembleDebug --no-daemon
-```
+Android TV work is deferred and must not be started or resumed without an
+explicit user request. Its commands remain in the
+[Android TV Integration Backlog](../backlog/android_tv_tv_integration.md).
 
 # Links
 
 - [Validation](validation.md)
 - [VOD Filter Operations](vod_filter_operations.md)
+- [TV Sync Operations](tv_sync_operations.md)

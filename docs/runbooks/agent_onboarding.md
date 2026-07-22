@@ -34,7 +34,9 @@ Read, in order:
 - Preserve unmanaged Radarr and Plex-watchlist rows except for the explicit
   watched and manually observed Radarr-removal authorizations.
 - Keep credentials out of Git, logs, reports, Android, and GitHub Actions.
-- Keep Android TV and TV/Sonarr work on hold unless scope explicitly changes.
+- Treat Phase 1 Trakt TV generations as implemented backend behavior. Keep
+  Android TV deferred until an explicit user request, and keep Plex history,
+  Trakt writes, Sonarr, and Plex-watchlist TV mutations outside Phase 1.
 - Update OKF whenever behavior, contracts, ownership, deployment, or operations
   change.
 
@@ -43,3 +45,6 @@ Read, in order:
 Use [Migration Context](../references/migration_context.md) only for provenance;
 current behavior lives in system, API, architecture, decision, and runbook
 concepts.
+
+For TV work also read [TV Sync Read Model](../architecture/tv_sync_read_model.md),
+[Trakt](../integrations/trakt.md), and [TV Sync Operations](tv_sync_operations.md).

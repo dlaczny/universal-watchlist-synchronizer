@@ -30,3 +30,6 @@ an OKF concept document with YAML frontmatter and a non-empty `type` field.
 - Use [Backend API](apis/backend_api.md) before changing HTTP contracts.
 - Use [Validation](runbooks/validation.md) before claiming work is complete.
 
+For Phase 1 TV work, use [TV Sync Read Model](architecture/tv_sync_read_model.md),
+[Trakt](integrations/trakt.md), and [TV Sync Operations](runbooks/tv_sync_operations.md).
+

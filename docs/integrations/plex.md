@@ -20,6 +20,10 @@ remain `unknown_match`.
 Backend configuration uses `Plex:BaseUrl` and `Plex:Token`. The backend also
 proxies stored movie poster/backdrop paths through its image API.
 
+Phase 1 TV reads do not collect Plex episode history, inspect TV libraries, or
+mutate Plex. The TV export carries an explicitly incapable Plex-history block
+solely to preserve the later versioned contract.
+
 # Worker Watchlist
 
 The worker reads the Plex watchlist and configured movie library. A movie is
@@ -50,3 +54,4 @@ Worker configuration uses `PLEX_URL`, `PLEX_TOKEN`, and optional
 
 - [Availability States](../data_models/availability_states.md)
 - [Production Movie Sync](../architecture/movie_sync_production.md)
+- [TV Sync Read Model](../architecture/tv_sync_read_model.md)

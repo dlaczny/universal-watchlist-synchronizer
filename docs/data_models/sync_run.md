@@ -27,6 +27,13 @@ writer publishes a `letterboxd-bootstrap-*` manifest for that legacy active set
 before changing documents, with an empty watched set; later operational
 manifests remain publish-last.
 
+TV uses separate immutable `tv_sync_manifests`, `tv_shows`, and
+`tv_lifecycle_events`. A candidate is staged, validated, and published last;
+the published pointer is the only browse/export authority. A Trakt source,
+pagination, schedule, identity, or cursor-race failure leaves the old pointer
+unchanged. Provider failures may still publish a complete generation with
+`unknown` or `stale` provider observations.
+
 # Worker State
 
 SQLite stores `movie_sync` runs and `managed_destinations` keyed by destination
@@ -61,3 +68,4 @@ event ID, preventing later misclassification as a manual removal.
 
 - [Sync Pipeline](../architecture/sync_pipeline.md)
 - [VOD Filter Operations](../runbooks/vod_filter_operations.md)
+- [TV Sync Read Model](../architecture/tv_sync_read_model.md)

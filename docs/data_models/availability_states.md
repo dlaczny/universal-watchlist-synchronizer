@@ -33,6 +33,13 @@ Do not hide uncertain Plex matches as unavailable. Represent ambiguous or
 incomplete matching as `unknown_match` so Android and future operator tooling
 can expose it clearly.
 
+# TV Provider Observation
+
+TV provider availability is separate from Plex matching. Its PL states are
+`available`, `confirmed_unavailable`, `unknown`, and `stale`. `unknown` and
+`stale` are failure/age uncertainty and must never be collapsed into
+`confirmed_unavailable` or used to drive a destination action.
+
 # Android Interpretation
 
 - Plex availability has highest badge priority.
@@ -44,4 +51,5 @@ can expose it clearly.
 
 - Watchlist item: [Watchlist Item](watchlist_item.md)
 - Plex integration: [Plex](../integrations/plex.md)
+- TV show: [TV Show](tv_show.md)
 

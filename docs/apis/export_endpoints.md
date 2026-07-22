@@ -1,7 +1,7 @@
 ---
 type: API
 title: Export Endpoints
-description: Cached backend contracts for the movie worker and legacy Radarr/Sonarr consumers.
+description: Cached backend contracts for the movie worker, read-only TV handoff, and legacy compatibility consumers.
 tags:
   - api
   - worker
@@ -62,7 +62,56 @@ production removals. It remains for compatibility and source comparison.
 `GET /api/export/sonarr/tv` returns an empty array. Sonarr production behavior
 is not implemented.
 
+# Read-Only TV Sync State
+
+`GET /api/export/tv/sync-state` resolves exactly one immutable published TV
+generation and returns `404` until one exists. The version-1 envelope contains
+these exact field names:
+
+```text
+{
+  schemaVersion, generationId, publishedAt, generatedAt, kind,
+  mutationCapable, healthReasons, plexHistory, shows, cleanupAuthorizations
+}
+```
+
+Each `shows[]` member uses the worker-specific names below (not the public
+`inWatchlist`, `airedEpisodes`, and `completedEpisodes` names):
+
+```text
+{
+  traktId, tvdbId, tmdbId, imdbId, title, year, identityStatus,
+  inTraktWatchlist, lifecycleState, lifecycleVersion, traktStatus,
+  aired, completed, lastWatchedEpisode, nextEpisode,
+  sonarrDesired, sonarrMonitoredDesired, plexWatchlistDesired,
+  seasons, polandAvailability, blockers
+}
+```
+
+`seasons[]` has `seasonNumber`, `aired`, `completed`, `monitoredDesired`,
+`searchAiredUnwatchedEpisodes`, `cleanupState`, and `episodes`. Every
+`episodes[]` item has `traktEpisodeId`, `seasonNumber`, `episodeNumber`,
+`tvdbId`, `title`, `firstAired`, `aired`, `watched`, `lastWatchedAt`,
+`plexRatingKey`, `watchedByConfiguredPlexAccount`, and `plexLastViewedAt`.
+The envelope has a complete show list and this hard safety contract:
+
+```text
+mutationCapable: false
+healthReasons: plex_history_phase_not_implemented, worker_tv_mutation_disabled
+plexHistory: capable=false, bootstrapComplete=false
+cleanupAuthorizations: []
+```
+
+Shows carry exact Trakt and supporting identities, lifecycle/progress, regular
+season episodes, S00 identity-only specials, and PL provider data. Desired
+Sonarr/Plex fields are informational compatibility data, not permission for a
+worker to perform an action. The existing movie worker neither reads nor
+applies this export in Phase 1. `404` means no TV generation has been
+published; it is not an empty snapshot and no worker may infer a cleanup from
+it.
+
 # Links
 
 - [VOD Filter Worker](../systems/vod_filter_worker.md)
 - [Production Movie Sync](../architecture/movie_sync_production.md)
+- [TV Sync Read Model](../architecture/tv_sync_read_model.md)

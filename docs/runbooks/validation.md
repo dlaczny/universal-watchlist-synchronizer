@@ -35,13 +35,19 @@ dotnet build backend\Watchlist.sln --configuration Release --no-restore
 dotnet test backend\Watchlist.sln --configuration Release --no-build
 ```
 
-The expected suite is 167 Application tests and 39 API tests. Mongo repository
-tests are part of the required result, not an optional timeout exclusion.
+Run the full Release solution rather than relying on historical test counts.
+Mongo repository and TV generation tests are part of the required result, not
+an optional timeout exclusion.
 
 Lifecycle coverage must include rejected empty/duplicate source snapshots,
 the first-write bootstrap manifest, publish-last operational manifests,
 active/watched/reactivated transitions, active-only reads, and coherent watched
 export.
+
+TV coverage must include protected Trakt connection/key-ring restart behavior,
+complete paginated reads, cursor-race rejection, publish-last generation
+reads, provider `unknown`/`stale` behavior, legacy-row migration, TV browse
+state validation, read-only export, and all six locked-false mutation gates.
 
 # Worker
 
@@ -73,6 +79,8 @@ docker build -t watchlist-worker:validation workers\vod-filter
 
 Verify image healthchecks, non-root users, backend `/healthz`, and a `401`
 response from an unauthenticated `POST /api/sync/movies` when a sync key is set.
+Also inspect resolved Compose configuration for the persistent backend key-ring
+mount and all six TV mutation switches set to `false`.
 
 # Secrets
 
@@ -95,6 +103,5 @@ excluded or the scan runs from a clean checkout.
 
 # Android TV
 
-Android TV is on hold. When a contract-preserving Android change is necessary,
-run its separate workflow-equivalent Gradle tests and build as documented in
-[Android TV Client](../systems/android_tv_client.md).
+Android TV validation is deferred with the Android backlog and must not be run
+as active TV scope unless the user explicitly resumes Android work.

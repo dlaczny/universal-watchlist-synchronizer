@@ -1,5 +1,15 @@
 # Change Log
 
+## 2026-07-19
+
+- Documented the implemented, non-destructive Phase 1 Trakt TV read model:
+  protected connection/key-ring operation, publish-last Mongo generations,
+  Poland provider uncertainty semantics, browse/detail/status/export contracts,
+  locked mutation gates, and rollout evidence requirements. No TV deployment or
+  production mutation is claimed by this documentation update.
+- Moved Android TV work to an explicit-user-request backlog; active TV scope is
+  backend-only until that gate changes.
+
 ## 2026-07-13
 
 - Reviewed the TV integration design and decomposed it into an ordered,

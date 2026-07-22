@@ -12,9 +12,9 @@ version: 0.1.0
 
 # Decision
 
-Android clients call only the backend API. The backend owns Letterboxd, TMDB,
-Plex inventory, MongoDB, source sync, caching, matching, and read-only client
-contracts. The movie worker separately owns host-local Radarr and Plex
+Android clients call only the backend API. The backend owns Letterboxd, Trakt,
+TMDB, Plex inventory, MongoDB, source sync, caching, matching, and read-only
+client contracts. The movie worker separately owns host-local Radarr and Plex
 watchlist credentials and mutations.
 
 # Rationale
@@ -29,4 +29,7 @@ backend to serve cached data when third-party services are unavailable.
 - Backend API docs must change with client contract changes.
 - Destination credentials remain in the worker host environment and never flow
   through Android or GitHub Actions.
+- Trakt device/OAuth credentials and the persistent key ring remain server-side.
+  TV source reads must publish one complete generation last; a client or worker
+  never owns TV synchronization or a partial-generation fallback.
 

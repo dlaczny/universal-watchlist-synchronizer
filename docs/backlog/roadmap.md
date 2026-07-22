@@ -33,6 +33,22 @@ version: 0.8.0
   blockers, removals, or collection errors. Pre-feature disappearances are not
   backfilled as watched history.
 
+# Completed TV Phase 1 Read Model
+
+- Protected single-account Trakt device OAuth with a persistent server-side
+  data-protection key ring and redacted public status.
+- Complete Trakt watchlist/progress/schedule reads, exact pagination provenance,
+  activity-cursor race rejection, and immutable publish-last Mongo generations.
+- Deterministic migration/quarantine of legacy TV rows, TV lifecycle reduction,
+  S00 exact identities, and Poland TMDB provider enrichment.
+- TV browse/detail/state filtering, sync status/manual read sync, and a
+  version-1 read-only worker export with no cleanup authorizations.
+- Persistent key-ring deployment mount and all six TV mutation gates locked
+  false in examples and production Compose.
+
+This is implementation/test completion, not production rollout evidence. Track
+real deployment evidence in [TV Integration Rollout](../reports/tv_integration_rollout.md).
+
 # Operations Next
 
 - Resolve the `Resurrection` (2025) Radarr folder collision: desired TMDB
@@ -60,25 +76,23 @@ version: 0.8.0
 
 # TV And Sonarr
 
-- Execute the reviewed
-  [TV Integration Program](../superpowers/plans/2026-07-13-tv-integration-program.md)
-  task by task; the five phase plans are written but implementation has not
-  started.
-- Deliver Trakt source/progress, the MongoDB read model, Polish provider
-  enrichment, and read-only Android UI before Plex-history writes or
-  destination mutation.
+- Operate and collect rollout evidence for the completed Phase 1 backend read
+  model. Do not treat a successful read generation as destination authority.
 - Complete and review the configured-account Plex-history bootstrap and
-  effectively-once Trakt outbox before reversible Sonarr/Plex-watchlist work.
-- Roll out Sonarr additions and Plex-watchlist lifecycle before enabling the
-  independently gated season-file and terminal-series deletion categories.
+  effectively-once Trakt outbox in [Phase 2](../superpowers/plans/2026-07-13-tv-phase-2-plex-trakt-history.md)
+  before reversible destinations.
+- Roll out Sonarr additions and Plex-watchlist lifecycle only through
+  [Phase 3](../superpowers/plans/2026-07-13-tv-phase-3-reversible-destinations.md),
+  before the independently gated [season](../superpowers/plans/2026-07-13-tv-phase-4-season-cleanup.md)
+  and [terminal-series](../superpowers/plans/2026-07-13-tv-phase-5-terminal-cleanup.md)
+  deletion phases.
 - Keep every TV mutation disabled until its staged tests, reports, adoption
   review, grace periods, and supervised validation pass.
 
 # Android TV
 
-- Preserve read-only backend-only contracts.
-- Resume only the TV progress, lifecycle, and provider views covered by the
-  approved TV design. Broader Android component extraction remains on hold.
+All Android work is in the [hard-gated Android TV Integration Backlog](android_tv_tv_integration.md).
+Do not start or resume it until the user explicitly asks.
 
 # Documentation Candidates
 

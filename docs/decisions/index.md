@@ -8,4 +8,5 @@
 - [Monorepo Migration](monorepo_migration.md)
 - [OKF-First Docs](okf_first_docs.md)
 - [Sync Correctness Priority](sync_correctness_priority.md)
+- [TV Sync Read Model](../architecture/tv_sync_read_model.md) - Phase 1 implementation boundary.
 
