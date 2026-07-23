@@ -49,10 +49,10 @@ preserve Trakt's exact `X-Pagination-Page-Count` and request page size in the
 generation manifest. Malformed, duplicate, missing, or inconsistent identities
 and pagination are rejected before publication.
 
-S00 specials with a valid Trakt episode identity but no optional TVDB identity
-are excluded from the special-identity list; they do not invalidate an otherwise
-complete source snapshot. Conflicting, duplicate, or malformed special entries
-remain publication-blocking.
+S00 specials are advisory identity hints. A schedule with missing, conflicting,
+duplicate, or malformed special identities is excluded in full; it does not
+invalidate an otherwise complete source snapshot or produce a potentially
+ambiguous partial special list.
 
 The synchronizer compares the activity cursor before and after collecting the
 candidate. A cursor change is a race: no candidate is published. HTTP 429 is

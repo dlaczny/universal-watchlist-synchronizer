@@ -142,7 +142,7 @@ public sealed class TvSyncServiceTests
     }
 
     [Fact]
-    public async Task SyncAsync_AbsentRetainedShowHasMalformedSeasonZero_PerformsNoNewStageOrPublish()
+    public async Task SyncAsync_AbsentRetainedShowHasMalformedSeasonZero_ExcludesSpecialsAndPublishes()
     {
         Harness harness = Harness.Create();
         await harness.SyncAsync(TvGenerationKind.ScheduledFull);
@@ -155,15 +155,12 @@ public sealed class TvSyncServiceTests
         int publishCallsBefore = harness.Repository.PublishCalls;
         harness.Advance(TimeSpan.FromHours(1));
 
-        Func<Task> action = async () =>
-            await harness.SyncAsync(TvGenerationKind.ScheduledFull);
+        TvSyncResultDto result = await harness.SyncAsync(TvGenerationKind.ScheduledFull);
 
-        TvSourceSnapshotRejectedException exception = (await action.Should()
-            .ThrowAsync<TvSourceSnapshotRejectedException>())
-            .Which;
-        exception.Message.Should().Be("tv_special_schedule_invalid");
-        harness.Repository.StageCalls.Should().Be(stageCallsBefore);
-        harness.Repository.PublishCalls.Should().Be(publishCallsBefore);
+        harness.PublishedShow().SpecialEpisodeIdentities.Should().BeEmpty();
+        harness.Repository.StageCalls.Should().Be(stageCallsBefore + 1);
+        harness.Repository.PublishCalls.Should().Be(publishCallsBefore + 1);
+        result.ShowsPublished.Should().Be(1);
     }
 
     [Fact]
@@ -320,7 +317,7 @@ public sealed class TvSyncServiceTests
     [InlineData("missing_trakt_identity")]
     [InlineData("invalid_tvdb_identity")]
     [InlineData("duplicate_episode")]
-    public async Task SyncAsync_MalformedOrPartialSeasonZeroSchedule_RejectsBeforeStage(
+    public async Task SyncAsync_MalformedOrPartialSeasonZeroSchedule_IsExcludedWithoutRejectingSnapshot(
         string invalidPart)
     {
         Harness harness = Harness.Create();
@@ -334,14 +331,10 @@ public sealed class TvSyncServiceTests
             _ => throw new InvalidOperationException()
         };
 
-        Func<Task> action = async () =>
-            await harness.SyncAsync(TvGenerationKind.ScheduledFull);
+        TvSyncResultDto result = await harness.SyncAsync(TvGenerationKind.ScheduledFull);
 
-        TvSourceSnapshotRejectedException exception = (await action.Should()
-            .ThrowAsync<TvSourceSnapshotRejectedException>())
-            .Which;
-        exception.Message.Should().Be("tv_special_schedule_invalid");
-        harness.Repository.StageCalls.Should().Be(0);
+        harness.PublishedShow().SpecialEpisodeIdentities.Should().BeEmpty();
+        result.ShowsPublished.Should().Be(1);
     }
 
     [Fact]

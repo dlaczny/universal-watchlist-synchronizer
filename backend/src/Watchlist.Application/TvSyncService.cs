@@ -468,7 +468,7 @@ public sealed class TvSyncService(
                 || !traktIds.Add(candidate.TraktEpisodeId)
                 || candidate.TvdbId is int identifiedTvdbId && !tvdbIds.Add(identifiedTvdbId))
             {
-                throw Rejected("tv_special_schedule_invalid");
+                return [];
             }
 
             if (candidate.TvdbId is not int specialTvdbId)
