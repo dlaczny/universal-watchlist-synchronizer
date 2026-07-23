@@ -643,7 +643,7 @@ public sealed class SeededApiFactory(
         }
     }
 
-    private static void RemoveTvIndexHostedService(IServiceCollection services)
+    internal static void RemoveTvIndexHostedService(IServiceCollection services)
     {
         ServiceDescriptor? indexDescriptor = services.FirstOrDefault(descriptor =>
             descriptor.ServiceType == typeof(IHostedService)

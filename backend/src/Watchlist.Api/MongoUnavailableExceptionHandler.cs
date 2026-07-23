@@ -47,6 +47,12 @@ public sealed class MongoUnavailableExceptionHandler(
                 "trakt_unavailable", "Trakt is temporarily unavailable.", cancellationToken);
         }
 
+        if (exception is TraktRateLimitedException)
+        {
+            return await WriteTvFailureAsync(httpContext, StatusCodes.Status503ServiceUnavailable,
+                "trakt_rate_limited", "Trakt temporarily rate limited the sync.", cancellationToken);
+        }
+
         if (exception is TraktConnectionUnreadableException)
         {
             return await WriteTvFailureAsync(httpContext, StatusCodes.Status503ServiceUnavailable,

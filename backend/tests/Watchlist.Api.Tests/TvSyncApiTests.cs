@@ -50,6 +50,7 @@ public sealed class TvSyncApiTests
     [InlineData("not_connected", HttpStatusCode.Conflict, "trakt_not_connected")]
     [InlineData("snapshot", HttpStatusCode.BadGateway, "tv_snapshot_rejected")]
     [InlineData("unavailable", HttpStatusCode.ServiceUnavailable, "trakt_unavailable")]
+    [InlineData("rate_limited", HttpStatusCode.ServiceUnavailable, "trakt_rate_limited")]
     public async Task SyncTv_MapsTypedFailuresWithoutLeakingDetails(
         string failure,
         HttpStatusCode expectedStatus,
@@ -59,6 +60,7 @@ public sealed class TvSyncApiTests
         {
             "not_connected" => new Watchlist.Application.TraktNotConnectedException(),
             "snapshot" => new Watchlist.Application.TvSourceSnapshotRejectedException("secret-source-body"),
+            "rate_limited" => new Watchlist.Application.TraktRateLimitedException(TimeSpan.FromSeconds(42)),
             _ => new Watchlist.Application.TraktUnavailableException()
         };
         using SeededApiFactory factory = new(tvSyncException: exception);

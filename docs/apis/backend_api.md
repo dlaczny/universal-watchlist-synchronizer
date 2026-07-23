@@ -102,6 +102,8 @@ lifecycle transition or source snapshot.
 
 TV source/validation/race failures publish no candidate and preserve the
 previous TV generation. Typed dependency failures use stable error responses;
+in particular, a Trakt HTTP 429 returns `503` with `code=trakt_rate_limited`
+so callers can retry later without treating the source as invalid.
 the endpoint never converts a failed provider observation into unavailable.
 
 The successful manual TV sync result has this exact JSON shape:
