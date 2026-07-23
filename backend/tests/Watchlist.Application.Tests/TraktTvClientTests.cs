@@ -369,7 +369,6 @@ public sealed class TraktTvClientTests
     [InlineData("next_episode", "0", "1", "100", "200")]
     [InlineData("next_episode", "1", "0", "100", "200")]
     [InlineData("next_episode", "1", "1", "0", "200")]
-    [InlineData("next_episode", "1", "1", "100", "0")]
     [InlineData("last_episode", "0", "1", "100", "200")]
     [InlineData("last_episode", "1", "0", "100", "200")]
     [InlineData("last_episode", "1", "1", "0", "200")]
@@ -406,6 +405,31 @@ public sealed class TraktTvClientTests
             CancellationToken.None);
 
         await action.Should().ThrowAsync<TraktParseException>();
+    }
+
+    [Theory]
+    [InlineData("next_episode")]
+    [InlineData("last_episode")]
+    public async Task GetWatchedProgressAsync_WhenEpisodeTvdbIdIsZero_NormalizesItToMissing(
+        string property)
+    {
+        string json = WatchedProgressJson(10, 2, 1)
+            .Replace(
+                property == "next_episode" ? "\"tvdb\": 20101" : "\"tvdb\": 20100",
+                "\"tvdb\": 0",
+                StringComparison.Ordinal);
+        RecordingHandler handler = new(_ => PaginatedJsonResponse(json, 1));
+        TraktTvClient client = CreateClient(handler);
+
+        TraktPagedResult<TraktWatchedShowProgress> result = await client.GetWatchedProgressAsync(
+            AccessToken,
+            CancellationToken.None);
+
+        TraktSeasonEpisode? episode = property == "next_episode"
+            ? result.Items[0].NextEpisode
+            : result.Items[0].LastEpisode;
+        episode.Should().NotBeNull();
+        episode!.TvdbId.Should().BeNull();
     }
 
     [Theory]
