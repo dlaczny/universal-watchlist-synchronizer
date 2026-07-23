@@ -47,8 +47,9 @@ reasons remain present. A missing export is `404`, which means no TV generation
 has been published; it is not permission to bootstrap destinations.
 
 If Trakt rate limits the request, the endpoint returns `503` with
-`code=trakt_rate_limited`. Wait for the upstream limit to clear and retry; the
-previous published generation, if any, remains unchanged.
+`code=trakt_rate_limited`. Honor its `Retry-After` header when present; otherwise
+wait for the upstream limit to clear and retry. The previous published
+generation, if any, remains unchanged.
 
 Provider `unknown` means no usable PL observation was obtained. `stale` means
 the last usable observation was retained after a provider failure. Neither

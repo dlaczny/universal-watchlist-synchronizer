@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
@@ -47,10 +48,20 @@ public sealed class MongoUnavailableExceptionHandler(
                 "trakt_unavailable", "Trakt is temporarily unavailable.", cancellationToken);
         }
 
-        if (exception is TraktRateLimitedException)
+        if (exception is TraktRateLimitedException rateLimited)
         {
-            return await WriteTvFailureAsync(httpContext, StatusCodes.Status503ServiceUnavailable,
-                "trakt_rate_limited", "Trakt temporarily rate limited the sync.", cancellationToken);
+            if (rateLimited.RetryAfter is TimeSpan retryAfter && retryAfter > TimeSpan.Zero)
+            {
+                httpContext.Response.Headers["Retry-After"] = Math.Ceiling(retryAfter.TotalSeconds)
+                    .ToString(CultureInfo.InvariantCulture);
+            }
+
+            return await WriteTvFailureAsync(
+                httpContext,
+                StatusCodes.Status503ServiceUnavailable,
+                "trakt_rate_limited",
+                "Trakt temporarily rate limited the sync.",
+                cancellationToken);
         }
 
         if (exception is TraktConnectionUnreadableException)

@@ -94,6 +94,22 @@ public sealed class TvSyncApiTests
     }
 
     [Fact]
+    public async Task SyncTv_WhenTraktRateLimited_ReturnsRetryAfterWithoutLeakingDetails()
+    {
+        using SeededApiFactory factory = new(
+            tvSyncException: new Watchlist.Application.TraktRateLimitedException(
+                TimeSpan.FromSeconds(42)));
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tv", null);
+        string body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+        response.Headers.RetryAfter!.Delta.Should().Be(TimeSpan.FromSeconds(42));
+        body.Should().Contain("trakt_rate_limited");
+    }
+
+    [Fact]
     public async Task SyncTv_WhenUnexpectedFailureOccurs_LogsOnlyItsExceptionType()
     {
         List<string> logs = [];
