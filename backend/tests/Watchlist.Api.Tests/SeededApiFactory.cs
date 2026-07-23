@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Watchlist.Application;
 using Watchlist.Domain;
 using Watchlist.Infrastructure;
@@ -21,7 +22,8 @@ public sealed class SeededApiFactory(
     string? syncApiKey = null,
     Exception? traktStartException = null,
     Action? tmdbTvSyncInvoked = null,
-    Exception? tvSyncException = null) : WebApplicationFactory<Program>
+    Exception? tvSyncException = null,
+    List<string>? capturedLogs = null) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -34,6 +36,11 @@ public sealed class SeededApiFactory(
 
         builder.ConfigureServices(services =>
         {
+            if (capturedLogs is not null)
+            {
+                services.AddSingleton<ILoggerProvider>(new CapturingLoggerProvider(capturedLogs));
+            }
+
             services.RemoveAll<IWatchlistReadRepository>();
             services.RemoveAll<ITvShowReadRepository>();
             services.RemoveAll<ISyncStatusReadRepository>();
@@ -56,6 +63,7 @@ public sealed class SeededApiFactory(
             RemoveDataProtectionKeyRingHostedService(services);
             RemoveTraktHostedService(services);
             RemoveLegacyTvMigrationHostedService(services);
+            RemoveTvIndexHostedService(services);
             services.AddSingleton<IWatchlistReadRepository, SeededWatchlistReadRepository>();
             services.AddSingleton<ITvShowReadRepository, SeededTvShowReadRepository>();
             services.AddSingleton<ISyncStatusReadRepository, SeededSyncStatusReadRepository>();
@@ -632,6 +640,47 @@ public sealed class SeededApiFactory(
                 new PlexMovieSyncResultDto("completed", DateTimeOffset.Parse("2026-06-05T12:00:03Z"), DateTimeOffset.Parse("2026-06-05T12:00:04Z"), 1, 500, 500, 0, 40, 220, 3));
 
             return Task.FromResult(result);
+        }
+    }
+
+    private static void RemoveTvIndexHostedService(IServiceCollection services)
+    {
+        ServiceDescriptor? indexDescriptor = services.FirstOrDefault(descriptor =>
+            descriptor.ServiceType == typeof(IHostedService)
+            && descriptor.ImplementationType == typeof(MongoTvIndexHostedService));
+
+        if (indexDescriptor is not null)
+        {
+            services.Remove(indexDescriptor);
+        }
+    }
+
+    private sealed class CapturingLoggerProvider(List<string> entries) : ILoggerProvider
+    {
+        public ILogger CreateLogger(string categoryName) => new CapturingLogger(entries);
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class CapturingLogger(List<string> entries) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(
+                LogLevel logLevel,
+                EventId eventId,
+                TState state,
+                Exception? exception,
+                Func<TState, Exception?, string> formatter)
+            {
+                lock (entries)
+                {
+                    entries.Add(formatter(state, exception));
+                }
+            }
         }
     }
 }

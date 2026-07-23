@@ -73,6 +73,25 @@ public sealed class TvSyncApiTests
     }
 
     [Fact]
+    public async Task SyncTv_WhenSnapshotReasonIsUnexpected_LogsOnlyAnUnknownReason()
+    {
+        List<string> logs = [];
+        using SeededApiFactory factory = new(
+            tvSyncException: new Watchlist.Application.TvSourceSnapshotRejectedException(
+                "secret-source-body"),
+            capturedLogs: logs);
+        using HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/tv", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        logs.Should().Contain(entry => entry.Contains(
+            "TV source snapshot rejected: unknown",
+            StringComparison.Ordinal));
+        logs.Should().NotContain(entry => entry.Contains("secret-source-body", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SonarrCompatibilityExport_IsEmptyAndCarriesCompatibilityHeader()
     {
         using SeededApiFactory factory = new();

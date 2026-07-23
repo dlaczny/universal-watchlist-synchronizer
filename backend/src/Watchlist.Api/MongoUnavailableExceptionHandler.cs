@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using Watchlist.Application;
 using Watchlist.Infrastructure;
 
 namespace Watchlist.Api;
 
-public sealed class MongoUnavailableExceptionHandler : IExceptionHandler
+public sealed class MongoUnavailableExceptionHandler(
+    ILogger<MongoUnavailableExceptionHandler> logger) : IExceptionHandler
 {
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
@@ -18,8 +20,11 @@ public sealed class MongoUnavailableExceptionHandler : IExceptionHandler
                 "trakt_not_connected", "Trakt is not connected.", cancellationToken);
         }
 
-        if (exception is TvSourceSnapshotRejectedException)
+        if (exception is TvSourceSnapshotRejectedException rejected)
         {
+            logger.LogWarning(
+                "TV source snapshot rejected: {Reason}",
+                IsStableSnapshotReason(rejected.Message) ? rejected.Message : "unknown");
             return await WriteTvFailureAsync(httpContext, StatusCodes.Status502BadGateway,
                 "tv_snapshot_rejected", "The TV source snapshot was rejected.", cancellationToken);
         }
@@ -131,5 +136,11 @@ public sealed class MongoUnavailableExceptionHandler : IExceptionHandler
         context.Response.StatusCode = statusCode;
         await context.Response.WriteAsJsonAsync(new { code, error }, cancellationToken);
         return true;
+    }
+
+    private static bool IsStableSnapshotReason(string value)
+    {
+        return value.Length is > 0 and <= 80
+            && value.All(character => character is >= 'a' and <= 'z' or >= '0' and <= '9' or '_');
     }
 }
