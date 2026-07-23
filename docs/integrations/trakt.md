@@ -64,9 +64,11 @@ complete schedule and its watched-progress position remain publishable.
 
 The synchronizer compares the activity cursor before and after collecting the
 candidate. A cursor change is a race: no candidate is published. HTTP 429 is
-reported as a typed rate-limit failure with the parsed `Retry-After` delay; the
-hosted service logs a stable failure category and leaves the old generation in
-place rather than guessing or retrying a partial source.
+handled in the adapter only when Trakt supplies `Retry-After`: it pauses and
+resumes the interrupted read, up to six times, without publishing a partial
+candidate. A missing delay or an exhausted retry budget is reported as a typed
+rate-limit failure; the hosted service logs a stable failure category and leaves
+the old generation in place.
 
 # Links
 

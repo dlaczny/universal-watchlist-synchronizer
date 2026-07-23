@@ -1016,12 +1016,11 @@ public sealed class TraktTvClientTests
     }
 
     [Fact]
-    public async Task Read_WhenRateLimited_MapsRetryAfterAndDoesNotRetry()
+    public async Task Read_WhenRateLimitedWithoutRetryAfter_ThrowsTypedFailure()
     {
         RecordingHandler handler = new(_ => Response(
             HttpStatusCode.TooManyRequests,
-            "secret-rate-limit-response",
-            response => response.Headers.TryAddWithoutValidation("Retry-After", "42")));
+            "secret-rate-limit-response"));
         TraktTvClient client = CreateClient(handler);
 
         Func<Task> action = async () => await client.GetWatchlistAsync(
@@ -1031,12 +1030,32 @@ public sealed class TraktTvClientTests
         TraktRateLimitedException exception = (await action.Should()
             .ThrowAsync<TraktRateLimitedException>())
             .Which;
-        exception.RetryAfter.Should().Be(TimeSpan.FromSeconds(42));
+        exception.RetryAfter.Should().BeNull();
         exception.Message.Should().Be("Trakt rate limited the request.");
         exception.InnerException.Should().BeNull();
         exception.ToString().Should().NotContain("secret-rate-limit-response");
         exception.ToString().Should().NotContain(AccessToken);
         handler.Requests.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Read_WhenRateLimitedWithRetryAfter_RetriesTheInterruptedRead()
+    {
+        int attempts = 0;
+        RecordingHandler handler = new(_ => attempts++ == 0
+            ? Response(
+                HttpStatusCode.TooManyRequests,
+                "secret-rate-limit-response",
+                response => response.Headers.TryAddWithoutValidation("Retry-After", "0"))
+            : PaginatedJsonResponse("[]", 1));
+        TraktTvClient client = CreateClient(handler);
+
+        TraktPagedResult<TraktWatchlistShow> result = await client.GetWatchlistAsync(
+            AccessToken,
+            CancellationToken.None);
+
+        result.Items.Should().BeEmpty();
+        handler.Requests.Should().HaveCount(2);
     }
 
     [Theory]

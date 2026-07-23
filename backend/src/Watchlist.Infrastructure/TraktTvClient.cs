@@ -9,7 +9,7 @@ using Watchlist.Application;
 namespace Watchlist.Infrastructure;
 
 /// <summary>
-/// Reads complete authenticated TV source state from Trakt without retrying.
+/// Reads complete authenticated TV source state from Trakt, resuming only explicit rate-limited reads.
 /// </summary>
 public sealed class TraktTvClient(
     IHttpClientFactory httpClientFactory,
@@ -24,6 +24,9 @@ public sealed class TraktTvClient(
 
     // At the supported page size this still permits a complete 100,000-row source catalog.
     private const int MaximumPageCount = 1_000;
+
+    // Bound a single full read while still allowing a large catalog to resume after Trakt's cooldown.
+    private const int MaximumRateLimitRetries = 6;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -327,30 +330,49 @@ public sealed class TraktTvClient(
     {
         string normalizedAccessToken = NormalizeCredential(accessToken);
         string clientId = NormalizeCredential(options.Value.ClientId);
-        using HttpRequestMessage request = new(HttpMethod.Get, requestPath);
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", normalizedAccessToken);
-        request.Headers.TryAddWithoutValidation("trakt-api-version", "2");
-        request.Headers.TryAddWithoutValidation("trakt-api-key", clientId);
-        request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
+        for (int retryCount = 0; ; retryCount++)
+        {
+            using HttpRequestMessage request = new(HttpMethod.Get, requestPath);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", normalizedAccessToken);
+            request.Headers.TryAddWithoutValidation("trakt-api-version", "2");
+            request.Headers.TryAddWithoutValidation("trakt-api-key", clientId);
+            request.Headers.TryAddWithoutValidation("User-Agent", UserAgent);
 
-        try
-        {
-            return await httpClient.SendAsync(
-                request,
-                HttpCompletionOption.ResponseContentRead,
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch (HttpRequestException)
-        {
-            throw new TraktUnavailableException();
-        }
-        catch (IOException)
-        {
-            throw new TraktUnavailableException();
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TraktUnavailableException();
+            HttpResponseMessage response;
+            try
+            {
+                response = await httpClient.SendAsync(
+                    request,
+                    HttpCompletionOption.ResponseContentRead,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (HttpRequestException)
+            {
+                throw new TraktUnavailableException();
+            }
+            catch (IOException)
+            {
+                throw new TraktUnavailableException();
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TraktUnavailableException();
+            }
+
+            if (response.StatusCode != HttpStatusCode.TooManyRequests)
+            {
+                return response;
+            }
+
+            TimeSpan? retryAfter = ReadRetryAfter(response.Headers.RetryAfter);
+            response.Dispose();
+            if (retryAfter is null || retryCount >= MaximumRateLimitRetries)
+            {
+                throw new TraktRateLimitedException(retryAfter);
+            }
+
+            await Task.Delay(retryAfter.Value, _timeProvider, cancellationToken)
+                .ConfigureAwait(false);
         }
     }
 

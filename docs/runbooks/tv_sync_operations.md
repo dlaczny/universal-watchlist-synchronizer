@@ -46,10 +46,11 @@ connection is usable. Confirm `mutationCapable` remains false and both health
 reasons remain present. A missing export is `404`, which means no TV generation
 has been published; it is not permission to bootstrap destinations.
 
-If Trakt rate limits the request, the endpoint returns `503` with
-`code=trakt_rate_limited`. Honor its `Retry-After` header when present; otherwise
-wait for the upstream limit to clear and retry. The previous published
-generation, if any, remains unchanged.
+If Trakt rate limits a read and supplies `Retry-After`, the backend pauses and
+resumes that read up to six times. Only a missing delay or an exhausted retry
+budget returns `503` with `code=trakt_rate_limited`; honor its `Retry-After`
+header when present. The previous published generation, if any, remains
+unchanged.
 
 Provider `unknown` means no usable PL observation was obtained. `stale` means
 the last usable observation was retained after a provider failure. Neither

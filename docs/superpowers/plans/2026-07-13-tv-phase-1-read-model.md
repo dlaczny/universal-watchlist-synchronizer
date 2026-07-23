@@ -837,7 +837,8 @@ Assert `TraktParseException` for:
 - malformed JSON on any successful response.
 
 Test `429` mapping to `TraktRateLimitedException` with the parsed
-`Retry-After`, and ensure the client does not retry reads inside the adapter.
+`Retry-After`, including a bounded retry of the interrupted read when the delay
+is supplied.
 
 - [ ] **Step 3: Run the client test and verify it fails**
 
