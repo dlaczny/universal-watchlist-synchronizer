@@ -288,6 +288,30 @@ public sealed class TvSyncServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_DuplicateRegularSeasonTvdbIdentity_NormalizesTheLaterEpisodeToMissing()
+    {
+        Harness harness = Harness.Create();
+        TraktSeasonEpisode duplicateTvdbEpisode = Harness.EpisodeTwo() with
+        {
+            TvdbId = Harness.EpisodeOne().TvdbId
+        };
+        harness.Trakt.Seasons[(42, 1)] = [Harness.EpisodeOne(), duplicateTvdbEpisode];
+        TraktWatchedShowProgress progress = harness.Trakt.Progress.Items.Single();
+        harness.Trakt.Progress = new TraktPagedResult<TraktWatchedShowProgress>(
+            1,
+            100,
+            [progress with { NextEpisode = duplicateTvdbEpisode }]);
+
+        TvSyncResultDto result = await harness.SyncAsync(TvGenerationKind.ScheduledFull);
+
+        TvShow show = harness.PublishedShow();
+        show.Seasons.Single().Episodes.Select(episode => episode.TvdbId).Should().Equal(2_001, null);
+        show.NextEpisode!.TvdbId.Should().BeNull();
+        result.ShowsPublished.Should().Be(1);
+        AssertPhaseOneSafety(result, harness.Repository.Published!.Manifest);
+    }
+
+    [Fact]
     public async Task SyncAsync_CompleteSeasonZeroSchedule_PersistsExactIdentityOnlyRows()
     {
         Harness harness = Harness.Create();

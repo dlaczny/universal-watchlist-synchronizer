@@ -57,6 +57,11 @@ ambiguous partial special list.
 Trakt's numeric `tvdb: 0` placeholder is normalized to a missing optional TVDB
 identity before this special-schedule rule is applied.
 
+For regular episodes, a Trakt episode ID and season/episode position remain the
+authoritative identity. If Trakt reuses a TVDB episode ID within one collected
+schedule, the later conflicting TVDB value is normalized to missing; the
+complete schedule and its watched-progress position remain publishable.
+
 The synchronizer compares the activity cursor before and after collecting the
 candidate. A cursor change is a race: no candidate is published. HTTP 429 is
 reported as a typed rate-limit failure with the parsed `Retry-After` delay; the

@@ -439,11 +439,18 @@ public sealed class TvSyncService(
                 throw Rejected("tv_schedule_episode_duplicate");
             }
 
-            if (!traktEpisodeIds.Add(candidate.TraktEpisodeId)
-                || candidate.TvdbId is int tvdbId && !tvdbEpisodeIds.Add(tvdbId))
+            if (!traktEpisodeIds.Add(candidate.TraktEpisodeId))
             {
                 throw Rejected("tv_schedule_episode_identity_duplicate");
             }
+
+            TraktSeasonEpisode normalized = candidate;
+            if (candidate.TvdbId is int tvdbId && !tvdbEpisodeIds.Add(tvdbId))
+            {
+                normalized = candidate with { TvdbId = null };
+            }
+
+            result[candidate.EpisodeNumber] = normalized;
         }
 
         return result;
@@ -502,7 +509,9 @@ public sealed class TvSyncService(
                 (summary.SeasonNumber, summary.EpisodeNumber),
                 out TvEpisodeProgress? episode)
             || episode.TraktEpisodeId != summary.TraktEpisodeId
-            || episode.TvdbId != summary.TvdbId
+            || episode.TvdbId is int episodeTvdbId
+                && summary.TvdbId is int summaryTvdbId
+                && episodeTvdbId != summaryTvdbId
             || episode.Watched != expectedWatched)
         {
             throw Rejected("tv_schedule_summary_identity_conflict");
