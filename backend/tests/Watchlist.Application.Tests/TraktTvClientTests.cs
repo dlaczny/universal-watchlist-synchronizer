@@ -823,6 +823,29 @@ public sealed class TraktTvClientTests
             request.PathAndQuery == "/shows/42/seasons/0?extended=full");
     }
 
+    [Fact]
+    public async Task GetSeasonAsync_WhenTvdbIdIsZero_NormalizesItToMissing()
+    {
+        RecordingHandler handler = new(_ => JsonResponse("""
+            [
+              {
+                "season": 0,
+                "number": 17,
+                "ids": { "trakt": 2247122, "tvdb": 0 }
+              }
+            ]
+            """));
+        TraktTvClient client = CreateClient(handler);
+
+        IReadOnlyList<TraktSeasonEpisode> result = await client.GetSeasonAsync(
+            AccessToken,
+            42,
+            0,
+            CancellationToken.None);
+
+        result.Should().ContainSingle().Which.TvdbId.Should().BeNull();
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

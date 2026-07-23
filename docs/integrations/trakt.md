@@ -54,6 +54,9 @@ duplicate, or malformed special identities is excluded in full; it does not
 invalidate an otherwise complete source snapshot or produce a potentially
 ambiguous partial special list.
 
+Trakt's numeric `tvdb: 0` placeholder is normalized to a missing optional TVDB
+identity before this special-schedule rule is applied.
+
 The synchronizer compares the activity cursor before and after collecting the
 candidate. A cursor change is a race: no candidate is published. HTTP 429 is
 reported as a typed rate-limit failure with the parsed `Retry-After` delay; the

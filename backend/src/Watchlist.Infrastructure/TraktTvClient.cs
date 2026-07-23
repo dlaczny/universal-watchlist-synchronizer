@@ -512,10 +512,15 @@ public sealed class TraktTvClient(
             throw new TraktParseException();
         }
 
-        ValidateOptionalPositive(episode.Ids.Tvdb);
+        int? tvdbId = episode.Ids.Tvdb switch
+        {
+            null or 0 => null,
+            > 0 => episode.Ids.Tvdb,
+            _ => throw new TraktParseException()
+        };
         return new TraktSeasonEpisode(
             traktEpisodeId,
-            episode.Ids.Tvdb,
+            tvdbId,
             seasonNumber,
             episodeNumber,
             NormalizeOptional(episode.Title),
