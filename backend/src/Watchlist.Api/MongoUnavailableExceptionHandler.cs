@@ -115,6 +115,9 @@ public sealed class MongoUnavailableExceptionHandler(
 
         if (exception is not MongoException)
         {
+            logger.LogError(
+                "Unhandled backend exception type: {ExceptionType}",
+                exception.GetType().Name);
             return false;
         }
 
