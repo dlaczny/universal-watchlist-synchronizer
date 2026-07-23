@@ -109,6 +109,23 @@ public sealed class TvSyncApiTests
     }
 
     [Fact]
+    public async Task SyncTv_WhenServiceFails_LogsOnlyTheServiceExceptionType()
+    {
+        List<string> logs = [];
+        using SeededApiFactory factory = new(
+            tvSyncException: new InvalidOperationException("secret-source-body"),
+            capturedLogs: logs);
+        using HttpClient client = factory.CreateClient();
+
+        await client.PostAsync("/api/sync/tv", null);
+
+        logs.Should().Contain(entry => entry.Contains(
+            "TV sync operation failed: InvalidOperationException",
+            StringComparison.Ordinal));
+        logs.Should().NotContain(entry => entry.Contains("secret-source-body", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SonarrCompatibilityExport_IsEmptyAndCarriesCompatibilityHeader()
     {
         using SeededApiFactory factory = new();

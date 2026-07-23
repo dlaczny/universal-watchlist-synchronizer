@@ -286,10 +286,21 @@ syncApi.MapPost("/tmdb/tv", () => Results.Json(
 
 syncApi.MapPost("/tv", async (
     ITvSyncService syncService,
+    ILoggerFactory loggerFactory,
     CancellationToken cancellationToken) =>
 {
-    TvSyncResultDto result = await syncService.SyncAsync(TvGenerationKind.ScheduledFull, cancellationToken);
-    return Results.Ok(result);
+    try
+    {
+        TvSyncResultDto result = await syncService.SyncAsync(TvGenerationKind.ScheduledFull, cancellationToken);
+        return Results.Ok(result);
+    }
+    catch (Exception exception)
+    {
+        loggerFactory.CreateLogger("Watchlist.Api.TvSync").LogError(
+            "TV sync operation failed: {ExceptionType}",
+            exception.GetType().Name);
+        throw;
+    }
 });
 
 syncApi.MapPost("/availability/refresh", async (
