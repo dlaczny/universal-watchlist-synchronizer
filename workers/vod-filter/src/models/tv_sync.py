@@ -36,6 +36,7 @@ class TvShow:
     tvdb_id: int
     title: str
     seasons: tuple[TvSeason, ...]
+    specials: tuple[TvEpisode, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -317,20 +317,29 @@ class WatchlistAppClient:
         seasons = item.get("seasons")
         if not isinstance(seasons, list):
             raise WatchlistAppError("watchlist-app TV sync snapshot show has invalid seasons")
-        mapped_seasons = tuple(cls._map_tv_season(season) for season in seasons)
+        mapped_seasons = []
+        specials = []
+        for season in seasons:
+            if not isinstance(season, dict):
+                raise WatchlistAppError("watchlist-app TV sync snapshot season is not an object")
+            season_number = season.get("seasonNumber")
+            if isinstance(season_number, int) and not isinstance(season_number, bool) and season_number == 0:
+                specials.extend(cls._map_tv_specials(season))
+            else:
+                mapped_seasons.append(cls._map_tv_season(season))
         season_numbers = [season.season_number for season in mapped_seasons]
         if len(season_numbers) != len(set(season_numbers)):
             raise WatchlistAppError("watchlist-app TV sync snapshot show has duplicate season")
-        return TvShow(trakt_id, tvdb_id, title, mapped_seasons)
+        special_positions = [episode.episode_number for episode in specials]
+        if len(special_positions) != len(set(special_positions)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot show has duplicate special")
+        return TvShow(trakt_id, tvdb_id, title, tuple(mapped_seasons), tuple(specials))
 
     @classmethod
     def _map_tv_season(cls, item: Any) -> TvSeason:
         if not isinstance(item, dict):
             raise WatchlistAppError("watchlist-app TV sync snapshot season is not an object")
-        raw_season_number = item.get("seasonNumber")
-        if raw_season_number == 0:
-            raise WatchlistAppError("watchlist-app TV sync snapshot has special season")
-        season_number = cls._positive_int(raw_season_number, "season number")
+        season_number = cls._positive_int(item.get("seasonNumber"), "season number")
         episodes = item.get("episodes")
         if not isinstance(episodes, list):
             raise WatchlistAppError("watchlist-app TV sync snapshot season has invalid episodes")
@@ -341,10 +350,26 @@ class WatchlistAppClient:
         return TvSeason(season_number, cls._map_tv_availability(item.get("polandAvailability")), mapped_episodes)
 
     @classmethod
+    def _map_tv_specials(cls, item: dict[str, Any]) -> tuple[TvEpisode, ...]:
+        episodes = item.get("episodes")
+        if not isinstance(episodes, list):
+            raise WatchlistAppError("watchlist-app TV sync snapshot special season has invalid episodes")
+        return tuple(cls._map_tv_episode(episode, 0) for episode in episodes)
+
+    @classmethod
     def _map_tv_episode(cls, item: Any, season_number: int) -> TvEpisode:
         if not isinstance(item, dict):
             raise WatchlistAppError("watchlist-app TV sync snapshot episode is not an object")
-        episode_season = cls._positive_int(item.get("seasonNumber"), "episode season number")
+        raw_episode_season = item.get("seasonNumber")
+        if (
+            season_number == 0
+            and isinstance(raw_episode_season, int)
+            and not isinstance(raw_episode_season, bool)
+            and raw_episode_season == 0
+        ):
+            episode_season = 0
+        else:
+            episode_season = cls._positive_int(raw_episode_season, "episode season number")
         if episode_season != season_number:
             raise WatchlistAppError("watchlist-app TV sync snapshot episode has mismatched season")
         tvdb_id = item.get("tvdbId")

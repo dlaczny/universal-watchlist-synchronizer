@@ -138,6 +138,7 @@ def test_fetch_tv_sync_snapshot_returns_frozen_typed_regular_snapshot() -> None:
                     ),
                 ),
             ),
+            specials=(),
         ),
     )
     with pytest.raises((AttributeError, TypeError)):
@@ -182,10 +183,6 @@ def test_fetch_tv_sync_snapshot_rejects_invalid_json() -> None:
         (lambda snapshot: snapshot.__setitem__("publishedAt", "not-a-timestamp"), "publishedAt"),
         (lambda snapshot: snapshot.__setitem__("generatedAt", "2026-07-24T09:55:00"), "UTC"),
         (lambda snapshot: snapshot["shows"][0].__setitem__("tvdbId", 0), "TVDB ID"),
-        (
-            lambda snapshot: snapshot["shows"][0]["seasons"][0].__setitem__("seasonNumber", 0),
-            "special season",
-        ),
     ],
 )
 def test_fetch_tv_sync_snapshot_rejects_unsafe_contracts(mutate, reason: str) -> None:
@@ -194,6 +191,29 @@ def test_fetch_tv_sync_snapshot_rejects_unsafe_contracts(mutate, reason: str) ->
 
     with pytest.raises(WatchlistAppError, match=reason):
         response_client(payload).fetch_tv_sync_snapshot()
+
+
+def test_fetch_tv_sync_snapshot_preserves_specials_outside_regular_season_candidates() -> None:
+    payload = valid_snapshot()
+    special_season = copy.deepcopy(payload["shows"][0]["seasons"][0])
+    special_season["seasonNumber"] = 0
+    special_season["episodes"][0]["seasonNumber"] = 0
+    special_season["episodes"][0]["traktEpisodeId"] = 1000
+    payload["shows"][0]["seasons"].insert(0, special_season)
+
+    snapshot = response_client(payload).fetch_tv_sync_snapshot()
+
+    assert [season.season_number for season in snapshot.shows[0].seasons] == [1]
+    assert snapshot.shows[0].specials == (
+        TvEpisode(
+            trakt_episode_id=1000,
+            season_number=0,
+            episode_number=1,
+            tvdb_id=4001,
+            first_aired=snapshot.shows[0].specials[0].first_aired,
+            last_watched_at=snapshot.shows[0].specials[0].last_watched_at,
+        ),
+    )
 
 
 @pytest.mark.parametrize(
