@@ -168,6 +168,14 @@ def test_disabled_tv_sync_ignores_invalid_destination_quality_profile(
     Config().validate()
 
 
+def test_disabled_tv_sync_ignores_invalid_destination_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SONARR_URL", "not-a-url")
+
+    Config().validate()
+
+
 def test_enabled_tv_sync_rejects_invalid_destination_quality_profile(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -180,6 +188,20 @@ def test_enabled_tv_sync_rejects_invalid_destination_quality_profile(
 
     with pytest.raises(ConfigurationError, match="SONARR_QUALITY_PROFILE_ID"):
         Config()
+
+
+def test_enabled_tv_sync_rejects_invalid_destination_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TV_SYNC_ENABLED", "true")
+    monkeypatch.setenv("SONARR_URL", "not-a-url")
+    monkeypatch.setenv("SONARR_API_KEY", "sonarr-secret")
+    monkeypatch.setenv("SONARR_ROOT_FOLDER", "/tv")
+    monkeypatch.setenv("SONARR_QUALITY_PROFILE_ID", "1")
+    monkeypatch.setenv("PLEX_TV_LIBRARY_NAME", "TV Shows")
+
+    with pytest.raises(ConfigurationError, match="SONARR_URL"):
+        Config().validate()
 
 
 def test_tv_sync_enabled_accepts_destination_settings_without_enabling_mutation(

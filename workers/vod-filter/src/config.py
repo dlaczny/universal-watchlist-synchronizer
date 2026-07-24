@@ -355,6 +355,11 @@ class Config:
                 if value is None:
                     raise ConfigurationError(f"{key} is required when TV_SYNC_ENABLED=true")
 
+            if not self.sonarr_url.startswith(("http://", "https://")):
+                raise ConfigurationError(
+                    f"SONARR_URL must start with http:// or https://, got: {self.sonarr_url}"
+                )
+
     def __repr__(self) -> str:
         """Return string representation with sensitive data redacted."""
         return (
