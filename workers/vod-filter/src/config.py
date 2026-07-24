@@ -8,6 +8,7 @@ import sys
 import json
 from pathlib import Path
 from typing import List, Optional, Dict, Any
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -355,9 +356,10 @@ class Config:
                 if value is None:
                     raise ConfigurationError(f"{key} is required when TV_SYNC_ENABLED=true")
 
-            if not self.sonarr_url.startswith(("http://", "https://")):
+            sonarr_url = urlparse(self.sonarr_url)
+            if sonarr_url.scheme not in {"http", "https"} or not sonarr_url.hostname:
                 raise ConfigurationError(
-                    f"SONARR_URL must start with http:// or https://, got: {self.sonarr_url}"
+                    f"SONARR_URL must be an HTTP(S) URL with a hostname, got: {self.sonarr_url}"
                 )
 
     def __repr__(self) -> str:

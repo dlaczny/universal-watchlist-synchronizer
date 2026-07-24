@@ -171,7 +171,7 @@ def test_disabled_tv_sync_ignores_invalid_destination_quality_profile(
 def test_disabled_tv_sync_ignores_invalid_destination_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("SONARR_URL", "not-a-url")
+    monkeypatch.setenv("SONARR_URL", "http:///path")
 
     Config().validate()
 
@@ -190,11 +190,13 @@ def test_enabled_tv_sync_rejects_invalid_destination_quality_profile(
         Config()
 
 
+@pytest.mark.parametrize("url", ["not-a-url", "http:///path", "http://"])
 def test_enabled_tv_sync_rejects_invalid_destination_url(
     monkeypatch: pytest.MonkeyPatch,
+    url: str,
 ) -> None:
     monkeypatch.setenv("TV_SYNC_ENABLED", "true")
-    monkeypatch.setenv("SONARR_URL", "not-a-url")
+    monkeypatch.setenv("SONARR_URL", url)
     monkeypatch.setenv("SONARR_API_KEY", "sonarr-secret")
     monkeypatch.setenv("SONARR_ROOT_FOLDER", "/tv")
     monkeypatch.setenv("SONARR_QUALITY_PROFILE_ID", "1")
