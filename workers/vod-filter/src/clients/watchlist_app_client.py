@@ -409,7 +409,7 @@ class WatchlistAppClient:
             raise WatchlistAppError("watchlist-app TV sync snapshot has invalid polandAvailability")
         state = item.get("state")
         region = item.get("region")
-        if not isinstance(state, str) or not state.strip():
+        if state not in {"available", "confirmed_unavailable", "stale", "unknown"}:
             raise WatchlistAppError("watchlist-app TV sync snapshot has invalid availability state")
         if region != "PL":
             raise WatchlistAppError("watchlist-app TV sync snapshot has invalid availability region")

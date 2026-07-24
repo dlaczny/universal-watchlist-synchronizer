@@ -250,6 +250,14 @@ def test_fetch_tv_sync_snapshot_requires_evidence_timestamp_for_known_availabili
         response_client(payload).fetch_tv_sync_snapshot()
 
 
+def test_fetch_tv_sync_snapshot_rejects_unsupported_availability_state() -> None:
+    payload = valid_snapshot()
+    payload["shows"][0]["polandAvailability"]["state"] = "unsupported"
+
+    with pytest.raises(WatchlistAppError, match="availability state"):
+        response_client(payload).fetch_tv_sync_snapshot()
+
+
 def test_fetch_tv_sync_snapshot_rejects_duplicate_episode_trakt_id_across_regular_seasons() -> None:
     payload = valid_snapshot()
     second_season = copy.deepcopy(payload["shows"][0]["seasons"][0])
