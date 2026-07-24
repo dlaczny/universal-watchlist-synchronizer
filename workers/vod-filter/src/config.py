@@ -149,7 +149,7 @@ class Config:
             os.getenv("TV_SYNC_ADOPT_EXISTING_DESTINATIONS", "false").lower() == "true"
         )
         self.tv_sync_interval_seconds: int = self._parse_int(
-            "TV_SYNC_INTERVAL_SECONDS", default="900", minimum=1
+            "TV_SYNC_INTERVAL_SECONDS", default="900", minimum=60
         )
         self.tv_sync_max_snapshot_age_minutes: int = self._parse_int(
             "TV_SYNC_MAX_SNAPSHOT_AGE_MINUTES", default="30", minimum=1
