@@ -118,6 +118,11 @@ def test_fetch_tv_sync_snapshot_returns_frozen_typed_regular_snapshot() -> None:
             trakt_id=101,
             tvdb_id=202,
             title="A Regular Show",
+            availability=TvAvailability(
+                state="available",
+                region="PL",
+                fetched_at=snapshot.shows[0].availability.fetched_at,
+            ),
             seasons=(
                 TvSeason(
                     season_number=1,
@@ -199,6 +204,7 @@ def test_fetch_tv_sync_snapshot_preserves_specials_outside_regular_season_candid
     special_season["seasonNumber"] = 0
     special_season["episodes"][0]["seasonNumber"] = 0
     special_season["episodes"][0]["traktEpisodeId"] = 1000
+    special_season["episodes"][0]["tvdbId"] = 4000
     payload["shows"][0]["seasons"].insert(0, special_season)
 
     snapshot = response_client(payload).fetch_tv_sync_snapshot()
@@ -209,11 +215,73 @@ def test_fetch_tv_sync_snapshot_preserves_specials_outside_regular_season_candid
             trakt_episode_id=1000,
             season_number=0,
             episode_number=1,
-            tvdb_id=4001,
+            tvdb_id=4000,
             first_aired=snapshot.shows[0].specials[0].first_aired,
             last_watched_at=snapshot.shows[0].specials[0].last_watched_at,
         ),
     )
+
+
+def test_fetch_tv_sync_snapshot_preserves_unknown_availability_without_evidence() -> None:
+    payload = valid_snapshot()
+    payload["shows"][0]["polandAvailability"] = {
+        "state": "unknown",
+        "region": "PL",
+        "fetchedAt": None,
+        "link": None,
+        "offers": [],
+    }
+
+    snapshot = response_client(payload).fetch_tv_sync_snapshot()
+
+    assert snapshot.shows[0].seasons[0].availability.state == "available"
+    assert snapshot.shows[0].availability == TvAvailability(
+        state="unknown",
+        region="PL",
+        fetched_at=None,
+    )
+
+
+def test_fetch_tv_sync_snapshot_requires_evidence_timestamp_for_known_availability() -> None:
+    payload = valid_snapshot()
+    payload["shows"][0]["polandAvailability"]["fetchedAt"] = None
+
+    with pytest.raises(WatchlistAppError, match="availability fetchedAt"):
+        response_client(payload).fetch_tv_sync_snapshot()
+
+
+def test_fetch_tv_sync_snapshot_rejects_duplicate_episode_trakt_id_across_regular_seasons() -> None:
+    payload = valid_snapshot()
+    second_season = copy.deepcopy(payload["shows"][0]["seasons"][0])
+    second_season["seasonNumber"] = 2
+    second_season["episodes"][0]["seasonNumber"] = 2
+    payload["shows"][0]["seasons"].append(second_season)
+
+    with pytest.raises(WatchlistAppError, match="duplicate episode Trakt ID"):
+        response_client(payload).fetch_tv_sync_snapshot()
+
+
+def test_fetch_tv_sync_snapshot_rejects_duplicate_episode_trakt_id_across_shows() -> None:
+    payload = valid_snapshot()
+    second_show = copy.deepcopy(payload["shows"][0])
+    second_show["traktId"] = 102
+    second_show["tvdbId"] = 203
+    payload["shows"].append(second_show)
+
+    with pytest.raises(WatchlistAppError, match="duplicate episode Trakt ID"):
+        response_client(payload).fetch_tv_sync_snapshot()
+
+
+def test_fetch_tv_sync_snapshot_rejects_duplicate_episode_tvdb_id_across_specials() -> None:
+    payload = valid_snapshot()
+    special_season = copy.deepcopy(payload["shows"][0]["seasons"][0])
+    special_season["seasonNumber"] = 0
+    special_season["episodes"][0]["seasonNumber"] = 0
+    special_season["episodes"][0]["traktEpisodeId"] = 1000
+    payload["shows"][0]["seasons"].append(special_season)
+
+    with pytest.raises(WatchlistAppError, match="duplicate episode TVDB ID"):
+        response_client(payload).fetch_tv_sync_snapshot()
 
 
 @pytest.mark.parametrize(

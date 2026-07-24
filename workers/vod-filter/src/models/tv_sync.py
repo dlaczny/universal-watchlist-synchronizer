@@ -10,7 +10,7 @@ from datetime import datetime
 class TvAvailability:
     state: str
     region: str
-    fetched_at: datetime
+    fetched_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -35,6 +35,7 @@ class TvShow:
     trakt_id: int
     tvdb_id: int
     title: str
+    availability: TvAvailability
     seasons: tuple[TvSeason, ...]
     specials: tuple[TvEpisode, ...] = ()
 

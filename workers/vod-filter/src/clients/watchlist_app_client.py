@@ -212,6 +212,18 @@ class WatchlistAppClient:
             raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate Trakt ID")
         if len(tvdb_ids) != len(set(tvdb_ids)):
             raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate TVDB ID")
+        episodes = [
+            episode
+            for show in mapped_shows
+            for season in show.seasons
+            for episode in season.episodes
+        ] + [episode for show in mapped_shows for episode in show.specials]
+        episode_trakt_ids = [episode.trakt_episode_id for episode in episodes]
+        episode_tvdb_ids = [episode.tvdb_id for episode in episodes if episode.tvdb_id is not None]
+        if len(episode_trakt_ids) != len(set(episode_trakt_ids)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate episode Trakt ID")
+        if len(episode_tvdb_ids) != len(set(episode_tvdb_ids)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate episode TVDB ID")
 
         generation_id = payload.get("generationId")
         kind = payload.get("kind")
@@ -333,7 +345,14 @@ class WatchlistAppClient:
         special_positions = [episode.episode_number for episode in specials]
         if len(special_positions) != len(set(special_positions)):
             raise WatchlistAppError("watchlist-app TV sync snapshot show has duplicate special")
-        return TvShow(trakt_id, tvdb_id, title, tuple(mapped_seasons), tuple(specials))
+        return TvShow(
+            trakt_id,
+            tvdb_id,
+            title,
+            cls._map_tv_availability(item.get("polandAvailability")),
+            tuple(mapped_seasons),
+            tuple(specials),
+        )
 
     @classmethod
     def _map_tv_season(cls, item: Any) -> TvSeason:
@@ -394,7 +413,11 @@ class WatchlistAppClient:
             raise WatchlistAppError("watchlist-app TV sync snapshot has invalid availability state")
         if region != "PL":
             raise WatchlistAppError("watchlist-app TV sync snapshot has invalid availability region")
-        fetched_at = cls._parse_utc_datetime(item.get("fetchedAt"), "availability fetchedAt")
+        fetched_at = cls._parse_utc_datetime(
+            item.get("fetchedAt"),
+            "availability fetchedAt",
+            nullable=state == "unknown",
+        )
         return TvAvailability(state=state, region=region, fetched_at=fetched_at)
 
     @staticmethod
