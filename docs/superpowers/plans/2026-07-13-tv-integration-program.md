@@ -27,13 +27,18 @@ version: 0.1.0
 
 ## Program Documents
 
-Execute these plans in order:
+Phase 1 is complete. The active destination phase is the [reversible
+Sonarr/Plex Watchlist destination sync](2026-07-24-tv-reversible-destination-sync.md).
+The historical Phase 2 and Phase 3 documents below are superseded for ordering
+only; they remain retained as later-program history. Phase 4 and Phase 5
+remain blocked.
 
 1. [Phase 1: TV Read Model](2026-07-13-tv-phase-1-read-model.md)
-2. [Phase 2: Plex History To Trakt](2026-07-13-tv-phase-2-plex-trakt-history.md)
-3. [Phase 3: Reversible Sonarr And Plex Destinations](2026-07-13-tv-phase-3-reversible-destinations.md)
-4. [Phase 4: Concluded-Season Cleanup](2026-07-13-tv-phase-4-season-cleanup.md)
-5. [Phase 5: Terminal-Series Cleanup And Revival](2026-07-13-tv-phase-5-terminal-cleanup.md)
+2. [Active destination phase: Reversible Sonarr/Plex Watchlist destination sync](2026-07-24-tv-reversible-destination-sync.md)
+3. [Historical Phase 2: Plex History To Trakt (superseded for ordering only)](2026-07-13-tv-phase-2-plex-trakt-history.md)
+4. [Historical Phase 3: Reversible Sonarr And Plex Destinations (superseded for ordering only)](2026-07-13-tv-phase-3-reversible-destinations.md)
+5. [Phase 4: Concluded-Season Cleanup (blocked)](2026-07-13-tv-phase-4-season-cleanup.md)
+6. [Phase 5: Terminal-Series Cleanup And Revival (blocked)](2026-07-13-tv-phase-5-terminal-cleanup.md)
 
 This document is an execution index and release-checkpoint ledger, not a sixth
 implementation stream. Perform each master task at the phase boundary that

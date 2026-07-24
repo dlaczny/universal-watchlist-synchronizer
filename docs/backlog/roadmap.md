@@ -78,14 +78,12 @@ real deployment evidence in [TV Integration Rollout](../reports/tv_integration_r
 
 - Operate and collect rollout evidence for the completed Phase 1 backend read
   model. Do not treat a successful read generation as destination authority.
-- Complete and review the configured-account Plex-history bootstrap and
-  effectively-once Trakt outbox in [Phase 2](../superpowers/plans/2026-07-13-tv-phase-2-plex-trakt-history.md)
-  before reversible destinations.
-- Roll out Sonarr additions and Plex-watchlist lifecycle only through
-  [Phase 3](../superpowers/plans/2026-07-13-tv-phase-3-reversible-destinations.md),
-  before the independently gated [season](../superpowers/plans/2026-07-13-tv-phase-4-season-cleanup.md)
+- The active next TV release is the [reversible Sonarr/Plex Watchlist
+  destination sync](../superpowers/plans/2026-07-24-tv-reversible-destination-sync.md).
+- Keep the historical Plex-history bootstrap/outbox and the independently
+  gated [season](../superpowers/plans/2026-07-13-tv-phase-4-season-cleanup.md)
   and [terminal-series](../superpowers/plans/2026-07-13-tv-phase-5-terminal-cleanup.md)
-  deletion phases.
+  deletion work as later independent phases.
 - Keep every TV mutation disabled until its staged tests, reports, adoption
   review, grace periods, and supervised validation pass.
 
