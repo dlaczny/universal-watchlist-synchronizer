@@ -113,7 +113,11 @@ Record the owning Phase 1 Task 12 commit SHA and the focused test results in the
 phase-exit evidence. Do not create a second fixture commit from this program
 index; later phases modify and retest the same physical files.
 
-### Task 2: Enforce Phase Order And Entry Gates
+### Task 2: Historical Phase Order And Entry Gates (Superseded for Active Release Ordering)
+
+This retained gate records the historical Phase 2/Phase 3 sequence only. It
+does not block the active 2026-07-24 destination plan. Phase 4 and Phase 5
+remain blocked pending their independent gates.
 
 **Files:**
 - Modify: `docs/reports/tv_integration_rollout.md` (created by Phase 1 Task 16)

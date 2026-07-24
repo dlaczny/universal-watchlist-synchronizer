@@ -13,8 +13,8 @@ version: 1.0.0
 # Status
 
 Phase 1 implementation passed the local release gate on 2026-07-22. The
-dated production evidence below records its read-only release without secrets,
-tokens, titles, or generation identifiers.
+dated production evidence below records its read-only release without secret
+material or raw private upstream payloads.
 
 # 2026-07-24 Redacted Production Evidence
 
@@ -58,12 +58,13 @@ authorize any destination mutation.
 
 # Recording Rules
 
-Artifacts may contain timestamps, stable reason codes, and counts. They must
-not contain Trakt device/user codes, access/refresh tokens, client secrets,
-protected ciphertext, sync keys, Plex tokens, database connection strings,
-generation identifiers, or titles. A successful read-model deployment does
-not authorize any future Plex, Trakt-history, Sonarr, or Plex-watchlist
-mutation phase.
+Artifacts may contain timestamps, stable reason codes, counts, and non-secret
+generation identifiers or publish pointers. They must not contain Trakt
+device/user codes, access/refresh tokens, client secrets, protected ciphertext,
+sync keys, Plex tokens, database connection strings, authorization headers, or
+raw private upstream payloads. A successful read-model deployment does not
+authorize any future Plex, Trakt-history, Sonarr, or Plex-watchlist mutation
+phase.
 
 # Links
 
