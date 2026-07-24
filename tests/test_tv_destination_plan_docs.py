@@ -20,6 +20,7 @@ def test_rollout_ledger_records_redacted_production_evidence() -> None:
         "Trakt connected",
         "First complete generation published",
         "251/251",
+        "The release remains read-only.",
     ):
         assert evidence in rollout_ledger
 
@@ -47,6 +48,11 @@ def test_historical_phase_order_gate_does_not_block_active_destination_plan() ->
 
     assert "Historical Phase Order And Entry Gates (Superseded for Active Release Ordering)" in program
     assert "does not block the active 2026-07-24 destination plan" in program
+    for blocked_phase in (
+        "Phase 4: Concluded-Season Cleanup (blocked)",
+        "Phase 5: Terminal-Series Cleanup And Revival (blocked)",
+    ):
+        assert blocked_phase in program
 
 
 def test_active_destination_plan_allows_non_secret_audit_pointers() -> None:
