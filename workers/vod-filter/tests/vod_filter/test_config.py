@@ -109,13 +109,19 @@ def test_tv_sync_defaults_are_disabled_and_conservative() -> None:
     assert config.tv_sync_max_snapshot_age_minutes == 30
 
 
-def test_tv_sync_interval_requires_at_least_one_minute(
+def test_tv_sync_interval_rejects_values_below_one_minute(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("TV_SYNC_INTERVAL_SECONDS", "1")
+    monkeypatch.setenv("TV_SYNC_INTERVAL_SECONDS", "59")
 
     with pytest.raises(ConfigurationError, match="TV_SYNC_INTERVAL_SECONDS"):
         Config()
+
+
+def test_tv_sync_interval_accepts_one_minute(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TV_SYNC_INTERVAL_SECONDS", "60")
+
+    assert Config().tv_sync_interval_seconds == 60
 
 
 def test_tv_sync_enabled_requires_destination_settings(monkeypatch: pytest.MonkeyPatch) -> None:
