@@ -47,3 +47,19 @@ def test_historical_phase_order_gate_does_not_block_active_destination_plan() ->
 
     assert "Historical Phase Order And Entry Gates (Superseded for Active Release Ordering)" in program
     assert "does not block the active 2026-07-24 destination plan" in program
+
+
+def test_active_destination_plan_allows_non_secret_audit_pointers() -> None:
+    active_plan = (
+        ROOT / "docs" / "superpowers" / "plans" / "2026-07-24-tv-reversible-destination-sync.md"
+    ).read_text(encoding="utf-8")
+    policy = " ".join(active_plan.split())
+
+    assert "non-secret generation identifier or publish pointer" in policy
+    for prohibited_material in (
+        "credentials",
+        "token material",
+        "titles",
+        "raw private upstream payloads",
+    ):
+        assert prohibited_material in active_plan
