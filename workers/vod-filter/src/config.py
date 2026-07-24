@@ -142,6 +142,37 @@ class Config:
             == "true"
         )
 
+        # TV sync is read-only until a later destination implementation explicitly changes it.
+        self.tv_sync_enabled: bool = os.getenv("TV_SYNC_ENABLED", "false").lower() == "true"
+        self.tv_sync_apply: bool = os.getenv("TV_SYNC_APPLY", "false").lower() == "true"
+        self.tv_sync_adopt_existing_destinations: bool = (
+            os.getenv("TV_SYNC_ADOPT_EXISTING_DESTINATIONS", "false").lower() == "true"
+        )
+        self.tv_sync_interval_seconds: int = self._parse_int(
+            "TV_SYNC_INTERVAL_SECONDS", default="900", minimum=1
+        )
+        self.tv_sync_max_snapshot_age_minutes: int = self._parse_int(
+            "TV_SYNC_MAX_SNAPSHOT_AGE_MINUTES", default="30", minimum=1
+        )
+        self.tv_sync_allow_season_file_deletion: bool = (
+            os.getenv("TV_SYNC_ALLOW_SEASON_FILE_DELETION", "false").lower() == "true"
+        )
+        self.tv_sync_allow_terminal_series_deletion: bool = (
+            os.getenv("TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION", "false").lower() == "true"
+        )
+        self.tv_sync_allow_no_recycle_bin_delete: bool = (
+            os.getenv("TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE", "false").lower() == "true"
+        )
+        self.sonarr_url: Optional[str] = os.getenv("SONARR_URL", "").rstrip("/") or None
+        self.sonarr_api_key: Optional[str] = os.getenv("SONARR_API_KEY", "").strip() or None
+        self.sonarr_root_folder: Optional[str] = os.getenv("SONARR_ROOT_FOLDER", "").strip() or None
+        self.sonarr_quality_profile_id: Optional[int] = self._parse_int(
+            "SONARR_QUALITY_PROFILE_ID", default=None, minimum=1
+        )
+        self.plex_tv_library_name: Optional[str] = (
+            os.getenv("PLEX_TV_LIBRARY_NAME", "").strip() or None
+        )
+
         # Radarr Removal Settings
         self.radarr_delete_files_on_removal: bool = (
             os.getenv("RADARR_DELETE_FILES_ON_REMOVAL", "false").lower() == "true"
@@ -302,6 +333,27 @@ class Config:
             raise ConfigurationError(
                 "WATCHLIST_APP_SYNC_KEY is required when WATCHLIST_SOURCE=watchlist_app"
             )
+
+        for key, enabled in (
+            ("TV_SYNC_APPLY", self.tv_sync_apply),
+            ("TV_SYNC_ADOPT_EXISTING_DESTINATIONS", self.tv_sync_adopt_existing_destinations),
+            ("TV_SYNC_ALLOW_SEASON_FILE_DELETION", self.tv_sync_allow_season_file_deletion),
+            ("TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION", self.tv_sync_allow_terminal_series_deletion),
+            ("TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE", self.tv_sync_allow_no_recycle_bin_delete),
+        ):
+            if enabled:
+                raise ConfigurationError(f"{key} must remain false")
+
+        if self.tv_sync_enabled:
+            for key, value in (
+                ("SONARR_URL", self.sonarr_url),
+                ("SONARR_API_KEY", self.sonarr_api_key),
+                ("SONARR_ROOT_FOLDER", self.sonarr_root_folder),
+                ("SONARR_QUALITY_PROFILE_ID", self.sonarr_quality_profile_id),
+                ("PLEX_TV_LIBRARY_NAME", self.plex_tv_library_name),
+            ):
+                if value is None:
+                    raise ConfigurationError(f"{key} is required when TV_SYNC_ENABLED=true")
 
     def __repr__(self) -> str:
         """Return string representation with sensitive data redacted."""
