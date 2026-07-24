@@ -166,8 +166,10 @@ class Config:
         self.sonarr_url: Optional[str] = os.getenv("SONARR_URL", "").rstrip("/") or None
         self.sonarr_api_key: Optional[str] = os.getenv("SONARR_API_KEY", "").strip() or None
         self.sonarr_root_folder: Optional[str] = os.getenv("SONARR_ROOT_FOLDER", "").strip() or None
-        self.sonarr_quality_profile_id: Optional[int] = self._parse_int(
-            "SONARR_QUALITY_PROFILE_ID", default=None, minimum=1
+        self.sonarr_quality_profile_id: Optional[int] = (
+            self._parse_int("SONARR_QUALITY_PROFILE_ID", default=None, minimum=1)
+            if self.tv_sync_enabled
+            else None
         )
         self.plex_tv_library_name: Optional[str] = (
             os.getenv("PLEX_TV_LIBRARY_NAME", "").strip() or None
@@ -335,8 +337,6 @@ class Config:
             )
 
         for key, enabled in (
-            ("TV_SYNC_APPLY", self.tv_sync_apply),
-            ("TV_SYNC_ADOPT_EXISTING_DESTINATIONS", self.tv_sync_adopt_existing_destinations),
             ("TV_SYNC_ALLOW_SEASON_FILE_DELETION", self.tv_sync_allow_season_file_deletion),
             ("TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION", self.tv_sync_allow_terminal_series_deletion),
             ("TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE", self.tv_sync_allow_no_recycle_bin_delete),
