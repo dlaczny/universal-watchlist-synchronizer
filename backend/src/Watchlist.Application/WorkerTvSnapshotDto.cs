@@ -7,6 +7,7 @@ public sealed record WorkerTvSnapshotDto(
     DateTimeOffset GeneratedAt,
     string Kind,
     bool MutationCapable,
+    WorkerTvDestinationSyncDto DestinationSync,
     IReadOnlyList<string> HealthReasons,
     WorkerTvPlexHistoryDto PlexHistory,
     IReadOnlyList<WorkerTvShowDto> Shows,

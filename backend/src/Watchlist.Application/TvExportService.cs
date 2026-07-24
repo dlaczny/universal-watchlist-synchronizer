@@ -14,12 +14,13 @@ public sealed class TvExportService(ITvGenerationRepository generationRepository
 
         TvGenerationManifest manifest = published.Manifest;
         return new WorkerTvSnapshotDto(
-            "1",
+            "2",
             manifest.GenerationId,
             manifest.PublishedAt,
             manifest.CompletedAt,
             ToApiValue(manifest.Kind),
-            manifest.MutationCapable,
+            false,
+            ToDestinationSync(manifest),
             manifest.HealthReasons,
             new WorkerTvPlexHistoryDto(false, false, null, null, null, null, null, null),
             published.Shows.OrderBy(show => show.TraktId)
@@ -48,6 +49,7 @@ public sealed class TvExportService(ITvGenerationRepository generationRepository
                 false,
                 [],
                 "not_authorized",
+                ToAvailability(show.Availability),
                 show.SpecialEpisodeIdentities.OrderBy(episode => episode.EpisodeNumber)
                     .Select(episode => new WorkerTvEpisodeDto(
                         episode.TraktEpisodeId,
@@ -123,7 +125,33 @@ public sealed class TvExportService(ITvGenerationRepository generationRepository
                 .Select(episode => episode.EpisodeNumber)
                 .ToArray(),
             "not_authorized",
+            ToAvailability(season.Availability),
             episodes);
+    }
+
+    private static WorkerTvDestinationSyncDto ToDestinationSync(TvGenerationManifest manifest)
+    {
+        List<string> blockers = [];
+        if (!string.Equals(manifest.ValidationStatus, "valid", StringComparison.Ordinal))
+        {
+            blockers.Add("tv_generation_not_valid");
+        }
+
+        if (manifest.PublishedAt == default)
+        {
+            blockers.Add("tv_generation_unpublished");
+        }
+
+        if (manifest.ValidationFailureReasons.Count > 0)
+        {
+            blockers.Add("tv_generation_validation_failed");
+        }
+
+        string[] orderedBlockers = blockers
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(blocker => blocker, StringComparer.Ordinal)
+            .ToArray();
+        return new WorkerTvDestinationSyncDto(orderedBlockers.Length == 0, orderedBlockers);
     }
 
     private static WorkerTvEpisodeDto? ToNullableEpisode(

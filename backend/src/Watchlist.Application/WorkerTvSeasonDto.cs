@@ -7,4 +7,5 @@ public sealed record WorkerTvSeasonDto(
     bool MonitoredDesired,
     IReadOnlyList<int> SearchAiredUnwatchedEpisodes,
     string CleanupState,
+    TvProviderAvailabilityDto PolandAvailability,
     IReadOnlyList<WorkerTvEpisodeDto> Episodes);

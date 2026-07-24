@@ -202,9 +202,11 @@ public sealed class TvSyncApiTests
         string body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        body.Should().Contain("\"schemaVersion\":\"1\"");
+        body.Should().Contain("\"schemaVersion\":\"2\"");
         body.Should().Contain("\"generationId\":\"seeded-tv-generation\"");
         body.Should().Contain("\"mutationCapable\":false");
+        body.Should().Contain("\"destinationSync\":{\"capable\":true");
+        body.Should().Contain("\"polandAvailability\":");
         body.Should().Contain("phase_1_read_only");
         body.Should().NotContain("seeded-access-token");
     }
