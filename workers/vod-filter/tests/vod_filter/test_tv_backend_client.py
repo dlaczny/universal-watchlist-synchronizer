@@ -198,6 +198,17 @@ def test_fetch_tv_sync_snapshot_rejects_unsafe_contracts(mutate, reason: str) ->
         response_client(payload).fetch_tv_sync_snapshot()
 
 
+def test_fetch_tv_sync_snapshot_rejects_capable_destination_sync_with_blockers() -> None:
+    payload = valid_snapshot()
+    payload["destinationSync"] = {
+        "capable": True,
+        "blockers": ["tv_generation_validation_failed"],
+    }
+
+    with pytest.raises(WatchlistAppError, match="destinationSync has blockers"):
+        response_client(payload).fetch_tv_sync_snapshot()
+
+
 def test_fetch_tv_sync_snapshot_preserves_specials_outside_regular_season_candidates() -> None:
     payload = valid_snapshot()
     special_season = copy.deepcopy(payload["shows"][0]["seasons"][0])

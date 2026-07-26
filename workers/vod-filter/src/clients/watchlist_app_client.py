@@ -198,6 +198,10 @@ class WatchlistAppClient:
             isinstance(blocker, str) for blocker in destination_sync["blockers"]
         ):
             raise WatchlistAppError("watchlist-app TV sync snapshot has invalid destinationSync")
+        if destination_sync["capable"] and destination_sync["blockers"]:
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot destinationSync has blockers while capable"
+            )
 
         if payload.get("mutationCapable") is not False:
             raise WatchlistAppError("watchlist-app TV sync snapshot mutationCapable must be false")
