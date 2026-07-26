@@ -56,7 +56,7 @@ def test_policy_rejects_duplicate_actions_and_missing_plex_identity() -> None:
         now=NOW,
     )
 
-    assert blockers == ["tv_duplicate_actions", "plex_identity_missing"]
+    assert blockers == ["tv_duplicate_actions", "tv_action_identity_invalid", "plex_identity_missing"]
 
 
 def test_policy_blocks_unknown_provider_for_sonarr_and_adoption_without_gate() -> None:

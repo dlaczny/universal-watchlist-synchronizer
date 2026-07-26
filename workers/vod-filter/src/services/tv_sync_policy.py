@@ -57,11 +57,21 @@ def evaluate_tv_plan(
     action_ids = [item.action_id for item in plan.decisions]
     if len(set(action_ids)) != len(action_ids):
         blockers.append("tv_duplicate_actions")
-    if any(
-        item.action in {"plex_add", "plex_remove"}
-        and (not isinstance(item.tvdb_id, int) or isinstance(item.tvdb_id, bool) or item.tvdb_id <= 0)
-        for item in plan.decisions
-    ):
+    mutation_actions = {
+        "sonarr_add",
+        "sonarr_monitor_series",
+        "sonarr_monitor_season",
+        "sonarr_search_episodes",
+        "sonarr_adoption_candidate",
+        "plex_add",
+        "plex_remove",
+    }
+    invalid_identity_actions = [
+        item for item in plan.decisions if item.action in mutation_actions and _invalid_identity(item)
+    ]
+    if invalid_identity_actions:
+        blockers.append("tv_action_identity_invalid")
+    if any(item.action in {"plex_add", "plex_remove"} for item in invalid_identity_actions):
         blockers.append("plex_identity_missing")
     if any(
         item.destination == "sonarr"
@@ -95,3 +105,25 @@ def _minutes(value: int):
     from datetime import timedelta
 
     return timedelta(minutes=value)
+
+
+def _invalid_identity(decision) -> bool:
+    """Validate every identity that would cross a destination boundary."""
+    tvdb_id = decision.tvdb_id
+    if not isinstance(tvdb_id, int) or isinstance(tvdb_id, bool) or tvdb_id <= 0:
+        return True
+    if decision.action not in {"plex_add", "plex_remove"}:
+        return False
+    if decision.tmdb_id is not None and (
+        not isinstance(decision.tmdb_id, int)
+        or isinstance(decision.tmdb_id, bool)
+        or decision.tmdb_id <= 0
+    ):
+        return True
+    imdb_id = decision.imdb_id
+    return imdb_id is not None and (
+        not isinstance(imdb_id, str)
+        or not imdb_id.startswith("tt")
+        or not imdb_id[2:].isdigit()
+        or int(imdb_id[2:]) <= 0
+    )

@@ -4,6 +4,9 @@ from types import MappingProxyType
 
 from src.models.tv_destination import TvDecision, TvPlan
 from src.services.tv_destination_executor import TvDestinationExecutor
+from src.services.tv_sync_policy import TvSyncPolicy, evaluate_tv_plan
+from src.models.tv_sync import TvSnapshot
+from datetime import datetime, timezone
 
 
 class FakeStateStore:
@@ -100,6 +103,42 @@ def test_executor_blocks_all_mutation_and_records_no_audit_when_policy_blocks() 
 
     assert result.errors == ()
     assert state.actions == []
+    assert plex.calls == []
+
+
+def test_invalid_sonarr_identity_blocks_a_valid_plex_action_before_any_execution() -> None:
+    state = FakeStateStore()
+    sonarr = FakeSonarr()
+    plex = FakePlex()
+    sync_plan = plan_with(
+        decision("plex_add"),
+        decision("sonarr_monitor_series", tvdb_id=0, destination="sonarr"),
+    )
+    snapshot = TvSnapshot(
+        "2",
+        "generation-1",
+        datetime(2026, 7, 26, 12, tzinfo=timezone.utc),
+        datetime(2026, 7, 26, 12, tzinfo=timezone.utc),
+        "scheduled_full",
+        True,
+        (),
+    )
+
+    blockers = evaluate_tv_plan(
+        sync_plan,
+        TvSyncPolicy(enabled=True, apply_enabled=True),
+        snapshot=snapshot,
+        apply_requested=True,
+        now=snapshot.published_at,
+    )
+    result = TvDestinationExecutor(
+        state, sonarr, plex, sonarr_root_folder="/tv", sonarr_quality_profile_id=1
+    ).execute(sync_plan, blockers=blockers, apply=True, adopt=False)
+
+    assert blockers == ["tv_action_identity_invalid"]
+    assert result.errors == ()
+    assert state.actions == []
+    assert sonarr.calls == []
     assert plex.calls == []
 
 
