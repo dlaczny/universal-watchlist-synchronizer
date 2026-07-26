@@ -38,3 +38,41 @@ def test_healthcheck_rejects_stale_failed_or_malformed_heartbeat(tmp_path: Path)
     assert check_heartbeat(stale, max_age_seconds=7200, now=NOW) is False
     assert check_heartbeat(failed, max_age_seconds=7200, now=NOW) is False
     assert check_heartbeat(malformed, max_age_seconds=7200, now=NOW) is False
+
+
+def test_workflow_heartbeat_keeps_legacy_fields_and_requires_enabled_tv(tmp_path: Path):
+    path = tmp_path / "last-run.json"
+    write_heartbeat(
+        path,
+        workflow="movie_sync",
+        status="completed",
+        exit_code=0,
+        written_at=NOW,
+    )
+    write_heartbeat(
+        path,
+        workflow="tv_sync",
+        status="reconciliation",
+        exit_code=0,
+        written_at=NOW,
+    )
+
+    assert check_heartbeat(path, max_age_seconds=1800, now=NOW + timedelta(minutes=15))
+    assert check_heartbeat(
+        path,
+        max_age_seconds=1800,
+        now=NOW + timedelta(minutes=15),
+        required_workflows=("movie_sync", "tv_sync"),
+    )
+
+
+def test_enabled_tv_health_rejects_missing_or_stale_tv_heartbeat(tmp_path: Path):
+    path = tmp_path / "last-run.json"
+    write_heartbeat(path, workflow="movie_sync", status="completed", exit_code=0, written_at=NOW)
+
+    assert not check_heartbeat(
+        path,
+        max_age_seconds=1800,
+        now=NOW + timedelta(minutes=15),
+        required_workflows=("movie_sync", "tv_sync"),
+    )

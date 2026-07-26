@@ -80,6 +80,9 @@ def test_tv_phase_one_deployment_contract_is_secret_safe_and_mutation_locked() -
     assert production_api["user"] == "${WATCHLIST_RUNTIME_UID:-10001}:${WATCHLIST_RUNTIME_GID:-10001}"
     for service in (backend_api, production_api, production_worker):
         assert service["environment"].items() >= {gate: "false" for gate in TV_GATES}.items()
+    assert production_worker["environment"]["TV_SYNC_ENABLED"] == "false"
+    assert ":/app/tv-ro" not in PRODUCTION_COMPOSE.read_text(encoding="utf-8")
+    assert "sync_tv.py" in (ROOT / "workers" / "vod-filter" / "Dockerfile").read_text(encoding="utf-8")
     assert "install -d -o app -g app -m 0700 /var/lib/watchlist/keyring" in dockerfile
     assert "$DATA_DIR/backend/data-protection-keys" in deploy_script
     assert "chown \"$WATCHLIST_RUNTIME_UID:$WATCHLIST_RUNTIME_GID\"" in deploy_script
@@ -118,6 +121,7 @@ def test_tv_phase_one_deployment_contract_is_secret_safe_and_mutation_locked() -
             assert env[gate] == "false"
     for gate in TV_GATES:
         assert worker_env[gate] == "false"
+    assert worker_env["TV_SYNC_ENABLED"] == "false"
 
     sensitive_keys = re.compile(r"(?:token|api[_-]?key|sync[_-]?key|clientsecret)", re.IGNORECASE)
     for example in EXAMPLES:
@@ -131,5 +135,6 @@ def test_tv_phase_one_deployment_contract_is_secret_safe_and_mutation_locked() -
     assert "dotnet test backend/Watchlist.sln --configuration Release --no-restore" in workflow
     assert "working-directory: workers/vod-filter" in workflow
     assert "python -m pytest -q" in workflow
+    assert "sync_tv.py" in workflow
     assert 'python -m pip install "pytest>=8.0.0" "PyYAML>=6.0.0"' in workflow
     assert "python -m pytest tests/deployment/test_tv_phase1_deployment.py -q" in workflow

@@ -147,7 +147,12 @@ def main(argv=None) -> int:
         print(f"TV sync failed: {error}", file=sys.stderr)
         return 1
     heartbeat_status = {0: "completed" if args.apply else "reconciliation", 2: "partial", 3: "blocked"}.get(result.exit_code, "failed")
-    write_heartbeat(config.database_path.parent / "last-run.json", status=heartbeat_status, exit_code=result.exit_code)
+    write_heartbeat(
+        config.database_path.parent / "last-run.json",
+        status=heartbeat_status,
+        exit_code=result.exit_code,
+        workflow="tv_sync",
+    )
     if not args.quiet:
         print(f"TV sync JSON report: {result.json_path}")
         print(f"TV sync Markdown report: {result.markdown_path}")

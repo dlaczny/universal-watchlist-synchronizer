@@ -92,7 +92,7 @@ jobs:
 
       - name: Compile production entry points
         working-directory: workers/vod-filter
-        run: python -m compileall -q src continuous_sync.py sync_movies.py reconcile_sync.py healthcheck.py
+        run: python -m compileall -q src continuous_sync.py sync_movies.py sync_tv.py reconcile_sync.py healthcheck.py
 
   secret-scan:
     name: Secret scan
