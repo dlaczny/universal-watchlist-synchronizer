@@ -112,7 +112,9 @@ class PlexTvClient:
         if len(matches) != 1:
             raise PlexTvError(f"Plex TV watchlist is ambiguous for TVDB {identity.tvdb_id}")
         try:
-            target = self._watchlist_item_by_target_id(matches[0].target_id)
+            target = self._watchlist_item_by_target_id(matches[0].target_id, identity)
+            if target is None:
+                return False
             target.removeFromWatchlist()
         except PlexTvError:
             raise
@@ -120,15 +122,25 @@ class PlexTvClient:
             raise PlexTvError(f"Plex TV watchlist remove failed for TVDB {identity.tvdb_id}") from error
         return True
 
-    def _watchlist_item_by_target_id(self, target_id: str) -> Any:
+    def _watchlist_item_by_target_id(
+        self,
+        target_id: str,
+        expected_identity: VerifiedTvIdentity,
+    ) -> Any | None:
         try:
             rows = self.account.watchlist(libtype="show")
         except Exception as error:
             raise PlexTvError("Plex TV watchlist read failed") from error
         matches = [item for item in rows if self._target_id(item) == target_id]
         if len(matches) != 1:
-            raise PlexTvError("Plex TV watchlist target is no longer exact")
-        return matches[0]
+            return None
+        target = matches[0]
+        if getattr(target, "type", None) != "show":
+            return None
+        current_identity = self._identity_from_item(target)
+        if current_identity is None or current_identity.tvdb_id != expected_identity.tvdb_id:
+            return None
+        return target
 
     @classmethod
     def _show_rows(cls, rows: Any, source: str) -> list[PlexTvShow]:

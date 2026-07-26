@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 
 VOD_FILTER_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(VOD_FILTER_ROOT))
@@ -63,6 +64,19 @@ class Account:
         return self._discovery
 
 
+class ReusedTargetAccount(Account):
+    def __init__(self, initial_watchlist: list[Item], replacement: Item):
+        super().__init__(initial_watchlist, [])
+        self.replacement = replacement
+        self.watchlist_calls = 0
+
+    def watchlist(self, **kwargs):
+        self.watchlist_calls += 1
+        if self.watchlist_calls == 1:
+            return super().watchlist(**kwargs)
+        return [self.replacement]
+
+
 def client(account: Account, library_items: list[Item] = []) -> PlexTvClient:
     return PlexTvClient.from_objects(account=account, server=Server(library_items))
 
@@ -111,6 +125,28 @@ def test_watchlist_remove_rejects_a_noncanonical_alternate_guid() -> None:
 
     assert removed is False
     assert tmdb_only.removed is False
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        Item("movie", "reused-key", ["tvdb://123", "tmdb://9"]),
+        Item("show", "reused-key", ["tmdb://9"]),
+        Item("show", "reused-key", ["tvdb://999", "tmdb://9"]),
+    ],
+)
+def test_watchlist_remove_revalidates_reused_target_id_before_mutation(replacement: Item) -> None:
+    initial = Item("show", "reused-key", ["tvdb://123", "tmdb://9"])
+    account = ReusedTargetAccount([initial], replacement)
+
+    removed = client(account).remove_watchlist_show(
+        tvdb_id=123,
+        tmdb_id=9,
+        imdb_id=None,
+    )
+
+    assert removed is False
+    assert replacement.removed is False
 
 
 def test_plex_tv_client_has_no_library_write_surface() -> None:
