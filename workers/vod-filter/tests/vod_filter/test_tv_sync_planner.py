@@ -4,6 +4,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 
 VOD_FILTER_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(VOD_FILTER_ROOT))
@@ -58,10 +60,12 @@ def show(
     imdb_id: str | None = "tt1234567",
     in_trakt_watchlist: bool = True,
     lifecycle_state: str = "active",
+    tvdb_id: int | None = 100,
+    identity_status: str = "verified",
 ) -> TvShow:
     return TvShow(
         trakt_id=10,
-        tvdb_id=100,
+        tvdb_id=tvdb_id,
         title="Example",
         availability=TvAvailability("unknown", "PL", None),
         seasons=seasons,
@@ -70,6 +74,7 @@ def show(
         imdb_id=imdb_id,
         in_trakt_watchlist=in_trakt_watchlist,
         lifecycle_state=lifecycle_state,
+        identity_status=identity_status,
     )
 
 
@@ -81,9 +86,10 @@ def collected(
     plex_watchlist: tuple[PlexTvShow, ...] = (),
     ownership: tuple[TvOwnership, ...] = (),
     errors: tuple[str, ...] = (),
+    extra_shows: tuple[TvShow, ...] = (),
 ) -> TvCollectedState:
     return TvCollectedState(
-        snapshot=TvSnapshot("2", "generation-1", NOW, NOW, "scheduled_full", False, (show_value,)),
+        snapshot=TvSnapshot("2", "generation-1", NOW, NOW, "scheduled_full", False, (show_value, *extra_shows)),
         sonarr_series=sonarr_series,
         sonarr_episode_ids_by_tvdb=sonarr_episode_ids_by_tvdb,
         plex_watchlist=plex_watchlist,
@@ -307,3 +313,34 @@ def test_non_active_trakt_member_cannot_plan_destination_mutations() -> None:
     assert {decision.reason for decision in plan.decisions} == {
         "inactive_or_not_in_trakt_watchlist_no_destination_mutation"
     }
+
+
+@pytest.mark.parametrize("availability", ["unknown", "stale"])
+def test_uncertain_provider_never_removes_existing_plex_watchlist(availability: str) -> None:
+    existing = PlexTvShow("plex-show-100", VerifiedTvIdentity(100, 303, "tt1234567"))
+    plan = build_tv_plan(collected(show(seasons=(season(1, availability),)), plex_watchlist=(existing,)))
+
+    assert [(item.action, item.reason) for item in plan.decisions_for("plex_watchlist")] == [
+        ("keep", f"plex_provider_availability_{availability}")
+    ]
+
+
+def test_nonverified_show_skips_while_verified_show_in_same_snapshot_is_planned() -> None:
+    unresolved = show(
+        seasons=(season(1, "confirmed_unavailable"),),
+        tvdb_id=None,
+        identity_status="missing",
+    )
+    verified = show(seasons=(season(1, "available"),), tvdb_id=200)
+    plan = build_tv_plan(collected(verified, extra_shows=(unresolved,)))
+
+    assert plan.selected_season_by_tvdb == {200: 1}
+    assert any(item.tvdb_id is None and item.action == "skip" for item in plan.decisions)
+    assert any(item.tvdb_id == 200 and item.action == "plex_add" for item in plan.decisions)
+
+
+def test_selected_season_mapping_cannot_be_mutated() -> None:
+    plan = build_tv_plan(collected(show(seasons=(season(1, "available"),))))
+
+    with pytest.raises(TypeError):
+        plan.selected_season_by_tvdb[100] = 2

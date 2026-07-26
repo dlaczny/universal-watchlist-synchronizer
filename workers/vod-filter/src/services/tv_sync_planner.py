@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import MappingProxyType
+
 from src.clients.plex_tv_client import PlexTvShow
 from src.clients.sonarr_tv_client import SonarrSeries
 from src.models.tv_destination import TvCollectedState, TvDecision, TvPlan
@@ -24,7 +26,16 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
     }
     ownership = {(item.destination, item.tvdb_id): item for item in collected.ownership}
 
-    for show in sorted(collected.snapshot.shows, key=lambda item: item.tvdb_id):
+    for show in sorted(collected.snapshot.shows, key=lambda item: (item.tvdb_id is None, item.tvdb_id or 0)):
+        if show.identity_status != "verified" or show.tvdb_id is None:
+            reason = {
+                "missing": "identity_missing_tvdb_no_destination_mutation",
+                "conflict": "identity_conflict_no_destination_mutation",
+                "legacy_unresolved": "identity_legacy_unresolved_no_destination_mutation",
+            }.get(show.identity_status, "identity_unverified_no_destination_mutation")
+            for destination in ("sonarr", "plex_watchlist"):
+                decisions.append(_decision(collected.snapshot.generation_id, destination, show.tvdb_id, None, "skip", reason, tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+            continue
         if not (show.in_trakt_watchlist and show.lifecycle_state == "active"):
             reason = (
                 "source_removed_no_destination_mutation"
@@ -87,14 +98,18 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
             decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "plex_add", "selected_season_available_or_in_plex_library", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
         elif plex_desired:
             decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "keep", "plex_watchlist_desired", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
-        elif plex_existing is not None:
+        elif season.availability.state in {"unknown", "stale"} and plex_existing is not None:
+            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "keep", f"plex_provider_availability_{season.availability.state}", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+        elif season.availability.state in {"unknown", "stale"}:
+            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "uncertain", f"plex_provider_availability_{season.availability.state}", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+        elif season.availability.state == "confirmed_unavailable" and plex_existing is not None:
             decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "plex_remove", "selected_season_not_available_and_not_in_plex_library", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
 
-    decisions.sort(key=lambda item: (item.tvdb_id, item.destination, item.selected_season_number or 0, item.action))
+    decisions.sort(key=lambda item: (item.tvdb_id is None, item.tvdb_id or 0, item.destination, item.selected_season_number or 0, item.action))
     return TvPlan(
         generation_id=collected.snapshot.generation_id,
         decisions=tuple(decisions),
-        selected_season_by_tvdb=selected,
+        selected_season_by_tvdb=MappingProxyType(dict(selected)),
         collection_errors=collected.collection_errors,
         applyable=not collected.collection_errors,
     )
@@ -163,10 +178,10 @@ def _by_tvdb(rows: tuple[object, ...]) -> dict[int, object]:
     return result
 
 
-def _decision(generation_id: str, destination: str, tvdb_id: int, season_number: int | None, action: str, reason: str, episode_numbers: tuple[int, ...] = (), tmdb_id: int | None = None, imdb_id: str | None = None) -> TvDecision:
+def _decision(generation_id: str, destination: str, tvdb_id: int | None, season_number: int | None, action: str, reason: str, episode_numbers: tuple[int, ...] = (), tmdb_id: int | None = None, imdb_id: str | None = None) -> TvDecision:
     season_part = season_number or 0
     return TvDecision(
-        action_id=f"{generation_id}:{destination}:{tvdb_id}:{season_part}:{action}",
+        action_id=f"{generation_id}:{destination}:{tvdb_id or 0}:{season_part}:{action}",
         destination=destination,  # type: ignore[arg-type]
         action=action,  # type: ignore[arg-type]
         tvdb_id=tvdb_id,

@@ -33,7 +33,7 @@ class TvSeason:
 @dataclass(frozen=True)
 class TvShow:
     trakt_id: int
-    tvdb_id: int
+    tvdb_id: int | None
     title: str
     availability: TvAvailability
     seasons: tuple[TvSeason, ...]

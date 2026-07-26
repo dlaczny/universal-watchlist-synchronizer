@@ -198,7 +198,7 @@ def test_fetch_tv_sync_snapshot_rejects_invalid_json() -> None:
         (lambda snapshot: snapshot.__setitem__("publishedAt", "not-a-timestamp"), "publishedAt"),
         (lambda snapshot: snapshot.__setitem__("generatedAt", "2026-07-24T09:55:00"), "UTC"),
         (lambda snapshot: snapshot["shows"][0].__setitem__("tvdbId", 0), "TVDB ID"),
-        (lambda snapshot: snapshot["shows"][0].__setitem__("identityStatus", "conflict"), "identityStatus"),
+        (lambda snapshot: snapshot["shows"][0].__setitem__("identityStatus", "unsupported"), "identityStatus"),
     ],
 )
 def test_fetch_tv_sync_snapshot_rejects_unsafe_contracts(mutate, reason: str) -> None:
@@ -207,6 +207,18 @@ def test_fetch_tv_sync_snapshot_rejects_unsafe_contracts(mutate, reason: str) ->
 
     with pytest.raises(WatchlistAppError, match=reason):
         response_client(payload).fetch_tv_sync_snapshot()
+
+
+@pytest.mark.parametrize("status", ["missing", "conflict", "legacy_unresolved"])
+def test_fetch_tv_sync_snapshot_preserves_nonverified_identity_statuses(status: str) -> None:
+    payload = valid_snapshot()
+    payload["shows"][0]["identityStatus"] = status
+    payload["shows"][0]["tvdbId"] = None
+
+    snapshot = response_client(payload).fetch_tv_sync_snapshot()
+
+    assert snapshot.shows[0].identity_status == status
+    assert snapshot.shows[0].tvdb_id is None
 
 
 def test_fetch_tv_sync_snapshot_rejects_capable_destination_sync_with_blockers() -> None:

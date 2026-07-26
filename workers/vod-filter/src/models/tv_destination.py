@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Mapping
 
 from src.models.tv_sync import TvSnapshot
 
@@ -46,7 +46,7 @@ class TvDecision:
     action_id: str
     destination: TvDestination
     action: TvAction
-    tvdb_id: int
+    tvdb_id: int | None
     selected_season_number: int | None
     reason: str
     episode_numbers: tuple[int, ...] = ()
@@ -58,7 +58,7 @@ class TvDecision:
 class TvPlan:
     generation_id: str | None
     decisions: tuple[TvDecision, ...]
-    selected_season_by_tvdb: dict[int, int]
+    selected_season_by_tvdb: "Mapping[int, int]"
     collection_errors: tuple[str, ...]
     applyable: bool
 

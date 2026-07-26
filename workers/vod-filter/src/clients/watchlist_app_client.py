@@ -211,7 +211,7 @@ class WatchlistAppClient:
 
         mapped_shows = tuple(self._map_tv_show(show) for show in shows)
         trakt_ids = [show.trakt_id for show in mapped_shows]
-        tvdb_ids = [show.tvdb_id for show in mapped_shows]
+        tvdb_ids = [show.tvdb_id for show in mapped_shows if show.tvdb_id is not None]
         if len(trakt_ids) != len(set(trakt_ids)):
             raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate Trakt ID")
         if len(tvdb_ids) != len(set(tvdb_ids)):
@@ -326,12 +326,16 @@ class WatchlistAppClient:
         if not isinstance(item, dict):
             raise WatchlistAppError("watchlist-app TV sync snapshot show is not an object")
         trakt_id = cls._positive_int(item.get("traktId"), "Trakt ID")
-        tvdb_id = cls._positive_int(item.get("tvdbId"), "TVDB ID")
+        tvdb_id = item.get("tvdbId")
+        if tvdb_id is not None:
+            tvdb_id = cls._positive_int(tvdb_id, "TVDB ID")
         identity_status = item.get("identityStatus")
-        if identity_status != "verified":
+        if identity_status not in {"verified", "missing", "conflict", "legacy_unresolved"}:
             raise WatchlistAppError(
                 "watchlist-app TV sync snapshot has invalid identityStatus"
             )
+        if identity_status == "verified" and tvdb_id is None:
+            raise WatchlistAppError("watchlist-app TV sync snapshot verified identity lacks TVDB ID")
         in_trakt_watchlist = item.get("inTraktWatchlist")
         if not isinstance(in_trakt_watchlist, bool):
             raise WatchlistAppError(
