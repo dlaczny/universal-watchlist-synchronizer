@@ -31,6 +31,12 @@ TV_GATES = (
     "TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION",
     "TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE",
 )
+TV_RUNTIME_GATES = (
+    "TV_SYNC_ENABLED",
+    "TV_SYNC_APPLY",
+    "TV_SYNC_ADOPT_EXISTING_DESTINATIONS",
+)
+TV_PERMANENTLY_DISABLED_GATES = tuple(gate for gate in TV_GATES if gate not in TV_RUNTIME_GATES)
 
 
 def env_values(path: Path) -> dict[str, str]:
@@ -78,9 +84,13 @@ def test_tv_phase_one_deployment_contract_is_secret_safe_and_mutation_locked() -
         "${WATCHLIST_DATA_DIR:-./data}/backend/data-protection-keys:/var/lib/watchlist/keyring"
     ]
     assert production_api["user"] == "${WATCHLIST_RUNTIME_UID:-10001}:${WATCHLIST_RUNTIME_GID:-10001}"
-    for service in (backend_api, production_api, production_worker):
+    for service in (backend_api, production_api):
         assert service["environment"].items() >= {gate: "false" for gate in TV_GATES}.items()
-    assert production_worker["environment"]["TV_SYNC_ENABLED"] == "false"
+    assert production_worker["environment"].items() >= {
+        gate: "false" for gate in TV_PERMANENTLY_DISABLED_GATES
+    }.items()
+    for gate in TV_RUNTIME_GATES:
+        assert production_worker["environment"][gate] == f"${{{gate}:-false}}"
     assert ":/app/tv-ro" not in PRODUCTION_COMPOSE.read_text(encoding="utf-8")
     assert "sync_tv.py" in (ROOT / "workers" / "vod-filter" / "Dockerfile").read_text(encoding="utf-8")
     assert "install -d -o app -g app -m 0700 /var/lib/watchlist/keyring" in dockerfile
