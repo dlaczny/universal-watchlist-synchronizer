@@ -26,7 +26,7 @@ RUN groupadd --gid 10001 watchlist \
 WORKDIR /app
 COPY --from=builder --chown=watchlist:watchlist --chmod=0555 /opt/venv /opt/venv
 COPY --chown=watchlist:watchlist --chmod=0555 src/ ./src/
-COPY --chown=watchlist:watchlist --chmod=0555 continuous_sync.py sync_movies.py reconcile_sync.py healthcheck.py ./
+COPY --chown=watchlist:watchlist --chmod=0555 continuous_sync.py sync_movies.py sync_tv.py reconcile_sync.py healthcheck.py ./
 
 USER watchlist
 

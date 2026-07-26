@@ -12,11 +12,18 @@ version: 1.1.0
 
 # Current Status
 
-The historical Phase 1 read-model evidence below is local test evidence for
-commit `ee9f9e7`; it is not evidence that the schema-v2 reversible destination
-release has deployed or operated. No report-only, adoption, reversible apply,
-or convergence stage for this release is recorded in this ledger. Do not infer
-a completed stage from implementation, CI, local tests, or configuration.
+The dated Phase 1 production evidence below records the read-only release
+without secret material or raw private upstream payloads. It is not evidence
+that the schema-v2 reversible destination release has deployed or operated.
+No report-only, adoption, reversible apply, or convergence stage for that
+release is recorded in this ledger. Do not infer a completed stage from
+implementation, CI, local tests, or configuration.
+
+# 2026-07-24 Redacted Production Evidence
+
+| Scope | Evidence | Release boundary |
+|---|---|---|
+| Production read model | Trakt connected; First complete generation published; 251/251 published shows had usable TVDB IDs. | The release remains read-only. |
 
 Add dated, redacted evidence only after the corresponding real host operation.
 The absence of a row is a stop condition, not permission to proceed.
@@ -49,10 +56,10 @@ or personal media history.
 
 | Evidence | Command or API call | Artifact to retain | Current status |
 |---|---|---|---|
-| Device connection established without logging tokens | Protected `POST /api/integrations/trakt/device/start`, then protected status read | Redacted response metadata and API log excerpt showing no secret | Not run: requires a real Trakt authorization and deployed runtime |
-| First complete generation published | Protected `POST /api/sync/tv` | Redacted result, generation ID, and `GET /api/export/tv/sync-state` envelope | Not run: requires a real Trakt connection; controlled local sync tests passed |
-| Cursor-race rejection left the old pointer unchanged | Controlled integration test or supervised test account change during collection | Before/after generation IDs and rejected-run log category | Local test-validated 2026-07-22; production pending |
-| Source failure left the old pointer unchanged | Controlled unavailable/malformed source test | Before/after generation IDs and fixed failure category | Local test-validated 2026-07-22; production pending |
+| Device connection established without logging tokens | Protected `POST /api/integrations/trakt/device/start`, then protected status read | Redacted response metadata and API log excerpt showing no secret | Recorded in redacted production evidence on 2026-07-24 |
+| First complete generation published | Protected `POST /api/sync/tv` | Redacted result and `GET /api/export/tv/sync-state` envelope | Recorded in redacted production evidence on 2026-07-24 |
+| Cursor-race rejection left the old pointer unchanged | Controlled integration test or supervised test account change during collection | Pointer-state comparison and rejected-run log category | Local test-validated 2026-07-22; production pending |
+| Source failure left the old pointer unchanged | Controlled unavailable/malformed source test | Pointer-state comparison and fixed failure category | Local test-validated 2026-07-22; production pending |
 | Provider failure published unknown rather than unavailable | Controlled TMDB provider failure | Generation provider state and redacted failure evidence | Local test-validated 2026-07-22; production pending |
 | Legacy row quarantined or migrated deterministically | Migration startup with representative legacy data | Counts, stable migration reason, and no conflicting current row | Local test-validated 2026-07-22; production pending |
 | All six TV mutation gates observed false | `docker compose ... config` and redacted worker/API environment inspection | Compose/config output with the six false values | Local configuration and deployment test-validated 2026-07-22; production pending |
@@ -67,7 +74,7 @@ contacted; no Compose stack was started.
 | Check | Evidence | Outcome |
 |---|---|---|
 | Backend Release suite | `dotnet restore`, Release build, then `dotnet test backend/Watchlist.sln --configuration Release --no-build` | Passed: build had 0 warnings and 0 errors; 760 application and 74 API tests passed. |
-| TV publish/key-ring focus | Focused Release test filter covering `TvSyncServiceTests`, `TvSnapshotValidatorTests`, `MongoTvGenerationRepositoryTests`, `DataProtectionTraktTokenProtectorTests`, `DataProtectionKeyRingHostedServiceTests`, `TraktConnectionServiceTests`, and `MongoTraktConnectionRepositoryTests` | Passed: 274 tests. The in-process fixtures do not retain a real generation ID or token artifact. |
+| TV publish/key-ring focus | Focused Release test filter covering `TvSyncServiceTests`, `TvSnapshotValidatorTests`, `MongoTvGenerationRepositoryTests`, `DataProtectionTraktTokenProtectorTests`, `DataProtectionKeyRingHostedServiceTests`, `TraktConnectionServiceTests`, and `MongoTraktConnectionRepositoryTests` | Passed: 274 tests. The in-process fixtures retain no production identifier or token artifact. |
 | Publish-last matrix | `TvSyncServiceTests` in the focused suite | Passed: successful source publishes; TMDB provider failure publishes `unknown`; Trakt source failure and pre/post activity-cursor change do not stage or publish; two hourly scheduled absences emit `tv:42:2:source_removed`; an activity generation leaves absence confirmations unchanged. |
 | Key-ring recovery | Data-protection and connection-service tests in the focused suite | Passed: ciphertext survives provider restart with the same key ring; a different key ring produces sanitized `token_unreadable`/`refresh_required` state without changing stored ciphertext. No real OAuth flow was run. |
 | Worker regression | `python -m pytest -q` and production-entrypoint `compileall` in `workers/vod-filter` | Passed: 133 tests and compilation. A targeted scan found no Sonarr or Trakt-history worker surface; existing Plex-watchlist calls are movie-only. |
@@ -75,18 +82,19 @@ contacted; no Compose stack was started.
 | Container images | Local `docker build` for API and worker, followed by image inspection | Passed: `watchlist-api:tv-phase1` and `watchlist-worker:tv-phase1` built. Both declare a non-root user and a healthcheck. |
 | Secret and write-surface scans | Gitleaks v8.30.1 history scan from the primary checkout plus directory scan of a `git archive HEAD` publishable tree; true-gate and report-name scans | Passed: 197 history commits and 2.87 MB publishable tree scanned with no leaks. No `mutationCapable=true` or true TV apply/adoption assignment was found. `docs/reports` contains no sensitive-name references. |
 
-The direct `/api/integrations/trakt/*` and `/api/sync/tv` runtime checks are
-intentionally pending: their evidence requires an explicit real-account,
-host-local operation after deployment. They must be recorded here with
-redacted responses and a real generation ID before calling the rollout live.
+The direct `/api/integrations/trakt/*` and `/api/sync/tv` runtime checks have
+been recorded in the dated redacted production evidence above. This does not
+authorize any destination mutation.
 
 # Recording Rules
 
-Artifacts may contain timestamps, stable reason codes, generation IDs, and
-counts. They must not contain Trakt device/user codes, access/refresh tokens,
-client secrets, protected ciphertext, sync keys, Plex tokens, or database
-connection strings. A successful read-model deployment does not authorize any
-future Plex, Trakt-history, Sonarr, or Plex-watchlist mutation phase.
+Artifacts may contain timestamps, stable reason codes, counts, and non-secret
+generation identifiers or publish pointers. They must not contain Trakt
+device/user codes, access/refresh tokens, client secrets, protected ciphertext,
+sync keys, Plex tokens, database connection strings, authorization headers, or
+raw private upstream payloads. A successful read-model deployment does not
+authorize any future Plex, Trakt-history, Sonarr, or Plex-watchlist mutation
+phase.
 
 # Links
 

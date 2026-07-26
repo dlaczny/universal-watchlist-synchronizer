@@ -94,7 +94,9 @@ Make these exact edits:
 - In `docs/reports/tv_integration_rollout.md`, add a dated redacted production
   evidence row: Trakt connected, a complete generation published, all 251
   published shows had usable TVDB IDs, and the release remained read-only.
-  Do not write credentials, generation IDs, titles, or token material.
+  Record only the non-secret generation identifier or publish pointer needed
+  for operational audit. Do not write credentials, token material, titles, or
+  raw private upstream payloads.
 - In `docs/superpowers/plans/2026-07-13-tv-integration-program.md`, label the
   historic Phase 2 and Phase 3 documents as superseded for ordering only, link
   this plan as the active destination phase, and retain Phase 4/5 as blocked.

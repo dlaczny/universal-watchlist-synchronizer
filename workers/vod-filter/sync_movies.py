@@ -221,6 +221,7 @@ def main(argv=None) -> int:
         config.database_path.parent / "last-run.json",
         status=heartbeat_status,
         exit_code=result.exit_code,
+        workflow="movie_sync",
     )
     print(f"Movie sync JSON report: {result.json_path}")
     print(f"Movie sync Markdown report: {result.markdown_path}")

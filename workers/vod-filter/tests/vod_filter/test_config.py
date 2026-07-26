@@ -45,6 +45,19 @@ def clean_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "MOVIE_SYNC_MAX_REMOVAL_COUNT",
         "MOVIE_SYNC_MAX_REMOVAL_PERCENT",
         "MOVIE_SYNC_ALLOW_WATCHED_FILE_DELETION",
+        "TV_SYNC_ENABLED",
+        "TV_SYNC_APPLY",
+        "TV_SYNC_ADOPT_EXISTING_DESTINATIONS",
+        "TV_SYNC_ALLOW_SEASON_FILE_DELETION",
+        "TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION",
+        "TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE",
+        "TV_SYNC_INTERVAL_SECONDS",
+        "TV_SYNC_MAX_SNAPSHOT_AGE_MINUTES",
+        "SONARR_URL",
+        "SONARR_API_KEY",
+        "SONARR_ROOT_FOLDER",
+        "SONARR_QUALITY_PROFILE_ID",
+        "PLEX_TV_LIBRARY_NAME",
     }
     for key in keys:
         monkeypatch.delenv(key, raising=False)
@@ -84,6 +97,163 @@ def test_cleanup_deletion_defaults_match_safety_policy() -> None:
     assert config.radarr_remove_when_vod_available is True
     assert config.radarr_delete_files_when_vod_available is False
     assert config.movie_sync_allow_watched_file_deletion is False
+
+
+def test_tv_sync_defaults_are_disabled_and_conservative() -> None:
+    config = Config()
+
+    assert config.tv_sync_enabled is False
+    assert config.tv_sync_apply is False
+    assert config.tv_sync_adopt_existing_destinations is False
+    assert config.tv_sync_interval_seconds == 900
+    assert config.tv_sync_max_snapshot_age_minutes == 30
+
+
+def test_tv_sync_interval_rejects_values_below_one_minute(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TV_SYNC_INTERVAL_SECONDS", "59")
+
+    with pytest.raises(ConfigurationError, match="TV_SYNC_INTERVAL_SECONDS"):
+        Config()
+
+
+def test_tv_sync_interval_accepts_one_minute(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TV_SYNC_INTERVAL_SECONDS", "60")
+
+    assert Config().tv_sync_interval_seconds == 60
+
+
+def test_tv_sync_enabled_requires_destination_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TV_SYNC_ENABLED", "true")
+
+    with pytest.raises(ConfigurationError, match="SONARR_URL"):
+        Config().validate()
+
+
+@pytest.mark.parametrize(
+    "missing_key",
+    [
+        "SONARR_URL",
+        "SONARR_API_KEY",
+        "SONARR_ROOT_FOLDER",
+        "SONARR_QUALITY_PROFILE_ID",
+        "PLEX_TV_LIBRARY_NAME",
+    ],
+)
+def test_tv_sync_enabled_requires_each_destination_setting(
+    monkeypatch: pytest.MonkeyPatch,
+    missing_key: str,
+) -> None:
+    monkeypatch.setenv("TV_SYNC_ENABLED", "true")
+    for key, value in {
+        "SONARR_URL": "http://sonarr.local",
+        "SONARR_API_KEY": "sonarr-secret",
+        "SONARR_ROOT_FOLDER": "/tv",
+        "SONARR_QUALITY_PROFILE_ID": "1",
+        "PLEX_TV_LIBRARY_NAME": "TV Shows",
+    }.items():
+        if key != missing_key:
+            monkeypatch.setenv(key, value)
+
+    with pytest.raises(ConfigurationError, match=missing_key):
+        Config().validate()
+
+
+def test_disabled_tv_sync_ignores_invalid_destination_quality_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SONARR_QUALITY_PROFILE_ID", "0")
+
+    Config().validate()
+
+
+def test_disabled_tv_sync_ignores_invalid_destination_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SONARR_URL", "http:///path")
+
+    Config().validate()
+
+
+def test_enabled_tv_sync_rejects_invalid_destination_quality_profile(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TV_SYNC_ENABLED", "true")
+    monkeypatch.setenv("SONARR_URL", "http://sonarr.local")
+    monkeypatch.setenv("SONARR_API_KEY", "sonarr-secret")
+    monkeypatch.setenv("SONARR_ROOT_FOLDER", "/tv")
+    monkeypatch.setenv("SONARR_QUALITY_PROFILE_ID", "0")
+    monkeypatch.setenv("PLEX_TV_LIBRARY_NAME", "TV Shows")
+
+    with pytest.raises(ConfigurationError, match="SONARR_QUALITY_PROFILE_ID"):
+        Config()
+
+
+@pytest.mark.parametrize("url", ["not-a-url", "http:///path", "http://"])
+def test_enabled_tv_sync_rejects_invalid_destination_url(
+    monkeypatch: pytest.MonkeyPatch,
+    url: str,
+) -> None:
+    monkeypatch.setenv("TV_SYNC_ENABLED", "true")
+    monkeypatch.setenv("SONARR_URL", url)
+    monkeypatch.setenv("SONARR_API_KEY", "sonarr-secret")
+    monkeypatch.setenv("SONARR_ROOT_FOLDER", "/tv")
+    monkeypatch.setenv("SONARR_QUALITY_PROFILE_ID", "1")
+    monkeypatch.setenv("PLEX_TV_LIBRARY_NAME", "TV Shows")
+
+    with pytest.raises(ConfigurationError, match="SONARR_URL"):
+        Config().validate()
+
+
+def test_tv_sync_enabled_accepts_destination_settings_without_enabling_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TV_SYNC_ENABLED", "true")
+    monkeypatch.setenv("SONARR_URL", "http://sonarr.local")
+    monkeypatch.setenv("SONARR_API_KEY", "sonarr-secret")
+    monkeypatch.setenv("SONARR_ROOT_FOLDER", "/tv")
+    monkeypatch.setenv("SONARR_QUALITY_PROFILE_ID", "1")
+    monkeypatch.setenv("PLEX_TV_LIBRARY_NAME", "TV Shows")
+
+    config = Config()
+    config.validate()
+
+    assert config.tv_sync_enabled is True
+    assert config.tv_sync_apply is False
+    assert config.tv_sync_adopt_existing_destinations is False
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("TV_SYNC_ALLOW_SEASON_FILE_DELETION", "true"),
+        ("TV_SYNC_ALLOW_TERMINAL_SERIES_DELETION", "true"),
+        ("TV_SYNC_ALLOW_NO_RECYCLE_BIN_DELETE", "true"),
+    ],
+)
+def test_tv_cleanup_mutation_flags_are_rejected_when_true(
+    monkeypatch: pytest.MonkeyPatch,
+    key: str,
+    value: str,
+) -> None:
+    monkeypatch.setenv(key, value)
+
+    with pytest.raises(ConfigurationError, match=key):
+        Config().validate()
+
+
+def test_tv_apply_and_adoption_flags_remain_available_future_host_gates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TV_SYNC_APPLY", "true")
+    monkeypatch.setenv("TV_SYNC_ADOPT_EXISTING_DESTINATIONS", "true")
+
+    config = Config()
+    config.validate()
+
+    assert config.tv_sync_apply is True
+    assert config.tv_sync_adopt_existing_destinations is True
 
 
 def test_watchlist_source_defaults_to_letterboxd() -> None:

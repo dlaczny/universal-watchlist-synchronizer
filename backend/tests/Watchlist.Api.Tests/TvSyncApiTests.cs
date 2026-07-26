@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.Json;
 using FluentAssertions;
 
 namespace Watchlist.Api.Tests;
@@ -202,9 +203,13 @@ public sealed class TvSyncApiTests
         string body = await response.Content.ReadAsStringAsync();
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-        body.Should().Contain("\"schemaVersion\":\"1\"");
+        body.Should().Contain("\"schemaVersion\":\"2\"");
         body.Should().Contain("\"generationId\":\"seeded-tv-generation\"");
         body.Should().Contain("\"mutationCapable\":false");
+        body.Should().Contain("\"destinationSync\":{\"capable\":true");
+        using JsonDocument document = JsonDocument.Parse(body);
+        JsonElement season = document.RootElement.GetProperty("shows")[0].GetProperty("seasons")[0];
+        season.GetProperty("polandAvailability").GetProperty("state").GetString().Should().Be("available");
         body.Should().Contain("phase_1_read_only");
         body.Should().NotContain("seeded-access-token");
     }

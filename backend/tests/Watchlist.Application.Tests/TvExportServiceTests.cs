@@ -14,9 +14,11 @@ public sealed class TvExportServiceTests
         WorkerTvSnapshotDto? snapshot = await service.GetTvSyncSnapshotAsync(CancellationToken.None);
 
         snapshot.Should().NotBeNull();
-        snapshot!.SchemaVersion.Should().Be("1");
+        snapshot!.SchemaVersion.Should().Be("2");
         snapshot.GenerationId.Should().Be("tv-generation");
         snapshot.MutationCapable.Should().BeFalse();
+        snapshot.DestinationSync.Capable.Should().BeTrue();
+        snapshot.DestinationSync.Blockers.Should().BeEmpty();
         snapshot.HealthReasons.Should().ContainInOrder(
             "plex_history_phase_not_implemented", "worker_tv_mutation_disabled");
         snapshot.PlexHistory.Should().Be(new WorkerTvPlexHistoryDto(false, false, null, null, null, null, null, null));
@@ -27,18 +29,40 @@ public sealed class TvExportServiceTests
         show.Blockers.Should().Equal("phase_1_read_only");
         show.Seasons.Single(season => season.SeasonNumber == 0).Episodes.Should().ContainSingle()
             .Which.TraktEpisodeId.Should().Be(800);
-        show.Seasons.Single(season => season.SeasonNumber == 1).SearchAiredUnwatchedEpisodes.Should().Equal(1);
+        WorkerTvSeasonDto season = show.Seasons.Single(season => season.SeasonNumber == 1);
+        season.SearchAiredUnwatchedEpisodes.Should().Equal(1);
+        season.PolandAvailability.State.Should().Be("confirmed_unavailable");
     }
 
-    private static PublishedTvGeneration CreatePublishedGeneration()
+    [Fact]
+    public async Task Export_InvalidPublishedGeneration_BlocksDestinationSync()
+    {
+        TvExportService service = new(new FakeRepository(CreatePublishedGeneration(validationStatus: "invalid")));
+
+        WorkerTvSnapshotDto? snapshot = await service.GetTvSyncSnapshotAsync(CancellationToken.None);
+
+        snapshot.Should().NotBeNull();
+        snapshot!.DestinationSync.Capable.Should().BeFalse();
+        snapshot.DestinationSync.Blockers.Should().Equal("tv_generation_not_valid");
+    }
+
+    private static PublishedTvGeneration CreatePublishedGeneration(
+        string validationStatus = "valid",
+        IReadOnlyList<string>? validationFailures = null)
     {
         DateTimeOffset timestamp = DateTimeOffset.Parse("2026-07-19T12:00:00Z");
         TvProviderAvailability availability = new(TvProviderState.Unknown, "PL", null, null, []);
+        TvProviderAvailability seasonAvailability = new(
+            TvProviderState.ConfirmedUnavailable,
+            "PL",
+            timestamp,
+            null,
+            []);
         TvEpisodeProgress episode = new(700, 701, 1, 1, "Pilot", timestamp.AddDays(-1), false, null);
         TvShow show = new(
             "tv-trakt-70", 70, 71, 72, "tt0000070", TvIdentityStatus.Verified,
             "Exported Show", 2026, null, null, null, "ended", false, 1, 0,
-            null, episode, [new TvSeasonProgress(1, 1, 0, false, availability, [episode])],
+            null, episode, [new TvSeasonProgress(1, 1, 0, false, seasonAvailability, [episode])],
             [new TvSpecialEpisodeIdentity(800, 801, 0, 1)], availability,
             TvLifecycleState.SourceRemoved, "tv:70:3:source_removed", 3, 2,
             timestamp.AddDays(-2), timestamp, timestamp, "tv-generation", null);
@@ -46,7 +70,7 @@ public sealed class TvExportServiceTests
             "tv-generation", null, TvGenerationKind.ScheduledFull, timestamp.AddMinutes(-1), timestamp,
             timestamp, new TraktActivityCursor(timestamp.AddMinutes(-2), timestamp.AddMinutes(-2)),
             1, 1, 1, 1, "v1", new Dictionary<string, string>(), "membership", "progress",
-            null, null, timestamp, "valid", [], [], [], false,
+            null, null, timestamp, validationStatus, validationFailures ?? [], [], [], false,
             ["plex_history_phase_not_implemented", "worker_tv_mutation_disabled"], []);
         return new PublishedTvGeneration(manifest, [show]);
     }

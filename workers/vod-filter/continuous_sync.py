@@ -1,37 +1,18 @@
-"""Main entry point for VOD Filter service.
+"""Run movie and optional TV synchronization on independent schedules."""
 
-Supports both single-run and continuous sync modes.
-
-Usage:
-    # Single run (default)
-    python main.py
-
-    # Continuous sync mode (run every N seconds)
-    python main.py --continuous --interval 3600
-
-    # Dry run mode
-    python main.py --dry-run
-
-Environment Variables:
-    SYNC_INTERVAL - Sync interval in seconds (default: 3600)
-    DRY_RUN - Enable dry-run mode (default: false)
-"""
+from __future__ import annotations
 
 import argparse
 import os
-import sys
 import time
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent))
+from collections.abc import Callable
 
 from dotenv import load_dotenv
 import structlog
 
-# Load environment variables
+
 load_dotenv()
 
-# Configure logging
 structlog.configure(
     processors=[
         structlog.stdlib.add_log_level,
@@ -43,164 +24,118 @@ structlog.configure(
     logger_factory=structlog.PrintLoggerFactory(),
     cache_logger_on_first_use=True,
 )
-
 logger = structlog.get_logger(__name__)
 
 
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="VOD Filter - Sync Letterboxd with Plex and Radarr"
-    )
-
-    parser.add_argument(
-        "--continuous",
-        action="store_true",
-        help="Run continuously with periodic syncs (default: single run)",
-    )
-
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Run independent movie and TV worker schedules")
+    parser.add_argument("--continuous", action="store_true", help="Run continuously (default: single run)")
     parser.add_argument(
         "--interval",
         type=int,
         default=int(os.getenv("SYNC_INTERVAL", "3600")),
-        help="Sync interval in seconds for continuous mode (default: 3600 = 1 hour)",
+        help="Movie sync interval in seconds",
     )
-
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview changes without applying them",
+        "--tv-interval",
+        type=int,
+        default=int(os.getenv("TV_SYNC_INTERVAL_SECONDS", "900")),
+        help="TV sync interval in seconds",
     )
+    parser.add_argument("--dry-run", action="store_true", help="Disable movie and TV apply gates")
+    return parser.parse_args(argv)
 
-    return parser.parse_args()
 
-
-def run_sync():
-    """Execute a single sync run."""
+def run_sync() -> int:
+    """Execute the backwards-compatible movie entry point."""
     from sync_movies import main as sync_movies_main
 
-    logger.info("starting_sync_run")
-    exit_code = sync_movies_main([])
-
-    if exit_code == 0:
-        logger.info("sync_run_completed_successfully")
-    elif exit_code == 2:
-        logger.warning("sync_run_completed_with_errors")
-    else:
-        logger.error("sync_run_failed", exit_code=exit_code)
-
-    return exit_code
+    return sync_movies_main([])
 
 
-def continuous_sync(interval: int):
-    """Run syncs continuously at specified interval.
+def run_tv_sync() -> int:
+    """Lazily execute TV work only when the TV schedule is enabled."""
+    from sync_tv import main as sync_tv_main
 
-    Args:
-        interval: Time to wait between syncs in seconds
-    """
-    logger.info(
-        "starting_continuous_sync_mode",
-        interval_seconds=interval,
-        interval_human=f"{interval // 3600}h {(interval % 3600) // 60}m"
-        if interval >= 3600
-        else f"{interval // 60}m {interval % 60}s"
-        if interval >= 60
-        else f"{interval}s",
+    apply_args = ["--apply"] if os.getenv("TV_SYNC_APPLY", "false").lower() == "true" else []
+    return sync_tv_main(apply_args)
+
+
+def _advance_deadline(deadline: float, interval: int, now: float) -> float:
+    while deadline <= now:
+        deadline += interval
+    return deadline
+
+
+def _run_workflow(name: str, operation: Callable[[], int]) -> None:
+    try:
+        exit_code = operation()
+        if exit_code == 0:
+            logger.info("sync_run_succeeded", workflow=name)
+        else:
+            logger.warning("sync_run_failed_but_continuing", workflow=name, exit_code=exit_code)
+    except Exception as error:
+        logger.error("sync_run_crashed_but_continuing", workflow=name, error=str(error))
+
+
+def run_scheduled_syncs(
+    *,
+    movie_interval: int,
+    tv_interval: int,
+    tv_enabled: bool,
+    run_movie: Callable[[], int] = run_sync,
+    run_tv: Callable[[], int] = run_tv_sync,
+    monotonic: Callable[[], float] = time.monotonic,
+    sleep: Callable[[float], None] = time.sleep,
+    stop_after: float | None = None,
+) -> int:
+    """Run due workflows without allowing one workflow to shift the other's deadline."""
+    if movie_interval < 1 or tv_interval < 1:
+        raise ValueError("sync intervals must be positive")
+
+    started_at = monotonic()
+    next_movie = started_at
+    next_tv = started_at if tv_enabled else None
+    while True:
+        now = monotonic()
+        if stop_after is not None and now > started_at + stop_after:
+            return 0
+
+        if now >= next_movie:
+            _run_workflow("movie_sync", run_movie)
+            next_movie = _advance_deadline(next_movie, movie_interval, monotonic())
+
+        if next_tv is not None and monotonic() >= next_tv:
+            _run_workflow("tv_sync", run_tv)
+            next_tv = _advance_deadline(next_tv, tv_interval, monotonic())
+
+        deadlines = [next_movie]
+        if next_tv is not None:
+            deadlines.append(next_tv)
+        delay = max(0.0, min(deadlines) - monotonic())
+        sleep(delay)
+
+
+def continuous_sync(interval: int, tv_interval: int | None = None) -> int:
+    """Keep the legacy continuous_sync API while scheduling TV independently."""
+    return run_scheduled_syncs(
+        movie_interval=interval,
+        tv_interval=tv_interval or int(os.getenv("TV_SYNC_INTERVAL_SECONDS", "900")),
+        tv_enabled=os.getenv("TV_SYNC_ENABLED", "false").lower() == "true",
     )
 
-    run_count = 0
 
-    while True:
-        try:
-            run_count += 1
-            logger.info("sync_run_starting", run_number=run_count)
-
-            # Run the sync
-            exit_code = run_sync()
-
-            if exit_code == 0:
-                logger.info("sync_run_succeeded", run_number=run_count)
-            else:
-                logger.warning(
-                    "sync_run_failed_but_continuing",
-                    run_number=run_count,
-                    exit_code=exit_code,
-                )
-
-            # Wait for next sync
-            next_run = time.strftime(
-                "%Y-%m-%d %H:%M:%S", time.localtime(time.time() + interval)
-            )
-            logger.info(
-                "waiting_for_next_sync",
-                wait_seconds=interval,
-                next_run_at=next_run,
-            )
-            time.sleep(interval)
-
-        except KeyboardInterrupt:
-            logger.warning("continuous_sync_interrupted_by_user")
-            return 130
-
-        except Exception as e:
-            logger.error(
-                "sync_run_crashed_but_continuing",
-                run_number=run_count,
-                error=str(e),
-                wait_seconds=interval,
-            )
-            # Wait before retrying
-            time.sleep(interval)
-
-
-def main():
-    """Main entry point."""
-    args = parse_args()
-
-    # Set dry-run in environment if specified
+def main(argv=None) -> int:
+    args = parse_args(argv)
     if args.dry_run:
         os.environ["DRY_RUN"] = "true"
         os.environ["MOVIE_SYNC_APPLY"] = "false"
-
-    # Print startup banner
-    print("\n" + "=" * 80)
-    print("  VOD FILTER SERVICE")
-    print("=" * 80)
-    print(f"  Mode: {'CONTINUOUS' if args.continuous else 'SINGLE RUN'}")
+        os.environ["TV_SYNC_APPLY"] = "false"
 
     if args.continuous:
-        print(f"  Interval: {args.interval}s", end="")
-        if args.interval >= 3600:
-            print(
-                f" ({args.interval // 3600}h {(args.interval % 3600) // 60}m)",
-                end="",
-            )
-        elif args.interval >= 60:
-            print(f" ({args.interval // 60}m {args.interval % 60}s)", end="")
-        print()
-
-    print(f"  Dry Run: {'YES' if args.dry_run else 'NO'}")
-    print(f"  Started: {time.strftime('%Y-%m-%d %H:%M:%S')}")
-    print("=" * 80 + "\n")
-
-    if args.continuous:
-        # Run in continuous mode
-        return continuous_sync(args.interval)
-    else:
-        # Run once and exit
-        return run_sync()
+        return continuous_sync(args.interval, args.tv_interval)
+    return run_sync()
 
 
 if __name__ == "__main__":
-    try:
-        exit_code = main()
-        sys.exit(exit_code)
-    except KeyboardInterrupt:
-        logger.warning("service_interrupted")
-        sys.exit(130)
-    except Exception as e:
-        logger.error("service_crashed", error=str(e))
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+    raise SystemExit(main())

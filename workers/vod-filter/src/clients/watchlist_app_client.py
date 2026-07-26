@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import httpx
 import structlog
+
+from src.models.tv_sync import TvAvailability, TvEpisode, TvSeason, TvShow, TvSnapshot
 
 logger = structlog.get_logger(__name__)
 
@@ -166,6 +168,84 @@ class WatchlistAppClient:
             "watched_movies": watched_movies,
         }
 
+    def fetch_tv_sync_snapshot(self) -> TvSnapshot:
+        """Fetch the read-only TV snapshot without accepting destination authority."""
+        response = self.http_client.get(f"{self.base_url}/api/export/tv/sync-state")
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise WatchlistAppError(
+                f"watchlist-app TV sync snapshot failed: HTTP {response.status_code}"
+            ) from e
+
+        try:
+            payload = response.json()
+        except ValueError as e:
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot returned invalid JSON"
+            ) from e
+
+        self._reject_credential_shaped_keys(payload)
+        if not isinstance(payload, dict):
+            raise WatchlistAppError("watchlist-app TV sync snapshot returned invalid shape")
+        if payload.get("schemaVersion") != "2":
+            raise WatchlistAppError("watchlist-app TV sync snapshot has unsupported schemaVersion")
+
+        destination_sync = payload.get("destinationSync")
+        if not isinstance(destination_sync, dict) or destination_sync.get("capable") is not True:
+            raise WatchlistAppError("watchlist-app TV sync snapshot destinationSync incapable")
+        if not isinstance(destination_sync.get("blockers"), list) or not all(
+            isinstance(blocker, str) for blocker in destination_sync["blockers"]
+        ):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid destinationSync")
+        if destination_sync["capable"] and destination_sync["blockers"]:
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot destinationSync has blockers while capable"
+            )
+
+        if payload.get("mutationCapable") is not False:
+            raise WatchlistAppError("watchlist-app TV sync snapshot mutationCapable must be false")
+        shows = payload.get("shows")
+        if not isinstance(shows, list):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid shows")
+
+        mapped_shows = tuple(self._map_tv_show(show) for show in shows)
+        trakt_ids = [show.trakt_id for show in mapped_shows]
+        tvdb_ids = [show.tvdb_id for show in mapped_shows if show.tvdb_id is not None]
+        if len(trakt_ids) != len(set(trakt_ids)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate Trakt ID")
+        if len(tvdb_ids) != len(set(tvdb_ids)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate TVDB ID")
+        episodes = [
+            episode
+            for show in mapped_shows
+            for season in show.seasons
+            for episode in season.episodes
+        ] + [episode for show in mapped_shows for episode in show.specials]
+        episode_trakt_ids = [episode.trakt_episode_id for episode in episodes]
+        episode_tvdb_ids = [episode.tvdb_id for episode in episodes if episode.tvdb_id is not None]
+        if len(episode_trakt_ids) != len(set(episode_trakt_ids)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate episode Trakt ID")
+        if len(episode_tvdb_ids) != len(set(episode_tvdb_ids)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has duplicate episode TVDB ID")
+
+        generation_id = payload.get("generationId")
+        kind = payload.get("kind")
+        if not isinstance(generation_id, str) or not generation_id.strip():
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid generationId")
+        if not isinstance(kind, str) or not kind.strip():
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid kind")
+
+        return TvSnapshot(
+            schema_version="2",
+            generation_id=generation_id,
+            published_at=self._parse_utc_datetime(payload.get("publishedAt"), "publishedAt"),
+            generated_at=self._parse_utc_datetime(payload.get("generatedAt"), "generatedAt"),
+            kind=kind,
+            mutation_capable=False,
+            shows=mapped_shows,
+        )
+
     def _sync_movies(self) -> str:
         headers = (
             {"X-Watchlist-Sync-Key": self.sync_key}
@@ -222,6 +302,217 @@ class WatchlistAppClient:
                 f"watchlist-app movie sync snapshot has timezone-free {field}"
             )
         return parsed
+
+    @staticmethod
+    def _parse_utc_datetime(value: Any, field: str, *, nullable: bool = False) -> datetime | None:
+        if value is None and nullable:
+            return None
+        if not isinstance(value, str) or not value.strip():
+            raise WatchlistAppError(f"watchlist-app TV sync snapshot has invalid {field}")
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as e:
+            raise WatchlistAppError(
+                f"watchlist-app TV sync snapshot has invalid {field}"
+            ) from e
+        if parsed.tzinfo is None or parsed.utcoffset() != timedelta(0):
+            raise WatchlistAppError(
+                f"watchlist-app TV sync snapshot has non-UTC {field}"
+            )
+        return parsed
+
+    @classmethod
+    def _map_tv_show(cls, item: Any) -> TvShow:
+        if not isinstance(item, dict):
+            raise WatchlistAppError("watchlist-app TV sync snapshot show is not an object")
+        trakt_id = cls._positive_int(item.get("traktId"), "Trakt ID")
+        tvdb_id = item.get("tvdbId")
+        if tvdb_id is not None:
+            tvdb_id = cls._positive_int(tvdb_id, "TVDB ID")
+        identity_status = item.get("identityStatus")
+        if identity_status not in {"verified", "missing", "conflict", "legacy_unresolved"}:
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot has invalid identityStatus"
+            )
+        if identity_status == "verified" and tvdb_id is None:
+            raise WatchlistAppError("watchlist-app TV sync snapshot verified identity lacks TVDB ID")
+        in_trakt_watchlist = item.get("inTraktWatchlist")
+        if not isinstance(in_trakt_watchlist, bool):
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot has invalid inTraktWatchlist"
+            )
+        lifecycle_state = item.get("lifecycleState")
+        if lifecycle_state not in {
+            "active",
+            "caught_up",
+            "source_removed",
+            "terminal_cleanup_pending",
+            "retired_terminal",
+        }:
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot has invalid lifecycleState"
+            )
+        tmdb_id = item.get("tmdbId")
+        if tmdb_id is not None:
+            tmdb_id = cls._positive_int(tmdb_id, "TMDB ID")
+        imdb_id = item.get("imdbId")
+        if imdb_id is not None and not cls._is_imdb_id(imdb_id):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid IMDb ID")
+        title = item.get("title")
+        if not isinstance(title, str) or not title.strip():
+            raise WatchlistAppError("watchlist-app TV sync snapshot show has invalid title")
+        seasons = item.get("seasons")
+        if not isinstance(seasons, list):
+            raise WatchlistAppError("watchlist-app TV sync snapshot show has invalid seasons")
+        mapped_seasons = []
+        specials = []
+        for season in seasons:
+            if not isinstance(season, dict):
+                raise WatchlistAppError("watchlist-app TV sync snapshot season is not an object")
+            season_number = season.get("seasonNumber")
+            if isinstance(season_number, int) and not isinstance(season_number, bool) and season_number == 0:
+                specials.extend(cls._map_tv_specials(season))
+            else:
+                mapped_seasons.append(cls._map_tv_season(season))
+        season_numbers = [season.season_number for season in mapped_seasons]
+        if len(season_numbers) != len(set(season_numbers)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot show has duplicate season")
+        special_positions = [episode.episode_number for episode in specials]
+        if len(special_positions) != len(set(special_positions)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot show has duplicate special")
+        return TvShow(
+            trakt_id,
+            tvdb_id,
+            title,
+            cls._map_tv_availability(item.get("polandAvailability")),
+            tuple(mapped_seasons),
+            tuple(specials),
+            cls._map_tv_next_episode_season(item.get("nextEpisode")),
+            tmdb_id,
+            imdb_id,
+            identity_status,
+            in_trakt_watchlist,
+            lifecycle_state,
+        )
+
+    @classmethod
+    def _map_tv_next_episode_season(cls, item: Any) -> int | None:
+        if item is None:
+            return None
+        if not isinstance(item, dict):
+            raise WatchlistAppError("watchlist-app TV sync snapshot nextEpisode is invalid")
+        return cls._positive_int(item.get("seasonNumber"), "next episode season number")
+
+    @classmethod
+    def _map_tv_season(cls, item: Any) -> TvSeason:
+        if not isinstance(item, dict):
+            raise WatchlistAppError("watchlist-app TV sync snapshot season is not an object")
+        season_number = cls._positive_int(item.get("seasonNumber"), "season number")
+        episodes = item.get("episodes")
+        if not isinstance(episodes, list):
+            raise WatchlistAppError("watchlist-app TV sync snapshot season has invalid episodes")
+        mapped_episodes = tuple(cls._map_tv_episode(episode, season_number) for episode in episodes)
+        episode_numbers = [episode.episode_number for episode in mapped_episodes]
+        if len(episode_numbers) != len(set(episode_numbers)):
+            raise WatchlistAppError("watchlist-app TV sync snapshot season has duplicate episode")
+        return TvSeason(season_number, cls._map_tv_availability(item.get("polandAvailability")), mapped_episodes)
+
+    @classmethod
+    def _map_tv_specials(cls, item: dict[str, Any]) -> tuple[TvEpisode, ...]:
+        episodes = item.get("episodes")
+        if not isinstance(episodes, list):
+            raise WatchlistAppError("watchlist-app TV sync snapshot special season has invalid episodes")
+        return tuple(cls._map_tv_episode(episode, 0) for episode in episodes)
+
+    @classmethod
+    def _map_tv_episode(cls, item: Any, season_number: int) -> TvEpisode:
+        if not isinstance(item, dict):
+            raise WatchlistAppError("watchlist-app TV sync snapshot episode is not an object")
+        raw_episode_season = item.get("seasonNumber")
+        if (
+            season_number == 0
+            and isinstance(raw_episode_season, int)
+            and not isinstance(raw_episode_season, bool)
+            and raw_episode_season == 0
+        ):
+            episode_season = 0
+        else:
+            episode_season = cls._positive_int(raw_episode_season, "episode season number")
+        if episode_season != season_number:
+            raise WatchlistAppError("watchlist-app TV sync snapshot episode has mismatched season")
+        tvdb_id = item.get("tvdbId")
+        if tvdb_id is not None:
+            tvdb_id = cls._positive_int(tvdb_id, "episode TVDB ID")
+        return TvEpisode(
+            trakt_episode_id=cls._positive_int(item.get("traktEpisodeId"), "episode Trakt ID"),
+            season_number=episode_season,
+            episode_number=cls._positive_int(item.get("episodeNumber"), "episode number"),
+            tvdb_id=tvdb_id,
+            first_aired=cls._parse_utc_datetime(item.get("firstAired"), "firstAired", nullable=True),
+            last_watched_at=cls._parse_utc_datetime(item.get("lastWatchedAt"), "lastWatchedAt", nullable=True),
+        )
+
+    @classmethod
+    def _map_tv_availability(cls, item: Any) -> TvAvailability:
+        if not isinstance(item, dict):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid polandAvailability")
+        state = item.get("state")
+        region = item.get("region")
+        if state not in {"available", "confirmed_unavailable", "stale", "unknown"}:
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid availability state")
+        if region != "PL":
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid availability region")
+        fetched_at = cls._parse_utc_datetime(
+            item.get("fetchedAt"),
+            "availability fetchedAt",
+            nullable=state == "unknown",
+        )
+        return TvAvailability(state=state, region=region, fetched_at=fetched_at)
+
+    @staticmethod
+    def _positive_int(value: Any, label: str) -> int:
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise WatchlistAppError(f"watchlist-app TV sync snapshot has invalid {label}")
+        return value
+
+    @staticmethod
+    def _is_imdb_id(value: Any) -> bool:
+        return (
+            isinstance(value, str)
+            and value.startswith("tt")
+            and value[2:].isdigit()
+            and int(value[2:]) > 0
+        )
+
+    @classmethod
+    def _reject_credential_shaped_keys(cls, value: Any) -> None:
+        if isinstance(value, dict):
+            for key, nested_value in value.items():
+                if not isinstance(key, str):
+                    raise WatchlistAppError("watchlist-app TV sync snapshot has non-text JSON key")
+                normalized = "".join(character for character in key.lower() if character.isalnum())
+                if normalized != "cleanupauthorizations" and any(
+                    marker in normalized
+                    for marker in (
+                        "token",
+                        "secret",
+                        "password",
+                        "authorization",
+                        "credential",
+                        "apikey",
+                        "privatekey",
+                        "encryptionkey",
+                        "signingkey",
+                        "synckey",
+                    )
+                ):
+                    raise WatchlistAppError(
+                        "watchlist-app TV sync snapshot contains credential-shaped key"
+                    )
+                cls._reject_credential_shaped_keys(nested_value)
+        elif isinstance(value, list):
+            for item in value:
+                cls._reject_credential_shaped_keys(item)
 
     @staticmethod
     def _map_sync_snapshot_item(item: Any) -> dict[str, Any]:
