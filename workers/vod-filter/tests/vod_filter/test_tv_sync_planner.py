@@ -54,6 +54,10 @@ def show(
     *,
     seasons: tuple[TvSeason, ...],
     next_episode_season: int | None = None,
+    tmdb_id: int | None = 303,
+    imdb_id: str | None = "tt1234567",
+    in_trakt_watchlist: bool = True,
+    lifecycle_state: str = "active",
 ) -> TvShow:
     return TvShow(
         trakt_id=10,
@@ -62,6 +66,10 @@ def show(
         availability=TvAvailability("unknown", "PL", None),
         seasons=seasons,
         next_episode_season=next_episode_season,
+        tmdb_id=tmdb_id,
+        imdb_id=imdb_id,
+        in_trakt_watchlist=in_trakt_watchlist,
+        lifecycle_state=lifecycle_state,
     )
 
 
@@ -142,7 +150,9 @@ def test_existing_real_plex_watchlist_show_keeps_desired_row_without_duplicate_a
         )
     )
 
-    assert [decision.action for decision in plan.decisions_for("plex_watchlist")] == ["keep"]
+    decision = plan.decisions_for("plex_watchlist")[0]
+    assert decision.action == "keep"
+    assert (decision.tmdb_id, decision.imdb_id) == (303, "tt1234567")
 
 
 def test_existing_real_plex_watchlist_show_is_removed_when_no_longer_desired() -> None:
@@ -260,3 +270,40 @@ def test_selected_unavailable_season_skips_search_when_sonarr_episode_ids_are_un
     assert [(decision.action, decision.reason) for decision in decisions] == [
         ("skip", "sonarr_episode_ids_unavailable"),
     ]
+
+
+def test_source_removed_show_emits_explicit_no_mutation_skips_for_both_destinations() -> None:
+    existing_plex = PlexTvShow("plex-show-100", VerifiedTvIdentity(100, 303, "tt1234567"))
+    plan = build_tv_plan(
+        collected(
+            show(
+                seasons=(season(1, "confirmed_unavailable"),),
+                in_trakt_watchlist=False,
+                lifecycle_state="source_removed",
+            ),
+            plex_watchlist=(existing_plex,),
+        )
+    )
+
+    assert plan.selected_season_by_tvdb == {}
+    assert [(decision.destination, decision.action, decision.reason) for decision in plan.decisions] == [
+        ("plex_watchlist", "skip", "source_removed_no_destination_mutation"),
+        ("sonarr", "skip", "source_removed_no_destination_mutation"),
+    ]
+
+
+def test_non_active_trakt_member_cannot_plan_destination_mutations() -> None:
+    plan = build_tv_plan(
+        collected(
+            show(
+                seasons=(season(1, "available"),),
+                in_trakt_watchlist=True,
+                lifecycle_state="caught_up",
+            )
+        )
+    )
+
+    assert {decision.action for decision in plan.decisions} == {"skip"}
+    assert {decision.reason for decision in plan.decisions} == {
+        "inactive_or_not_in_trakt_watchlist_no_destination_mutation"
+    }

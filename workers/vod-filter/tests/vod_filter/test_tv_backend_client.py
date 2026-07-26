@@ -113,6 +113,11 @@ def test_fetch_tv_sync_snapshot_returns_frozen_typed_regular_snapshot() -> None:
     assert isinstance(snapshot, TvSnapshot)
     assert snapshot.generation_id == "tv-generation-42"
     assert snapshot.published_at.isoformat() == "2026-07-24T10:00:00+00:00"
+    assert snapshot.shows[0].tmdb_id == 303
+    assert snapshot.shows[0].imdb_id == "tt1234567"
+    assert snapshot.shows[0].identity_status == "verified"
+    assert snapshot.shows[0].in_trakt_watchlist is True
+    assert snapshot.shows[0].lifecycle_state == "active"
     assert snapshot.shows == (
         TvShow(
             trakt_id=101,
@@ -144,6 +149,11 @@ def test_fetch_tv_sync_snapshot_returns_frozen_typed_regular_snapshot() -> None:
                 ),
             ),
             specials=(),
+            tmdb_id=303,
+            imdb_id="tt1234567",
+            identity_status="verified",
+            in_trakt_watchlist=True,
+            lifecycle_state="active",
         ),
     )
     with pytest.raises((AttributeError, TypeError)):
@@ -188,6 +198,7 @@ def test_fetch_tv_sync_snapshot_rejects_invalid_json() -> None:
         (lambda snapshot: snapshot.__setitem__("publishedAt", "not-a-timestamp"), "publishedAt"),
         (lambda snapshot: snapshot.__setitem__("generatedAt", "2026-07-24T09:55:00"), "UTC"),
         (lambda snapshot: snapshot["shows"][0].__setitem__("tvdbId", 0), "TVDB ID"),
+        (lambda snapshot: snapshot["shows"][0].__setitem__("identityStatus", "conflict"), "identityStatus"),
     ],
 )
 def test_fetch_tv_sync_snapshot_rejects_unsafe_contracts(mutate, reason: str) -> None:

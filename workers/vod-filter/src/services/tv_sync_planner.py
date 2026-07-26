@@ -25,6 +25,26 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
     ownership = {(item.destination, item.tvdb_id): item for item in collected.ownership}
 
     for show in sorted(collected.snapshot.shows, key=lambda item: item.tvdb_id):
+        if not (show.in_trakt_watchlist and show.lifecycle_state == "active"):
+            reason = (
+                "source_removed_no_destination_mutation"
+                if show.lifecycle_state == "source_removed"
+                else "inactive_or_not_in_trakt_watchlist_no_destination_mutation"
+            )
+            for destination in ("sonarr", "plex_watchlist"):
+                decisions.append(
+                    _decision(
+                        collected.snapshot.generation_id,
+                        destination,
+                        show.tvdb_id,
+                        None,
+                        "skip",
+                        reason,
+                        tmdb_id=show.tmdb_id,
+                        imdb_id=show.imdb_id,
+                    )
+                )
+            continue
         existing = sonarr_by_tvdb.get(show.tvdb_id)
         owner = ownership.get(("sonarr", show.tvdb_id))
         season = _selected_season(show, collected.snapshot.generated_at)
@@ -64,11 +84,11 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
         plex_desired = season.availability.state == "available" or show.tvdb_id in library_tvdb_ids
         plex_existing = plex_by_tvdb.get(show.tvdb_id)
         if plex_desired and plex_existing is None:
-            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "plex_add", "selected_season_available_or_in_plex_library"))
+            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "plex_add", "selected_season_available_or_in_plex_library", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
         elif plex_desired:
-            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "keep", "plex_watchlist_desired"))
+            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "keep", "plex_watchlist_desired", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
         elif plex_existing is not None:
-            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "plex_remove", "selected_season_not_available_and_not_in_plex_library"))
+            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "plex_remove", "selected_season_not_available_and_not_in_plex_library", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
 
     decisions.sort(key=lambda item: (item.tvdb_id, item.destination, item.selected_season_number or 0, item.action))
     return TvPlan(
@@ -143,7 +163,7 @@ def _by_tvdb(rows: tuple[object, ...]) -> dict[int, object]:
     return result
 
 
-def _decision(generation_id: str, destination: str, tvdb_id: int, season_number: int | None, action: str, reason: str, episode_numbers: tuple[int, ...] = ()) -> TvDecision:
+def _decision(generation_id: str, destination: str, tvdb_id: int, season_number: int | None, action: str, reason: str, episode_numbers: tuple[int, ...] = (), tmdb_id: int | None = None, imdb_id: str | None = None) -> TvDecision:
     season_part = season_number or 0
     return TvDecision(
         action_id=f"{generation_id}:{destination}:{tvdb_id}:{season_part}:{action}",
@@ -153,4 +173,6 @@ def _decision(generation_id: str, destination: str, tvdb_id: int, season_number:
         selected_season_number=season_number,
         reason=reason,
         episode_numbers=episode_numbers,
+        tmdb_id=tmdb_id,
+        imdb_id=imdb_id,
     )

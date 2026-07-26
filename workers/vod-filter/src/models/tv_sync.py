@@ -39,6 +39,11 @@ class TvShow:
     seasons: tuple[TvSeason, ...]
     specials: tuple[TvEpisode, ...] = ()
     next_episode_season: int | None = None
+    tmdb_id: int | None = None
+    imdb_id: str | None = None
+    identity_status: str = "verified"
+    in_trakt_watchlist: bool = True
+    lifecycle_state: str = "active"
 
 
 @dataclass(frozen=True)

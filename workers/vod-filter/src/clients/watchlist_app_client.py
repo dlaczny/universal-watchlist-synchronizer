@@ -327,6 +327,33 @@ class WatchlistAppClient:
             raise WatchlistAppError("watchlist-app TV sync snapshot show is not an object")
         trakt_id = cls._positive_int(item.get("traktId"), "Trakt ID")
         tvdb_id = cls._positive_int(item.get("tvdbId"), "TVDB ID")
+        identity_status = item.get("identityStatus")
+        if identity_status != "verified":
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot has invalid identityStatus"
+            )
+        in_trakt_watchlist = item.get("inTraktWatchlist")
+        if not isinstance(in_trakt_watchlist, bool):
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot has invalid inTraktWatchlist"
+            )
+        lifecycle_state = item.get("lifecycleState")
+        if lifecycle_state not in {
+            "active",
+            "caught_up",
+            "source_removed",
+            "terminal_cleanup_pending",
+            "retired_terminal",
+        }:
+            raise WatchlistAppError(
+                "watchlist-app TV sync snapshot has invalid lifecycleState"
+            )
+        tmdb_id = item.get("tmdbId")
+        if tmdb_id is not None:
+            tmdb_id = cls._positive_int(tmdb_id, "TMDB ID")
+        imdb_id = item.get("imdbId")
+        if imdb_id is not None and not cls._is_imdb_id(imdb_id):
+            raise WatchlistAppError("watchlist-app TV sync snapshot has invalid IMDb ID")
         title = item.get("title")
         if not isinstance(title, str) or not title.strip():
             raise WatchlistAppError("watchlist-app TV sync snapshot show has invalid title")
@@ -357,6 +384,11 @@ class WatchlistAppClient:
             tuple(mapped_seasons),
             tuple(specials),
             cls._map_tv_next_episode_season(item.get("nextEpisode")),
+            tmdb_id,
+            imdb_id,
+            identity_status,
+            in_trakt_watchlist,
+            lifecycle_state,
         )
 
     @classmethod
@@ -438,6 +470,15 @@ class WatchlistAppClient:
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
             raise WatchlistAppError(f"watchlist-app TV sync snapshot has invalid {label}")
         return value
+
+    @staticmethod
+    def _is_imdb_id(value: Any) -> bool:
+        return (
+            isinstance(value, str)
+            and value.startswith("tt")
+            and value[2:].isdigit()
+            and int(value[2:]) > 0
+        )
 
     @classmethod
     def _reject_credential_shaped_keys(cls, value: Any) -> None:

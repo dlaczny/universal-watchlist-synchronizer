@@ -50,6 +50,8 @@ class TvDecision:
     selected_season_number: int | None
     reason: str
     episode_numbers: tuple[int, ...] = ()
+    tmdb_id: int | None = None
+    imdb_id: str | None = None
 
 
 @dataclass(frozen=True)
