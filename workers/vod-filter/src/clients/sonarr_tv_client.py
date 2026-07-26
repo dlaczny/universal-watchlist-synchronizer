@@ -130,6 +130,8 @@ class SonarrTvClient:
             raise SonarrTvError("Sonarr season monitoring requires a series resource")
         season_number = self._season_number(season_number)
         resource = self._verified_resource(series.resource, series.tvdb_id)
+        if self._positive_id(resource.get("id"), "Sonarr series ID") != series.series_id:
+            raise SonarrTvError("Sonarr series resource ID mismatch")
         seasons = resource.get("seasons")
         if not isinstance(seasons, list):
             raise SonarrTvError("Sonarr series has no seasons")

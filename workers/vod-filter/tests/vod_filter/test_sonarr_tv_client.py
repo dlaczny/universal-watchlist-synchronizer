@@ -140,6 +140,23 @@ def test_monitoring_updates_preserve_exact_series_identity_and_other_seasons() -
     assert season_monitored.seasons == {0: False, 1: True, 2: False}
 
 
+def test_set_season_monitored_rejects_a_mismatched_series_resource_id() -> None:
+    series = SonarrSeries(
+        series_id=44,
+        tvdb_id=123,
+        title="Exact Show",
+        monitored=True,
+        seasons={1: False},
+        resource=series_payload(series_id=999, tvdb_id=123),
+    )
+
+    with pytest.raises(SonarrTvError, match="resource ID mismatch"):
+        sonarr_client(lambda _request: pytest.fail("must not issue a PUT")).set_season_monitored(
+            series,
+            1,
+        )
+
+
 def test_search_episode_ids_sends_only_unique_positive_episode_ids() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
