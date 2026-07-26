@@ -116,21 +116,25 @@ class SonarrTvClient:
             raise SonarrTvError("Sonarr monitoring requires a series resource")
         if not isinstance(monitored, bool):
             raise SonarrTvError("Sonarr monitored must be a boolean")
-        resource = self._verified_resource(series.resource, series.tvdb_id)
-        if self._positive_id(resource.get("id"), "Sonarr series ID") != series.series_id:
+        series_id = self._positive_id(series.series_id, "Sonarr series ID")
+        tvdb_id = self._positive_id(series.tvdb_id, "Sonarr TVDB ID")
+        resource = self._verified_resource(series.resource, tvdb_id)
+        if self._positive_id(resource.get("id"), "Sonarr series ID") != series_id:
             raise SonarrTvError("Sonarr series resource ID mismatch")
         resource["monitored"] = monitored
         resource["monitorNewItems"] = "all" if monitored else "none"
-        result = self._request("PUT", f"/api/v3/series/{series.series_id}", json=resource)
-        return self._series_from_resource(result, expected_tvdb_id=series.tvdb_id)
+        result = self._request("PUT", f"/api/v3/series/{series_id}", json=resource)
+        return self._series_from_resource(result, expected_tvdb_id=tvdb_id)
 
     def set_season_monitored(self, series: SonarrSeries, season_number: int) -> SonarrSeries:
         """Monitor one known season without changing any other season state."""
         if not isinstance(series, SonarrSeries):
             raise SonarrTvError("Sonarr season monitoring requires a series resource")
         season_number = self._season_number(season_number)
-        resource = self._verified_resource(series.resource, series.tvdb_id)
-        if self._positive_id(resource.get("id"), "Sonarr series ID") != series.series_id:
+        series_id = self._positive_id(series.series_id, "Sonarr series ID")
+        tvdb_id = self._positive_id(series.tvdb_id, "Sonarr TVDB ID")
+        resource = self._verified_resource(series.resource, tvdb_id)
+        if self._positive_id(resource.get("id"), "Sonarr series ID") != series_id:
             raise SonarrTvError("Sonarr series resource ID mismatch")
         seasons = resource.get("seasons")
         if not isinstance(seasons, list):
@@ -144,8 +148,8 @@ class SonarrTvClient:
                 found = True
         if not found:
             raise SonarrTvError(f"Sonarr series has no season {season_number}")
-        result = self._request("PUT", f"/api/v3/series/{series.series_id}", json=resource)
-        return self._series_from_resource(result, expected_tvdb_id=series.tvdb_id)
+        result = self._request("PUT", f"/api/v3/series/{series_id}", json=resource)
+        return self._series_from_resource(result, expected_tvdb_id=tvdb_id)
 
     def search_episode_ids(self, series_id: int, episode_ids: list[int]) -> None:
         """Issue an episode search for exactly the supplied Sonarr episode IDs."""

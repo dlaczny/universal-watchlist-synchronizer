@@ -157,6 +157,25 @@ def test_set_season_monitored_rejects_a_mismatched_series_resource_id() -> None:
         )
 
 
+@pytest.mark.parametrize("operation", ["series", "season"])
+def test_monitoring_rejects_boolean_series_identity_before_a_put(operation: str) -> None:
+    series = SonarrSeries(
+        series_id=True,
+        tvdb_id=True,
+        title="Exact Show",
+        monitored=True,
+        seasons={1: False},
+        resource=series_payload(series_id=1, tvdb_id=1),
+    )
+    client = sonarr_client(lambda _request: pytest.fail("must not issue a PUT"))
+
+    with pytest.raises(SonarrTvError, match="positive integer"):
+        if operation == "series":
+            client.set_series_monitored(series, True)
+        else:
+            client.set_season_monitored(series, 1)
+
+
 def test_search_episode_ids_sends_only_unique_positive_episode_ids() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.method == "POST"
