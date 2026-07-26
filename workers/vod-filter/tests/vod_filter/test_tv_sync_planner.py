@@ -18,22 +18,35 @@ from src.services.tv_sync_planner import build_tv_plan
 NOW = datetime(2026, 7, 26, tzinfo=timezone.utc)
 
 
-def episode(season_number: int, episode_number: int, watched: bool = False) -> TvEpisode:
+def episode(
+    season_number: int,
+    episode_number: int,
+    watched: bool = False,
+    *,
+    first_aired: datetime | None = NOW,
+    tvdb_id: int | None = None,
+) -> TvEpisode:
     return TvEpisode(
         trakt_episode_id=season_number * 100 + episode_number,
         season_number=season_number,
         episode_number=episode_number,
-        tvdb_id=season_number * 1000 + episode_number,
-        first_aired=NOW,
+        tvdb_id=tvdb_id if tvdb_id is not None else season_number * 1000 + episode_number,
+        first_aired=first_aired,
         last_watched_at=NOW if watched else None,
     )
 
 
-def season(number: int, availability: str, watched: bool = False) -> TvSeason:
+def season(
+    number: int,
+    availability: str,
+    watched: bool = False,
+    *,
+    episodes: tuple[TvEpisode, ...] | None = None,
+) -> TvSeason:
     return TvSeason(
         season_number=number,
         availability=TvAvailability(availability, "PL", NOW),
-        episodes=(episode(number, 1, watched),),
+        episodes=episodes if episodes is not None else (episode(number, 1, watched),),
     )
 
 
@@ -57,6 +70,7 @@ def collected(
     *,
     sonarr_series: tuple[SonarrSeries, ...] = (),
     plex_watchlist: tuple[PlexTvShow, ...] = (),
+    ownership: tuple[TvOwnership, ...] = (),
     errors: tuple[str, ...] = (),
 ) -> TvCollectedState:
     return TvCollectedState(
@@ -64,7 +78,7 @@ def collected(
         sonarr_series=sonarr_series,
         plex_watchlist=plex_watchlist,
         plex_library_identities=frozenset(),
-        ownership=(),
+        ownership=ownership,
         collection_errors=errors,
     )
 
@@ -76,6 +90,7 @@ def test_unstarted_unavailable_show_selects_season_one_and_sonarr_add() -> None:
     assert [(decision.action, decision.action_id) for decision in plan.decisions_for("sonarr")] == [
         ("sonarr_add", "generation-1:sonarr:100:1:sonarr_add"),
         ("sonarr_monitor_season", "generation-1:sonarr:100:1:sonarr_monitor_season"),
+        ("sonarr_search_episodes", "generation-1:sonarr:100:1:sonarr_search_episodes"),
     ]
 
 
@@ -139,3 +154,66 @@ def test_existing_real_plex_watchlist_show_is_removed_when_no_longer_desired() -
     )
 
     assert [decision.action for decision in plan.decisions_for("plex_watchlist")] == ["plex_remove"]
+
+
+def test_selected_unavailable_season_searches_only_aired_unwatched_episode_ids() -> None:
+    selected = season(
+        1,
+        "confirmed_unavailable",
+        episodes=(
+            episode(1, 1, watched=True, tvdb_id=1001),
+            episode(1, 2, tvdb_id=1002),
+            episode(1, 3, first_aired=NOW.replace(year=2027), tvdb_id=1003),
+        ),
+    )
+
+    plan = build_tv_plan(collected(show(seasons=(selected,))))
+
+    search = next(
+        decision for decision in plan.decisions_for("sonarr") if decision.action == "sonarr_search_episodes"
+    )
+    assert search.episode_numbers == (1002,)
+
+
+def test_completed_show_fallback_does_not_select_a_future_only_numbered_season() -> None:
+    plan = build_tv_plan(
+        collected(
+            show(
+                seasons=(
+                    season(1, "available", watched=True),
+                    season(
+                        2,
+                        "confirmed_unavailable",
+                        episodes=(episode(2, 1, first_aired=NOW.replace(year=2027)),),
+                    ),
+                )
+            )
+        )
+    )
+
+    assert plan.selected_season_by_tvdb == {}
+
+
+def test_owned_unmonitored_sonarr_series_is_monitored_when_no_season_is_eligible() -> None:
+    existing = SonarrSeries(1, 100, "Example", False, {1: True, 2: False}, {"id": 1, "tvdbId": 100})
+    plan = build_tv_plan(
+        collected(
+            show(
+                seasons=(
+                    season(1, "available", watched=True),
+                    season(
+                        2,
+                        "confirmed_unavailable",
+                        episodes=(episode(2, 1, first_aired=NOW.replace(year=2027)),),
+                    ),
+                )
+            ),
+            sonarr_series=(existing,),
+            ownership=(TvOwnership("sonarr", 100, "worker"),),
+        )
+    )
+
+    assert [decision.action for decision in plan.decisions_for("sonarr")] == [
+        "sonarr_monitor_series",
+        "uncertain",
+    ]
