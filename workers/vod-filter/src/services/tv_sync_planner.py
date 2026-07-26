@@ -87,7 +87,7 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
                     show.tvdb_id,
                     aired_unwatched_episode_tvdb_ids,
                 )
-                if existing is not None and sonarr_episode_ids is not None:
+                if sonarr_episode_ids is not None:
                     decisions.append(_decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "sonarr_search_episodes", "selected_season_aired_unwatched_episodes", sonarr_episode_ids))
                 else:
                     decisions.append(_decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "skip", "sonarr_episode_ids_unavailable"))

@@ -108,12 +108,13 @@ def collected(
     plex_existing: bool = False,
     library: bool = False,
     ownership: tuple[TvOwnership, ...] = (),
+    episode_mappings: tuple[tuple[int, int, int], ...] = (),
 ) -> TvCollectedState:
     identity = VerifiedTvIdentity(TVDB_ID, 9001, "tt0009001")
     return TvCollectedState(
         TvSnapshot("2", "generation-1", NOW, NOW, "scheduled_full", True, (show_value,)),
         (sonarr,) if sonarr else (),
-        (),
+        episode_mappings,
         (PlexTvShow("plex-7101", identity),) if plex_existing else (),
         frozenset({identity}) if library else frozenset(),
         ownership,
@@ -138,13 +139,19 @@ def apply(plan, state: StateStore, sonarr: Sonarr, plex: Plex, *, adopt: bool = 
 
 def test_unavailable_season_adds_monitors_and_library_presence_adds_plex_watchlist() -> None:
     state, sonarr, plex = StateStore(), Sonarr(), Plex()
-    plan = build_tv_plan(collected(show(first="confirmed_unavailable"), library=True))
+    plan = build_tv_plan(
+        collected(
+            show(first="confirmed_unavailable"),
+            library=True,
+            episode_mappings=((TVDB_ID, 1000, 97001),),
+        )
+    )
 
     blockers, result = apply(plan, state, sonarr, plex)
 
     assert blockers == []
     assert result.errors == ()
-    assert sonarr.calls == ["lookup", "add", "monitor_season:1"]
+    assert sonarr.calls == ["lookup", "add", "monitor_season:1", "search:17:[97001]"]
     assert plex.watchlist == {TVDB_ID}
     assert {(item.destination, item.origin) for item in state.ownership} == {
         ("sonarr", "worker"),
