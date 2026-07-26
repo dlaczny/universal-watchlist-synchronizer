@@ -114,6 +114,28 @@ def test_add_and_remove_authorize_only_an_exact_tvdb_guid() -> None:
     assert exact.removed is True
 
 
+@pytest.mark.parametrize(
+    "conflicting_guids",
+    [
+        ["tvdb://123", "tmdb://999", "imdb://tt0000009"],
+        ["tvdb://123", "tmdb://9", "imdb://tt0000999"],
+    ],
+)
+def test_watchlist_add_and_remove_quarantine_conflicting_known_guid_identifiers(
+    conflicting_guids: list[str],
+) -> None:
+    conflicting = Item("show", "conflicting", conflicting_guids)
+    identity = VerifiedTvIdentity(123, 9, "tt0000009")
+
+    add_account = Account([], [conflicting])
+    assert client(add_account).add_watchlist_show(identity) is False
+    assert conflicting.added is False
+
+    remove_account = Account([conflicting], [])
+    assert client(remove_account).remove_watchlist_show(123, 9, "tt0000009") is False
+    assert conflicting.removed is False
+
+
 def test_watchlist_remove_rejects_a_noncanonical_alternate_guid() -> None:
     tmdb_only = Item("show", "show-1", ["tmdb://9"])
 

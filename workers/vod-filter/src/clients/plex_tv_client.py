@@ -77,8 +77,13 @@ class PlexTvClient:
     def add_watchlist_show(self, identity: VerifiedTvIdentity) -> bool:
         """Add one discovered show only when its canonical TVDB GUID is exact."""
         self._require_identity(identity)
-        if any(row.identity.tvdb_id == identity.tvdb_id for row in self.get_watchlist_shows()):
-            return True
+        existing = [
+            row
+            for row in self.get_watchlist_shows()
+            if row.identity.tvdb_id == identity.tvdb_id
+        ]
+        if existing:
+            return self._identities_compatible(existing[0].identity, identity)
         try:
             candidates = self.account.searchDiscover(
                 query=f"tvdb:{identity.tvdb_id}",
@@ -87,7 +92,7 @@ class PlexTvClient:
             )
         except Exception as error:
             raise PlexTvError(f"Plex TV discovery failed for TVDB {identity.tvdb_id}") from error
-        matches = self._identity_matches(candidates, identity.tvdb_id)
+        matches = self._identity_matches(candidates, identity)
         if not matches:
             return False
         if len(matches) != 1:
@@ -106,7 +111,11 @@ class PlexTvClient:
     ) -> bool:
         """Remove at most one universal-watchlist show by its canonical TVDB GUID."""
         identity = VerifiedTvIdentity(tvdb_id=tvdb_id, tmdb_id=tmdb_id, imdb_id=imdb_id)
-        matches = [row for row in self.get_watchlist_shows() if row.identity.tvdb_id == identity.tvdb_id]
+        matches = [
+            row
+            for row in self.get_watchlist_shows()
+            if self._identities_compatible(row.identity, identity)
+        ]
         if not matches:
             return False
         if len(matches) != 1:
@@ -138,7 +147,9 @@ class PlexTvClient:
         if getattr(target, "type", None) != "show":
             return None
         current_identity = self._identity_from_item(target)
-        if current_identity is None or current_identity.tvdb_id != expected_identity.tvdb_id:
+        if current_identity is None or not self._identities_compatible(
+            current_identity, expected_identity
+        ):
             return None
         return target
 
@@ -164,16 +175,31 @@ class PlexTvClient:
         return result
 
     @classmethod
-    def _identity_matches(cls, candidates: Any, tvdb_id: int) -> list[Any]:
+    def _identity_matches(
+        cls,
+        candidates: Any,
+        expected_identity: VerifiedTvIdentity,
+    ) -> list[Any]:
         if not isinstance(candidates, (list, tuple)):
             raise PlexTvError("Plex TV discovery returned a non-list payload")
         return [
             item
             for item in candidates
             if getattr(item, "type", None) == "show"
-            and (identity := cls._identity_from_item(item)) is not None
-            and identity.tvdb_id == tvdb_id
+            and (candidate_identity := cls._identity_from_item(item)) is not None
+            and cls._identities_compatible(candidate_identity, expected_identity)
         ]
+
+    @staticmethod
+    def _identities_compatible(
+        actual: VerifiedTvIdentity,
+        expected: VerifiedTvIdentity,
+    ) -> bool:
+        return (
+            actual.tvdb_id == expected.tvdb_id
+            and (expected.tmdb_id is None or actual.tmdb_id in (None, expected.tmdb_id))
+            and (expected.imdb_id is None or actual.imdb_id in (None, expected.imdb_id))
+        )
 
     @staticmethod
     def _require_identity(identity: Any) -> VerifiedTvIdentity:
