@@ -83,6 +83,8 @@ def _by_tvdb(rows: tuple[object, ...]) -> dict[int, object]:
     result: dict[int, object] = {}
     for row in rows:
         tvdb_id = getattr(row, "tvdb_id", None)
+        if tvdb_id is None:
+            tvdb_id = getattr(getattr(row, "identity", None), "tvdb_id", None)
         if isinstance(tvdb_id, int) and not isinstance(tvdb_id, bool) and tvdb_id > 0:
             result[tvdb_id] = row
     return result

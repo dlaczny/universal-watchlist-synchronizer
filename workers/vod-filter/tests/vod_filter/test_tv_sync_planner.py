@@ -8,6 +8,7 @@ from pathlib import Path
 VOD_FILTER_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(VOD_FILTER_ROOT))
 
+from src.clients.plex_tv_client import PlexTvShow, VerifiedTvIdentity
 from src.clients.sonarr_tv_client import SonarrSeries
 from src.models.tv_destination import TvCollectedState, TvOwnership
 from src.models.tv_sync import TvAvailability, TvEpisode, TvSeason, TvShow, TvSnapshot
@@ -55,12 +56,13 @@ def collected(
     show_value: TvShow,
     *,
     sonarr_series: tuple[SonarrSeries, ...] = (),
+    plex_watchlist: tuple[PlexTvShow, ...] = (),
     errors: tuple[str, ...] = (),
 ) -> TvCollectedState:
     return TvCollectedState(
         snapshot=TvSnapshot("2", "generation-1", NOW, NOW, "scheduled_full", False, (show_value,)),
         sonarr_series=sonarr_series,
-        plex_watchlist=(),
+        plex_watchlist=plex_watchlist,
         plex_library_identities=frozenset(),
         ownership=(),
         collection_errors=errors,
@@ -111,3 +113,29 @@ def test_provider_unknown_blocks_sonarr_and_collection_error_blocks_applyable_pl
     assert [(decision.action, decision.reason) for decision in plan.decisions_for("sonarr")] == [
         ("uncertain", "sonarr_provider_availability_unknown")
     ]
+
+
+def test_existing_real_plex_watchlist_show_keeps_desired_row_without_duplicate_add() -> None:
+    existing = PlexTvShow("plex-show-100", VerifiedTvIdentity(100, None, None))
+
+    plan = build_tv_plan(
+        collected(
+            show(seasons=(season(1, "available"),)),
+            plex_watchlist=(existing,),
+        )
+    )
+
+    assert [decision.action for decision in plan.decisions_for("plex_watchlist")] == ["keep"]
+
+
+def test_existing_real_plex_watchlist_show_is_removed_when_no_longer_desired() -> None:
+    existing = PlexTvShow("plex-show-100", VerifiedTvIdentity(100, None, None))
+
+    plan = build_tv_plan(
+        collected(
+            show(seasons=(season(1, "confirmed_unavailable"),)),
+            plex_watchlist=(existing,),
+        )
+    )
+
+    assert [decision.action for decision in plan.decisions_for("plex_watchlist")] == ["plex_remove"]
