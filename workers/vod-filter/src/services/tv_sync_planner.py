@@ -13,7 +13,7 @@ from src.models.tv_sync import TvSeason, TvShow
 def build_tv_plan(collected: TvCollectedState) -> TvPlan:
     """Plan exact destination actions; collection errors always make the plan non-applyable."""
     if collected.snapshot is None:
-        return TvPlan(None, (), {}, collected.collection_errors, False)
+        return TvPlan(None, (), MappingProxyType({}), collected.collection_errors, False)
 
     decisions: list[TvDecision] = []
     selected: dict[int, int] = {}
@@ -34,7 +34,7 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
                 "legacy_unresolved": "identity_legacy_unresolved_no_destination_mutation",
             }.get(show.identity_status, "identity_unverified_no_destination_mutation")
             for destination in ("sonarr", "plex_watchlist"):
-                decisions.append(_decision(collected.snapshot.generation_id, destination, show.tvdb_id, None, "skip", reason, tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+                decisions.append(_decision(collected.snapshot.generation_id, destination, show.tvdb_id, None, "skip", reason, tmdb_id=show.tmdb_id, imdb_id=show.imdb_id, identity_key=f"trakt-{show.trakt_id}"))
             continue
         if not (show.in_trakt_watchlist and show.lifecycle_state == "active"):
             reason = (
@@ -178,10 +178,11 @@ def _by_tvdb(rows: tuple[object, ...]) -> dict[int, object]:
     return result
 
 
-def _decision(generation_id: str, destination: str, tvdb_id: int | None, season_number: int | None, action: str, reason: str, episode_numbers: tuple[int, ...] = (), tmdb_id: int | None = None, imdb_id: str | None = None) -> TvDecision:
+def _decision(generation_id: str, destination: str, tvdb_id: int | None, season_number: int | None, action: str, reason: str, episode_numbers: tuple[int, ...] = (), tmdb_id: int | None = None, imdb_id: str | None = None, identity_key: str | None = None) -> TvDecision:
     season_part = season_number or 0
+    action_identity = identity_key or str(tvdb_id or 0)
     return TvDecision(
-        action_id=f"{generation_id}:{destination}:{tvdb_id or 0}:{season_part}:{action}",
+        action_id=f"{generation_id}:{destination}:{action_identity}:{season_part}:{action}",
         destination=destination,  # type: ignore[arg-type]
         action=action,  # type: ignore[arg-type]
         tvdb_id=tvdb_id,

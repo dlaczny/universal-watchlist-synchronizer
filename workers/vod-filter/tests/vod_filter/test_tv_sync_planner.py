@@ -344,3 +344,37 @@ def test_selected_season_mapping_cannot_be_mutated() -> None:
 
     with pytest.raises(TypeError):
         plan.selected_season_by_tvdb[100] = 2
+
+
+def test_no_snapshot_plan_has_an_immutable_empty_selected_season_mapping() -> None:
+    plan = build_tv_plan(
+        TvCollectedState(
+            snapshot=None,
+            sonarr_series=(),
+            sonarr_episode_ids_by_tvdb=(),
+            plex_watchlist=(),
+            plex_library_identities=frozenset(),
+            ownership=(),
+            collection_errors=("backend_snapshot: unavailable",),
+        )
+    )
+
+    assert plan.selected_season_by_tvdb == {}
+    with pytest.raises(TypeError):
+        plan.selected_season_by_tvdb[100] = 1
+
+
+def test_nonverified_missing_tvdb_shows_have_distinct_stable_skip_action_ids() -> None:
+    first = show(seasons=(season(1, "unknown"),), tvdb_id=None, identity_status="missing")
+    second = TvShow(
+        trakt_id=11,
+        tvdb_id=None,
+        title="Other",
+        availability=TvAvailability("unknown", "PL", None),
+        seasons=(season(1, "unknown"),),
+        identity_status="missing",
+    )
+
+    plan = build_tv_plan(collected(first, extra_shows=(second,)))
+
+    assert len({decision.action_id for decision in plan.decisions}) == 4
