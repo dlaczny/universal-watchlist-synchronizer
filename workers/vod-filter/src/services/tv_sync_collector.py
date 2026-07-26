@@ -17,6 +17,7 @@ class TvSyncCollector:
         errors: list[str] = []
         snapshot = self._read("backend_snapshot", self.backend_client.fetch_tv_sync_snapshot, errors, None)
         sonarr = self._read("sonarr", self.sonarr_client.get_all_series, errors, ())
+        sonarr_episode_ids = self._collect_sonarr_episode_ids(sonarr, errors)
         watchlist = self._read("plex_watchlist", self.plex_client.get_watchlist_shows, errors, ())
         library = self._read(
             "plex_library",
@@ -37,6 +38,7 @@ class TvSyncCollector:
         return TvCollectedState(
             snapshot=snapshot,
             sonarr_series=tuple(sonarr),
+            sonarr_episode_ids_by_tvdb=sonarr_episode_ids,
             plex_watchlist=tuple(watchlist),
             plex_library_identities=frozenset(library),
             ownership=tuple(ownership),
@@ -50,3 +52,31 @@ class TvSyncCollector:
         except Exception as error:
             errors.append(f"{name}: {error}")
             return fallback
+
+    def _collect_sonarr_episode_ids(self, series_rows, errors: list[str]) -> tuple[tuple[int, int, int], ...]:
+        mappings: list[tuple[int, int, int]] = []
+        for series in series_rows:
+            tvdb_id = getattr(series, "tvdb_id", None)
+            if not isinstance(tvdb_id, int) or isinstance(tvdb_id, bool) or tvdb_id <= 0:
+                continue
+            episode_ids = self._read(
+                f"sonarr_episodes:{tvdb_id}",
+                lambda: self.sonarr_client.get_episode_ids_by_tvdb(series),
+                errors,
+                {},
+            )
+            try:
+                for episode_tvdb_id, sonarr_episode_id in episode_ids.items():
+                    if (
+                        not isinstance(episode_tvdb_id, int)
+                        or isinstance(episode_tvdb_id, bool)
+                        or episode_tvdb_id <= 0
+                        or not isinstance(sonarr_episode_id, int)
+                        or isinstance(sonarr_episode_id, bool)
+                        or sonarr_episode_id <= 0
+                    ):
+                        raise ValueError("episode identity mapping is invalid")
+                    mappings.append((tvdb_id, episode_tvdb_id, sonarr_episode_id))
+            except Exception as error:
+                errors.append(f"sonarr_episodes:{tvdb_id}: {error}")
+        return tuple(sorted(mappings))

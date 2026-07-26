@@ -81,6 +81,31 @@ class SonarrTvClient:
             result.append(self._series_from_resource(row, expected_tvdb_id=tvdb_id))
         return result
 
+    def get_episode_ids_by_tvdb(self, series: SonarrSeries) -> dict[int, int]:
+        """Map one exact Sonarr series' external episode TVDB IDs to internal IDs."""
+        if not isinstance(series, SonarrSeries):
+            raise SonarrTvError("Sonarr episode lookup requires a series resource")
+        series_id = self._positive_id(series.series_id, "Sonarr series ID")
+        tvdb_id = self._positive_id(series.tvdb_id, "Sonarr TVDB ID")
+        resource = self._verified_resource(series.resource, tvdb_id)
+        if self._positive_id(resource.get("id"), "Sonarr series ID") != series_id:
+            raise SonarrTvError("Sonarr series resource ID mismatch")
+        payload = self._request("GET", "/api/v3/episode", params={"seriesId": series_id})
+        if not isinstance(payload, list):
+            raise SonarrTvError("Sonarr episode list returned a non-list payload")
+        result: dict[int, int] = {}
+        for episode in payload:
+            if not isinstance(episode, dict):
+                raise SonarrTvError("Sonarr episode row is invalid")
+            if self._positive_id(episode.get("seriesId"), "Sonarr episode series ID") != series_id:
+                raise SonarrTvError("Sonarr episode series identity mismatch")
+            episode_tvdb_id = self._positive_id(episode.get("tvdbId"), "Sonarr episode TVDB ID")
+            episode_id = self._positive_id(episode.get("id"), "Sonarr episode ID")
+            if episode_tvdb_id in result:
+                raise SonarrTvError(f"Sonarr has duplicate episode TVDB {episode_tvdb_id}")
+            result[episode_tvdb_id] = episode_id
+        return result
+
     def lookup_by_tvdb(self, tvdb_id: int) -> SonarrSeriesLookup:
         """Look up a single addable series using Sonarr's exact TVDB term."""
         tvdb_id = self._positive_id(tvdb_id, "TVDB ID")

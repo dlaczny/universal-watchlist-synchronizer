@@ -39,6 +39,7 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
         elif season.availability.state in {"unknown", "stale"}:
             decisions.append(_decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "uncertain", f"sonarr_provider_availability_{season.availability.state}"))
         elif season.availability.state == "confirmed_unavailable":
+            aired_unwatched_episode_tvdb_ids = _aired_unwatched_episode_ids(season, collected.snapshot.generated_at)
             if existing is None:
                 decisions.extend((
                     _decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "sonarr_add", "selected_season_confirmed_unavailable"),
@@ -49,9 +50,16 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
                     decisions.append(_decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "sonarr_monitor_series", "selected_season_confirmed_unavailable"))
                 if not existing.seasons.get(season.season_number, False):
                     decisions.append(_decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "sonarr_monitor_season", "selected_season_confirmed_unavailable"))
-            episode_ids = _aired_unwatched_episode_ids(season, collected.snapshot.generated_at)
-            if episode_ids:
-                decisions.append(_decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "sonarr_search_episodes", "selected_season_aired_unwatched_episodes", episode_ids))
+            if aired_unwatched_episode_tvdb_ids:
+                sonarr_episode_ids = _sonarr_episode_ids(
+                    collected.sonarr_episode_ids_by_tvdb,
+                    show.tvdb_id,
+                    aired_unwatched_episode_tvdb_ids,
+                )
+                if existing is not None and sonarr_episode_ids is not None:
+                    decisions.append(_decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "sonarr_search_episodes", "selected_season_aired_unwatched_episodes", sonarr_episode_ids))
+                else:
+                    decisions.append(_decision(collected.snapshot.generation_id, "sonarr", show.tvdb_id, season.season_number, "skip", "sonarr_episode_ids_unavailable"))
 
         plex_desired = season.availability.state == "available" or show.tvdb_id in library_tvdb_ids
         plex_existing = plex_by_tvdb.get(show.tvdb_id)
@@ -81,15 +89,14 @@ def _selected_season(show: TvShow, generated_at) -> TvSeason | None:
     if show.next_episode_season is not None:
         return next((season for season in regular if season.season_number == show.next_episode_season), None)
     completed = [season.season_number for season in regular if season.episodes and all(episode.last_watched_at is not None for episode in season.episodes)]
-    return next(
-        (
-            season
-            for season in regular
-            if season.season_number > max(completed, default=0)
-            and any(_is_aired(episode, generated_at) for episode in season.episodes)
-        ),
+    next_season_number = max(completed, default=0) + 1
+    next_season = next(
+        (season for season in regular if season.season_number == next_season_number),
         None,
     )
+    if next_season is not None and any(_is_aired(episode, generated_at) for episode in next_season.episodes):
+        return next_season
+    return None
 
 
 def _aired_unwatched_episode_ids(season: TvSeason, generated_at) -> tuple[int, ...]:
@@ -104,6 +111,21 @@ def _aired_unwatched_episode_ids(season: TvSeason, generated_at) -> tuple[int, .
             }
         )
     )
+
+
+def _sonarr_episode_ids(
+    mappings: tuple[tuple[int, int, int], ...],
+    show_tvdb_id: int,
+    episode_tvdb_ids: tuple[int, ...],
+) -> tuple[int, ...] | None:
+    mapping = {
+        episode_tvdb_id: sonarr_episode_id
+        for mapped_show_tvdb_id, episode_tvdb_id, sonarr_episode_id in mappings
+        if mapped_show_tvdb_id == show_tvdb_id
+    }
+    if not all(episode_tvdb_id in mapping for episode_tvdb_id in episode_tvdb_ids):
+        return None
+    return tuple(sorted(mapping[episode_tvdb_id] for episode_tvdb_id in episode_tvdb_ids))
 
 
 def _is_aired(episode, generated_at) -> bool:

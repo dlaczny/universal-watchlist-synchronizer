@@ -69,6 +69,7 @@ def collected(
     show_value: TvShow,
     *,
     sonarr_series: tuple[SonarrSeries, ...] = (),
+    sonarr_episode_ids_by_tvdb: tuple[tuple[int, int, int], ...] = (),
     plex_watchlist: tuple[PlexTvShow, ...] = (),
     ownership: tuple[TvOwnership, ...] = (),
     errors: tuple[str, ...] = (),
@@ -76,6 +77,7 @@ def collected(
     return TvCollectedState(
         snapshot=TvSnapshot("2", "generation-1", NOW, NOW, "scheduled_full", False, (show_value,)),
         sonarr_series=sonarr_series,
+        sonarr_episode_ids_by_tvdb=sonarr_episode_ids_by_tvdb,
         plex_watchlist=plex_watchlist,
         plex_library_identities=frozenset(),
         ownership=ownership,
@@ -88,9 +90,9 @@ def test_unstarted_unavailable_show_selects_season_one_and_sonarr_add() -> None:
 
     assert plan.selected_season_by_tvdb == {100: 1}
     assert [(decision.action, decision.action_id) for decision in plan.decisions_for("sonarr")] == [
+        ("skip", "generation-1:sonarr:100:1:skip"),
         ("sonarr_add", "generation-1:sonarr:100:1:sonarr_add"),
         ("sonarr_monitor_season", "generation-1:sonarr:100:1:sonarr_monitor_season"),
-        ("sonarr_search_episodes", "generation-1:sonarr:100:1:sonarr_search_episodes"),
     ]
 
 
@@ -156,7 +158,7 @@ def test_existing_real_plex_watchlist_show_is_removed_when_no_longer_desired() -
     assert [decision.action for decision in plan.decisions_for("plex_watchlist")] == ["plex_remove"]
 
 
-def test_selected_unavailable_season_searches_only_aired_unwatched_episode_ids() -> None:
+def test_selected_unavailable_season_skips_search_without_existing_sonarr_episode_ids() -> None:
     selected = season(
         1,
         "confirmed_unavailable",
@@ -169,10 +171,11 @@ def test_selected_unavailable_season_searches_only_aired_unwatched_episode_ids()
 
     plan = build_tv_plan(collected(show(seasons=(selected,))))
 
-    search = next(
-        decision for decision in plan.decisions_for("sonarr") if decision.action == "sonarr_search_episodes"
-    )
-    assert search.episode_numbers == (1002,)
+    assert [(decision.action, decision.reason) for decision in plan.decisions_for("sonarr")] == [
+        ("skip", "sonarr_episode_ids_unavailable"),
+        ("sonarr_add", "selected_season_confirmed_unavailable"),
+        ("sonarr_monitor_season", "selected_season_confirmed_unavailable"),
+    ]
 
 
 def test_completed_show_fallback_does_not_select_a_future_only_numbered_season() -> None:
@@ -186,6 +189,7 @@ def test_completed_show_fallback_does_not_select_a_future_only_numbered_season()
                         "confirmed_unavailable",
                         episodes=(episode(2, 1, first_aired=NOW.replace(year=2027)),),
                     ),
+                    season(3, "confirmed_unavailable"),
                 )
             )
         )
@@ -216,4 +220,43 @@ def test_owned_unmonitored_sonarr_series_is_monitored_when_no_season_is_eligible
     assert [decision.action for decision in plan.decisions_for("sonarr")] == [
         "sonarr_monitor_series",
         "uncertain",
+    ]
+
+
+def test_selected_unavailable_season_searches_sonarr_internal_ids_not_tvdb_ids() -> None:
+    existing = SonarrSeries(1, 100, "Example", True, {1: True}, {"id": 1, "tvdbId": 100})
+    selected = season(
+        1,
+        "confirmed_unavailable",
+        episodes=(episode(1, 1, tvdb_id=1001), episode(1, 2, tvdb_id=1002)),
+    )
+    plan = build_tv_plan(
+        collected(
+            show(seasons=(selected,)),
+            sonarr_series=(existing,),
+            sonarr_episode_ids_by_tvdb=((100, 1001, 9001), (100, 1002, 9002)),
+            ownership=(TvOwnership("sonarr", 100, "worker"),),
+        )
+    )
+
+    search = next(
+        decision for decision in plan.decisions_for("sonarr") if decision.action == "sonarr_search_episodes"
+    )
+    assert search.episode_numbers == (9001, 9002)
+
+
+def test_selected_unavailable_season_skips_search_when_sonarr_episode_ids_are_unavailable() -> None:
+    existing = SonarrSeries(1, 100, "Example", True, {1: True}, {"id": 1, "tvdbId": 100})
+    plan = build_tv_plan(
+        collected(
+            show(seasons=(season(1, "confirmed_unavailable"),)),
+            sonarr_series=(existing,),
+            ownership=(TvOwnership("sonarr", 100, "worker"),),
+        )
+    )
+
+    decisions = plan.decisions_for("sonarr")
+    assert "sonarr_search_episodes" not in [decision.action for decision in decisions]
+    assert [(decision.action, decision.reason) for decision in decisions] == [
+        ("skip", "sonarr_episode_ids_unavailable"),
     ]

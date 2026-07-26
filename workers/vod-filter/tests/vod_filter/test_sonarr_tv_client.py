@@ -70,6 +70,24 @@ def test_get_series_by_tvdb_reads_the_list_and_matches_only_exact_identity() -> 
     )
 
 
+def test_episode_lookup_maps_exact_series_tvdb_episode_ids_to_sonarr_internal_ids() -> None:
+    series = SonarrSeries(44, 123, "Exact Show", True, {1: True}, series_payload())
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path == "/api/v3/episode"
+        assert request.url.params == httpx.QueryParams({"seriesId": "44"})
+        return httpx.Response(
+            200,
+            json=[
+                {"id": 9001, "seriesId": 44, "tvdbId": 4001},
+                {"id": 9002, "seriesId": 44, "tvdbId": 4002},
+            ],
+        )
+
+    assert sonarr_client(handler).get_episode_ids_by_tvdb(series) == {4001: 9001, 4002: 9002}
+
+
 def test_add_series_posts_only_an_exact_tvdb_lookup_result() -> None:
     requests: list[httpx.Request] = []
 

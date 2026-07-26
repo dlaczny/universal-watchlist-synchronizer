@@ -34,6 +34,7 @@ class TvOwnership:
 class TvCollectedState:
     snapshot: TvSnapshot | None
     sonarr_series: tuple[object, ...]
+    sonarr_episode_ids_by_tvdb: tuple[tuple[int, int, int], ...]
     plex_watchlist: tuple[object, ...]
     plex_library_identities: frozenset[object]
     ownership: tuple[TvOwnership, ...]
