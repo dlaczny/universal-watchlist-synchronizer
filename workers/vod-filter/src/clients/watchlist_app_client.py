@@ -356,7 +356,16 @@ class WatchlistAppClient:
             cls._map_tv_availability(item.get("polandAvailability")),
             tuple(mapped_seasons),
             tuple(specials),
+            cls._map_tv_next_episode_season(item.get("nextEpisode")),
         )
+
+    @classmethod
+    def _map_tv_next_episode_season(cls, item: Any) -> int | None:
+        if item is None:
+            return None
+        if not isinstance(item, dict):
+            raise WatchlistAppError("watchlist-app TV sync snapshot nextEpisode is invalid")
+        return cls._positive_int(item.get("seasonNumber"), "next episode season number")
 
     @classmethod
     def _map_tv_season(cls, item: Any) -> TvSeason:

@@ -64,6 +64,23 @@ class SonarrTvClient:
             raise SonarrTvError(f"Sonarr returned multiple series for TVDB {tvdb_id}")
         return self._series_from_resource(matches[0], expected_tvdb_id=tvdb_id)
 
+    def get_all_series(self) -> list[SonarrSeries]:
+        """Read all Sonarr series once and retain only exact positive TVDB rows."""
+        payload = self._request("GET", "/api/v3/series")
+        if not isinstance(payload, list):
+            raise SonarrTvError("Sonarr series list returned a non-list payload")
+        result: list[SonarrSeries] = []
+        seen: set[int] = set()
+        for row in payload:
+            if not isinstance(row, dict):
+                raise SonarrTvError("Sonarr series row is invalid")
+            tvdb_id = self._positive_id(row.get("tvdbId"), "Sonarr TVDB ID")
+            if tvdb_id in seen:
+                raise SonarrTvError(f"Sonarr returned multiple series for TVDB {tvdb_id}")
+            seen.add(tvdb_id)
+            result.append(self._series_from_resource(row, expected_tvdb_id=tvdb_id))
+        return result
+
     def lookup_by_tvdb(self, tvdb_id: int) -> SonarrSeriesLookup:
         """Look up a single addable series using Sonarr's exact TVDB term."""
         tvdb_id = self._positive_id(tvdb_id, "TVDB ID")

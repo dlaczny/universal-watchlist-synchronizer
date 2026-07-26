@@ -38,6 +38,7 @@ class TvShow:
     availability: TvAvailability
     seasons: tuple[TvSeason, ...]
     specials: tuple[TvEpisode, ...] = ()
+    next_episode_season: int | None = None
 
 
 @dataclass(frozen=True)
