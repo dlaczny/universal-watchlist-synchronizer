@@ -1,19 +1,20 @@
 ---
 type: Architecture
 title: System Boundaries
-description: Ownership boundaries between clients, backend persistence, external integrations, the movie worker, and deployment tooling.
+description: Ownership boundaries between clients, backend persistence, external integrations, the movie and reversible TV workers, and deployment tooling.
 tags:
   - architecture
   - boundaries
   - agents
 timestamp: 2026-07-11T00:00:00Z
-version: 0.3.0
+version: 0.4.0
 ---
 
 # Overview
 
-The active production path is backend-owned movie ingestion followed by a
-worker-owned plan-and-apply process.
+The active production paths are backend-owned movie ingestion and a
+versioned, immutable TV generation. The worker owns the independently
+scheduled movie and TV destination workflows.
 
 ```text
 Letterboxd --\
@@ -25,7 +26,9 @@ Plex library-/          |
                            |               |
                         Radarr        Plex watchlist
 
-Trakt + TMDB --> .NET backend --> immutable TV generation --> read APIs / read-only TV export
+Trakt + TMDB --> .NET backend --> immutable TV generation --> read APIs / schema-v2 TV export
+                                                                  |
+                                                    Python TV worker --> Sonarr / Plex Watchlist
 
 Android TV --> backend read APIs only (client work is deferred)
 ```
@@ -43,13 +46,34 @@ Android TV --> backend read APIs only (client work is deferred)
 - Plex library media is always read-only.
 - Unmanaged Radarr and Plex-watchlist rows are preserved except for the exact
   watched/manual-removal authorizations defined by Production Movie Sync.
-- Trakt supplies Phase 1 TV source/progress state; TMDB supplies exact-ID TV
-  metadata and PL provider observations. The backend alone owns their credentials,
-  OAuth, generation publication, and lifecycle reduction.
+- Trakt supplies TV source/progress state; TMDB supplies exact-ID TV metadata
+  and per-season Poland (`PL`) provider observations. The backend alone owns
+  their credentials, OAuth, generation publication, lifecycle reduction, and
+  the immutable schema-v2 desired-state export.
 - Android clients call only backend read APIs and contain no integration
   credentials. Android TV feature work is deferred until explicitly requested.
-- Plex and Sonarr have no Phase 1 TV observation or mutation role. The worker
-  receives a TV export for contract continuity only; it cannot apply it.
+- The TV worker reads one schema-v2 export plus live Sonarr, Plex TV-library,
+  and Plex Watchlist observations. It plans deterministically and writes a
+  redacted report before any destination action. Effective TV apply requires
+  `TV_SYNC_ENABLED=true`, host `TV_SYNC_APPLY=true`, and an explicit `--apply`.
+- Sonarr actions require an exact positive TVDB identity. Plex TV identities
+  require an exact TVDB GUID, or a verified TMDB/IMDb GUID that maps to the
+  same TVDB show; title/year matching is never mutation authority.
+- The selected regular season controls each show: Season 1 when unstarted;
+  otherwise Trakt's next-episode season, or the next aired numbered season
+  after the latest fully watched season. Specials do not participate.
+- Sonarr additions, selected-season monitoring, and searches are allowed only
+  for a selected season confirmed unavailable in Poland. A provider `unknown`
+  or `stale` observation blocks a new Sonarr action. Plex Watchlist is desired
+  when that season is confirmed available in Poland or the configured Plex TV
+  library has an exactly identified episode; an exact watchlist row may be
+  removed when neither condition holds.
+- Existing exact Sonarr rows are report-only adoption candidates. Only a
+  separately armed supervised adoption records `manual` origin, and neither
+  `manual` nor `worker` origin authorizes a Sonarr removal in this release.
+- Plex episode-history ingestion, Trakt history writes, Plex library mutation,
+  Sonarr file/season/series removal, cleanup, and Android TV work remain out
+  of scope. All history and TV cleanup switches remain false.
 - GitHub validates public code without production secrets. The homelab host
   keeps runtime credentials outside its clean Git checkout.
 
@@ -60,7 +84,7 @@ Android TV --> backend read APIs only (client work is deferred)
 | Android TV client | Read-only rendering and remote navigation. | External credentials, sync orchestration, mutations. |
 | .NET backend | Source ingestion, metadata, Plex inventory, MongoDB read model, sync and export contracts. | Radarr or Plex-watchlist mutations. |
 | MongoDB | Normalized movie read model, published Letterboxd lifecycle, protected Trakt connection, immutable TV generations, Plex inventory, backend sync history. | Live destination state. |
-| Movie worker | Live-state collection, planning, policy, authorized Radarr/Plex-watchlist actions, SQLite ownership/observations/reports. | Backend persistence, Plex library mutation, file deletion without an exact gated watched event. |
+| Movie and TV worker | Movie live-state collection, planning, policy, and authorized Radarr/Plex-watchlist actions; independently, TV schema-v2 collection, exact-identity planning, SQLite destination origins/audit, reports, and the gated reversible Sonarr/Plex Watchlist actions. | Backend persistence, Plex library mutation, Trakt history writes, TV cleanup, or Sonarr file/season/series removal. |
 | GitHub Actions | Tests, OKF validation, secret scanning, image-build validation. | Runtime credentials or deployment access. |
 | Homelab deployer | Exact-SHA CI gate, local image build, health checks, release state, rollback. | Editing the legacy `/opt/watchlist-app` checkout. |
 

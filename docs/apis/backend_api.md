@@ -7,7 +7,7 @@ tags:
   - backend
   - worker
 timestamp: 2026-07-14T00:00:00Z
-version: 0.4.0
+version: 0.5.0
 ---
 
 # Boundary
@@ -97,7 +97,7 @@ lifecycle transition or source snapshot.
 | `POST /api/sync/plex/movies` | Refresh Plex movie inventory and matching. |
 | `POST /api/sync/availability/refresh` | Run stale-aware Plex availability refresh. |
 | `POST /api/sync/tmdb/tv` | Returns `410 Gone` with `code=legacy_tv_sync_disabled`; the TMDB-account TV route is retired. |
-| `POST /api/sync/tv` | Runs one protected scheduled full Trakt TV read generation. Response includes source counts, provider failure count, generation ID/kind, and always `mutationCapable=false` with Phase 1 health reasons. |
+| `POST /api/sync/tv` | Runs one protected scheduled full Trakt TV read generation. Response includes source counts, provider failure count, generation ID/kind, and `mutationCapable=false`; destination eligibility is published only in the schema-v2 export. |
 | `POST /api/sync/all` | Compatibility combined movie sequence; TV is reported disabled and is not run. |
 
 TV source/validation/race failures publish no candidate and preserve the
@@ -121,9 +121,9 @@ The successful manual TV sync result has this exact JSON shape:
 
 `generationId` identifies the newly published immutable generation and `kind`
 is the generation kind (for this endpoint, `scheduled_full`).
-`mutationCapable` is always `false`; `healthReasons` contains the Phase 1 lock
-reasons. A failed request has no new `generationId` and preserves the previous
-published generation.
+`mutationCapable` remains `false`; it is a compatibility field and never
+authorizes a destination, history, or cleanup operation. A failed request has
+no new `generationId` and preserves the previous published generation.
 
 # Trakt Connection Management
 
@@ -162,12 +162,25 @@ only active Letterboxd IDs from the latest published manifest. Watched rows are
 retained for audit and cleanup authorization but are absent from normal reads.
 
 `GET /api/export/tv/sync-state` is read-only and returns `404` until one TV
-generation has been published. It contains schema version, immutable generation
-metadata, source/progress shows, `mutationCapable=false`, the two Phase 1
-health reasons, an incapable Plex-history block, and an empty cleanup
-authorization list. `GET /api/export/sonarr/tv` remains a compatibility empty
-array with `X-Watchlist-Contract: compatibility-only`; neither route performs
-or authorizes Sonarr work.
+generation has been published. Schema version `2` adds
+`destinationSync: { capable, blockers }` and each regular season's
+`polandAvailability`; it preserves `mutationCapable=false`, the legacy health
+reasons, incapable Plex-history block, and empty cleanup authorization list.
+`destinationSync.capable` means only that the immutable generation is valid,
+published, and has no manifest validation failures. It is not an apply command,
+and the worker still requires complete live collection, exact identity, current
+provider evidence, host gates, and an explicit `--apply` before a reversible
+destination action.
+
+TVDB is the identity required for Sonarr actions. Missing, nonpositive, or
+conflicting TVDB values fail closed; title/year matching cannot authorize an
+action. The worker chooses one regular season (Season 1 when unstarted,
+otherwise the next-episode season or next aired season after completion) and
+uses that season's PL provider observation. A selected season that is
+`unknown` or `stale` blocks a new Sonarr action. `GET /api/export/sonarr/tv`
+remains a compatibility empty array with
+`X-Watchlist-Contract: compatibility-only`; neither route performs a Sonarr
+operation.
 
 `GET /api/sync/status` remains a public read and returns `404` when there is no
 persisted backend sync status. Its optional TV object uses exact names:

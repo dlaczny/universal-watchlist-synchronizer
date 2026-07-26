@@ -1,13 +1,13 @@
 ---
 type: API
 title: Export Endpoints
-description: Cached backend contracts for the movie worker, read-only TV handoff, and legacy compatibility consumers.
+description: Cached backend contracts for the movie worker, schema-v2 TV destination handoff, and legacy compatibility consumers.
 tags:
   - api
   - worker
   - radarr
 timestamp: 2026-07-11T00:00:00Z
-version: 0.3.0
+version: 0.4.0
 ---
 
 # Complete Movie Sync State
@@ -57,23 +57,32 @@ owned-service availability and rows whose source ID is not numeric.
 This endpoint is not a complete desired-state snapshot and must not drive
 production removals. It remains for compatibility and source comparison.
 
-# Sonarr Placeholder
+# Sonarr Compatibility Placeholder
 
-`GET /api/export/sonarr/tv` returns an empty array. Sonarr production behavior
-is not implemented.
+`GET /api/export/sonarr/tv` returns an empty array. It is a compatibility
+surface, not the TV destination contract.
 
-# Read-Only TV Sync State
+# Schema-V2 TV Sync State
 
 `GET /api/export/tv/sync-state` resolves exactly one immutable published TV
-generation and returns `404` until one exists. The version-1 envelope contains
-these exact field names:
+generation and returns `404` until one exists. It is read-only and the worker
+must fetch one complete envelope before it collects live destination state. The
+schema-version-2 envelope contains these exact field names:
 
 ```text
 {
   schemaVersion, generationId, publishedAt, generatedAt, kind,
-  mutationCapable, healthReasons, plexHistory, shows, cleanupAuthorizations
+  mutationCapable, destinationSync, healthReasons, plexHistory, shows,
+  cleanupAuthorizations
 }
 ```
+
+`destinationSync` has exact fields `capable` and `blockers`.
+`capable=true` means the manifest is `valid`, has a positive publication time,
+and has no manifest validation failures. When false, `blockers` is the sorted,
+de-duplicated set of `tv_generation_not_valid`,
+`tv_generation_unpublished`, and/or `tv_generation_validation_failed`.
+This capability is intentionally narrower than a write authorization.
 
 Each `shows[]` member uses the worker-specific names below (not the public
 `inWatchlist`, `airedEpisodes`, and `completedEpisodes` names):
@@ -89,7 +98,9 @@ Each `shows[]` member uses the worker-specific names below (not the public
 ```
 
 `seasons[]` has `seasonNumber`, `aired`, `completed`, `monitoredDesired`,
-`searchAiredUnwatchedEpisodes`, `cleanupState`, and `episodes`. Every
+`searchAiredUnwatchedEpisodes`, `cleanupState`, `polandAvailability`, and
+`episodes`. `polandAvailability` is the season-specific PL observation; show
+availability must not be substituted for it. Every
 `episodes[]` item has `traktEpisodeId`, `seasonNumber`, `episodeNumber`,
 `tvdbId`, `title`, `firstAired`, `aired`, `watched`, `lastWatchedAt`,
 `plexRatingKey`, `watchedByConfiguredPlexAccount`, and `plexLastViewedAt`.
@@ -97,18 +108,33 @@ The envelope has a complete show list and this hard safety contract:
 
 ```text
 mutationCapable: false
-healthReasons: plex_history_phase_not_implemented, worker_tv_mutation_disabled
+destinationSync: { capable: true|false, blockers: []|stable generation blockers }
 plexHistory: capable=false, bootstrapComplete=false
 cleanupAuthorizations: []
 ```
 
 Shows carry exact Trakt and supporting identities, lifecycle/progress, regular
 season episodes, S00 identity-only specials, and PL provider data. Desired
-Sonarr/Plex fields are informational compatibility data, not permission for a
-worker to perform an action. The existing movie worker neither reads nor
-applies this export in Phase 1. `404` means no TV generation has been
-published; it is not an empty snapshot and no worker may infer a cleanup from
-it.
+Sonarr/Plex fields express backend desired state but are not an executable
+command stream. The separate TV worker derives one selected regular season:
+Season 1 when unstarted; otherwise the season of `nextEpisode`, or the next
+aired numbered season after the latest fully watched season. Specials never
+select a destination season.
+
+TVDB is mandatory for a Sonarr action. A missing, nonpositive, or conflicting
+TVDB value is a per-show blocker and title/year fallback is prohibited. The
+worker may add, monitor, and search a selected season only when that season is
+`confirmed_unavailable` in PL; `unknown` and `stale` block the new Sonarr
+action. It may add an exactly identified Plex Watchlist show when the selected
+season is `available` or the configured Plex TV library has an exact episode,
+and it may remove an exactly identified Plex Watchlist row when neither fact
+is true. Plex library media is never altered.
+
+Existing exact Sonarr rows are adoption candidates. An operator-reviewed,
+separately armed adoption stores `manual` origin; worker-created rows store
+`worker` origin. Neither origin permits a Sonarr file, season, or series
+removal. `404` means no TV generation has been published; it is not an empty
+snapshot and no worker may infer a cleanup from it.
 
 # Links
 

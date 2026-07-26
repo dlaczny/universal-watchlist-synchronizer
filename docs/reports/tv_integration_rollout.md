@@ -1,23 +1,51 @@
 ---
 type: Report
 title: TV Integration Rollout
-description: Cumulative evidence ledger for the Phase 1 non-destructive TV read model.
+description: Cumulative evidence ledger for the TV read model and staged reversible destination rollout.
 tags:
   - report
   - tv
   - rollout
 timestamp: 2026-07-19T00:00:00Z
-version: 1.0.0
+version: 1.1.0
 ---
 
-# Status
+# Current Status
 
-Phase 1 implementation is committed and passed the local release gate on
-2026-07-22 at commit `ee9f9e7`. This ledger does not claim that it has been
-deployed, connected to a real Trakt account, or run against production data.
-Add dated, redacted evidence only after each real operation.
+The historical Phase 1 read-model evidence below is local test evidence for
+commit `ee9f9e7`; it is not evidence that the schema-v2 reversible destination
+release has deployed or operated. No report-only, adoption, reversible apply,
+or convergence stage for this release is recorded in this ledger. Do not infer
+a completed stage from implementation, CI, local tests, or configuration.
 
-# Required Phase 1 Evidence
+Add dated, redacted evidence only after the corresponding real host operation.
+The absence of a row is a stop condition, not permission to proceed.
+
+# Required Reversible Destination Evidence
+
+The stages below are ordered. Each row remains **Not run** until a human has
+performed the actual server-local operation and recorded the required redacted
+artifact. Keep `TRAKT_HISTORY_SYNC_APPLY` and all TV cleanup flags false at
+every stage.
+
+| Stage | Required evidence | Artifact to retain | Current status |
+|---|---|---|---|
+| Exact-SHA deployment with TV disabled | Deployer status, healthy movie workflow, `TV_SYNC_ENABLED=false` | Release SHA, redacted health/status metadata | Not run |
+| Report-only TV collection | Schema-v2 generation and one `sync_tv.py --once` report with `TV_SYNC_APPLY=false` | Generation ID, report status, counts, selected-season/provider states, stable blocker/reason totals | Not run |
+| Report review | Human approval that exact identity, collection, provider, and threshold facts permit the next stage | Review timestamp and approved report filename/hash; no secrets or raw bodies | Not run |
+| Supervised existing-Sonarr adoption | One `--apply` run with both host apply and adoption gates true | Redacted action totals and audit evidence that only exact rows received `manual` origin | Not run |
+| Adoption review | Human review of origin audit and destination outcomes before normal apply | Review timestamp and stable outcome/reason totals | Not run |
+| Supervised reversible apply | One `--apply` run with adoption false | Redacted Sonarr/Plex Watchlist action totals, report status, and worker health | Not run |
+| Second convergence pass | A fresh collection followed by a second supervised apply | Report showing only expected `keep`/`skip` decisions or a recorded investigation | Not run |
+| Prohibited-operation guard | Configuration inspection showing history and cleanup flags false; no Plex library/media-root write surface | Redacted resolved configuration and boundary-test result | Not run |
+
+Record only redacted timestamps, generation IDs, report status, counts, stable
+reason codes, action outcomes, and review decisions. Do not record device/user
+codes, access or refresh tokens, client secrets, protected ciphertext, sync
+keys, Plex tokens, API keys, database connection strings, raw upstream bodies,
+or personal media history.
+
+# Historical Phase 1 Read-Model Evidence
 
 | Evidence | Command or API call | Artifact to retain | Current status |
 |---|---|---|---|

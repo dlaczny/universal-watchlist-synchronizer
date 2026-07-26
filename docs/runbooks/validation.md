@@ -7,13 +7,14 @@ tags:
   - tests
   - okf
 timestamp: 2026-07-11T00:00:00Z
-version: 0.3.1
+version: 0.4.0
 ---
 
 # OKF And Deployment Tooling
 
 ```powershell
 python tests\validate_okf.py
+python -m pytest tests\test_tv_destination_plan_docs.py -q
 python -m pytest tests\deployment -q
 python -m py_compile scripts\check-movie-ci.py
 ```
@@ -47,7 +48,8 @@ export.
 TV coverage must include protected Trakt connection/key-ring restart behavior,
 complete paginated reads, cursor-race rejection, publish-last generation
 reads, provider `unknown`/`stale` behavior, legacy-row migration, TV browse
-state validation, read-only export, and all six locked-false mutation gates.
+state validation, schema-v2 export serialization (`destinationSync` and
+per-season `polandAvailability`), and all locked-false history/cleanup gates.
 
 # Worker
 
@@ -56,12 +58,22 @@ Run from `workers/vod-filter`:
 ```powershell
 python -m pip install -r requirements.txt "pytest>=8.0.0"
 python -m pytest -q
-python -m compileall -q src continuous_sync.py sync_movies.py reconcile_sync.py healthcheck.py
+python -m compileall -q src continuous_sync.py sync_movies.py sync_tv.py reconcile_sync.py healthcheck.py
 ```
 
-The expected worker suite is 133 tests. It includes strict snapshot matching,
-Radarr baseline/disappearance persistence, watched/manual planning, destructive
-policy and executor checks, cleanup audit history, reports, and configuration.
+Run the full worker suite rather than relying on a historical test count. It
+includes strict schema-v2 snapshot parsing, exact TVDB Sonarr and verified Plex
+identity checks, selected-season/provider planning, SQLite origin/action audit,
+report-only and separately armed adoption/apply policy, independent workflow
+scheduling/health, and movie regression coverage.
+
+The TV workflow simulation must cover unavailable unstarted Season 1,
+provider-available skip, progress advance to a later aired season, exact Plex
+library-driven add, exact Plex Watchlist removal when neither desired fact is
+present, supervised manual-origin adoption, unknown/stale provider blocking,
+and a second apply that converges to only `keep`/`skip` results. It must also
+prove no Plex library, Trakt-history, movie, or Sonarr file/season/series
+operation is exposed.
 
 # Containers
 
@@ -80,7 +92,30 @@ docker build -t watchlist-worker:validation workers\vod-filter
 Verify image healthchecks, non-root users, backend `/healthz`, and a `401`
 response from an unauthenticated `POST /api/sync/movies` when a sync key is set.
 Also inspect resolved Compose configuration for the persistent backend key-ring
-mount and all six TV mutation switches set to `false`.
+mount. The checked-in deployment must retain `TV_SYNC_APPLY=false`,
+`TV_SYNC_ADOPT_EXISTING_DESTINATIONS=false`, every history/cleanup setting
+false, and no media-root mount. `TV_SYNC_ENABLED` is disabled by default in the
+worker configuration; enabling collection on a host must not turn on apply.
+
+When validating a release candidate, run the full gate in this order and retain
+the actual output outside Git:
+
+```powershell
+python tests\validate_okf.py
+python -m pytest tests\test_tv_destination_plan_docs.py -q
+python -m pytest tests\deployment -q
+dotnet restore backend\Watchlist.sln
+dotnet build backend\Watchlist.sln --configuration Release --no-restore
+dotnet test backend\Watchlist.sln --configuration Release --no-build
+Push-Location workers\vod-filter
+python -m pytest -q
+python -m compileall -q src continuous_sync.py sync_movies.py sync_tv.py healthcheck.py
+Pop-Location
+```
+
+Passing local validation proves only the build and test gates. Production
+report-only, adoption, reversible apply, and convergence evidence belongs in
+the rollout ledger after each real host stage.
 
 # Secrets
 

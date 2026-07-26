@@ -1,30 +1,37 @@
 ---
 type: Architecture
 title: TV Sync Read Model
-description: Phase 1 Trakt-backed TV generations, Polish provider observations, and non-destructive read contracts.
+description: Trakt-backed TV generations, per-season Polish provider observations, and the schema-v2 reversible destination contract.
 tags:
   - tv
   - trakt
   - mongodb
   - read-model
 timestamp: 2026-07-19T00:00:00Z
-version: 1.0.0
+version: 1.1.0
 ---
 
-# Phase 1 Boundary
+# Source And Publication Boundary
 
-Phase 1 is a backend-owned, non-destructive TV read model. Trakt supplies TV
+The backend-owned TV read model remains non-destructive. Trakt supplies TV
 watchlist membership, watched progress, episode schedules, and show status;
-TMDB supplies exact-ID metadata and Poland (`PL`) provider observations. MongoDB
-stores the protected Trakt connection and one immutable published generation.
-Clients and the worker read that published generation only.
+TMDB supplies exact-ID metadata and Poland (`PL`) provider observations for
+the show and each regular season. MongoDB stores the protected Trakt connection
+and one immutable published generation. Clients and the worker read that
+published generation only.
 
-Plex episode history, Trakt history writes, Sonarr actions, Plex-watchlist
-actions, cleanup authorizations, and every TV apply/adoption/delete path are
-not implemented. The TV export declares that limitation with
-`mutationCapable=false`, `plex_history_phase_not_implemented`, and
-`worker_tv_mutation_disabled`. The six TV-related host switches are locked
-false by the production Compose file as well as the environment examples.
+The legacy `mutationCapable=false` field remains false for compatibility; it is
+not a destination permission or a cleanup permission. Schema version 2 adds a
+separate `destinationSync` envelope for the reversible TV worker. Its `capable`
+value is true only for a valid, published generation with no manifest validation
+failures. Stable envelope blockers are `tv_generation_not_valid`,
+`tv_generation_unpublished`, and `tv_generation_validation_failed`.
+
+Plex episode history, Trakt history writes, Plex library mutation, Sonarr
+file/season/series removal, and all TV cleanup remain prohibited. The history
+and cleanup switches remain false in production configuration. Destination
+collection is disabled by default; a real destination write additionally needs
+both the host apply gate and a per-run `--apply` request.
 
 # Publication Flow
 
@@ -50,7 +57,7 @@ generation when no generation exists, when the hourly full-sync interval is
 due, or when the activity cursor changed; it does not synthesize generations
 while the connection is disconnected, revoked, or requires refresh.
 
-# Lifecycle And Availability
+# Lifecycle, Identity, And Availability
 
 The persistent lifecycle states are `active`, `caught_up`, `source_removed`,
 `terminal_cleanup_pending`, and `retired_terminal`. In Phase 1 only the first
@@ -63,13 +70,51 @@ response becomes `available` or `confirmed_unavailable`. An upstream provider
 failure is never represented as unavailable: it publishes `stale` where a
 previous observation can be retained, otherwise `unknown`.
 
-# Reader Contract
+TVDB is the canonical Sonarr identity. A missing, nonpositive, or conflicting
+TVDB ID is a fail-closed per-show blocker (`identity_missing_tvdb` or
+`identity_conflict`); title/year matching may not authorize a Sonarr or Plex
+Watchlist action. Plex may use an exact TMDB or IMDb GUID only after the
+backend-verified identity maps it to the same TVDB show.
+
+# Reversible Destination Semantics
+
+The backend publishes desired state; the worker independently collects live
+Sonarr, Plex Watchlist, Plex TV-library, and SQLite ownership state before it
+plans or applies anything. The worker considers regular numbered seasons only:
+
+- An unstarted show selects Season 1.
+- Otherwise it selects Trakt's `nextEpisode` season, or the next numbered
+  season after the latest fully watched season if that season already has an
+  aired episode.
+- If no selected season exists, an existing Sonarr series is retained as-is;
+  no unknown future season is added or searched.
+
+The selected season's own PL observation is authoritative. Only a selected
+season confirmed unavailable permits Sonarr add, selected-season monitor, and
+aired/unwatched episode search. `unknown` and `stale` are not proof of
+unavailability and block a new Sonarr action. A selected season confirmed
+available, or at least one exactly identified episode in the configured Plex
+TV library, makes its show desired on Plex Watchlist. When neither fact is
+true, the worker can remove only an exactly identified Plex Watchlist row.
+
+An existing exact-TVDB Sonarr row is an adoption candidate, not automatically
+worker-owned. After a report review, a separately armed adoption run records
+`manual` origin without changing monitoring. Worker-created rows have
+`worker` origin. Neither origin authorizes Sonarr removal in this release.
+
+# Reader And Worker Contract
 
 `GET /api/watchlist` and detail reads are served from the one published TV
 generation. `collection=all` includes movies plus active TV rows only;
 `collection=tv` defaults to active and accepts the TV lifecycle filters
-documented in [Backend API](../apis/backend_api.md). The worker export is a
-read-only envelope and is intentionally not a Sonarr command contract.
+documented in [Backend API](../apis/backend_api.md).
+
+`GET /api/export/tv/sync-state` is schema version 2 and is still read-only: it
+is an immutable input to a worker plan, never a Sonarr command stream. The
+worker rejects an incapable, stale, malformed, duplicate, or credential-shaped
+payload and reports without destination writes. It records each successful
+reversible action immediately, then re-collects live state on a later run
+rather than replaying an old plan.
 
 # Links
 
