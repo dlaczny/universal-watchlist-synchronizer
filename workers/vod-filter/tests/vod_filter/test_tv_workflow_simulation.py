@@ -188,7 +188,7 @@ def test_no_provider_or_library_removes_exact_plex_row_and_adopts_manual_sonarr_
     assert sonarr.calls == []
 
 
-def test_unknown_provider_blocks_sonarr_and_second_apply_converges_to_keep_or_skip() -> None:
+def test_unknown_provider_is_quarantined_and_second_apply_converges_to_keep_or_skip() -> None:
     unknown_plan = build_tv_plan(collected(show(first="unknown")))
     existing = SonarrSeries(17, TVDB_ID, "Example", True, {1: True}, {"id": 17, "tvdbId": TVDB_ID})
     converged_plan = build_tv_plan(
@@ -204,8 +204,8 @@ def test_unknown_provider_blocks_sonarr_and_second_apply_converges_to_keep_or_sk
     blockers, unknown_result = apply(unknown_plan, state, sonarr, plex)
     convergence_blockers, convergence_result = apply(converged_plan, state, sonarr, plex)
 
-    assert "sonarr_provider_availability_uncertain" in blockers
-    assert unknown_result.statuses == tuple("blocked" for _ in unknown_plan.decisions)
+    assert blockers == []
+    assert unknown_result.statuses == tuple("skipped" for _ in unknown_plan.decisions)
     assert sonarr.calls == [] and plex.calls == []
     assert convergence_blockers == []
     assert convergence_result.errors == ()

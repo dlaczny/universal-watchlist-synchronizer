@@ -73,16 +73,6 @@ def evaluate_tv_plan(
         blockers.append("tv_action_identity_invalid")
     if any(item.action in {"plex_add", "plex_remove"} for item in invalid_identity_actions):
         blockers.append("plex_identity_missing")
-    if any(
-        item.destination == "sonarr"
-        and item.action == "uncertain"
-        and item.reason in {
-            "sonarr_provider_availability_unknown",
-            "sonarr_provider_availability_stale",
-        }
-        for item in plan.decisions
-    ):
-        blockers.append("sonarr_provider_availability_uncertain")
     if len(executable) > policy.max_action_count:
         blockers.append("tv_action_count_exceeded")
     if apply_requested and any(

@@ -67,7 +67,7 @@ def test_policy_rejects_duplicate_actions_and_missing_plex_identity() -> None:
     assert blockers == ["tv_duplicate_actions", "tv_action_identity_invalid", "plex_identity_missing"]
 
 
-def test_policy_blocks_unknown_provider_for_sonarr_and_adoption_without_gate() -> None:
+def test_policy_quarantines_unknown_provider_action_without_blocking_other_work() -> None:
     uncertain = TvDecision("sonarr", "sonarr", "uncertain", 100, 1, "sonarr_provider_availability_unknown")
     adoption = TvDecision("adopt", "sonarr", "sonarr_adoption_candidate", 200, 1, "existing_sonarr_series_not_owned")
 
@@ -79,7 +79,7 @@ def test_policy_blocks_unknown_provider_for_sonarr_and_adoption_without_gate() -
         now=NOW,
     )
 
-    assert blockers == ["sonarr_provider_availability_uncertain", "tv_adoption_disabled"]
+    assert blockers == ["tv_adoption_disabled"]
 
 
 def test_report_only_keeps_apply_blocker_but_has_no_effective_failure() -> None:
