@@ -107,7 +107,8 @@ class TvDestinationExecutor:
             return "completed"
         if decision.action == "plex_add":
             added = self.plex_client.add_watchlist_show(
-                VerifiedTvIdentity(tvdb_id, decision.tmdb_id, decision.imdb_id)
+                VerifiedTvIdentity(tvdb_id, decision.tmdb_id, decision.imdb_id),
+                decision.title or "",
             )
             if not added:
                 raise RuntimeError("Plex discovery identity was not found")

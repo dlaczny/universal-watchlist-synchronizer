@@ -97,7 +97,13 @@ def run_fake_deployer(
     shutil.copy2(SCRIPT, repository / "scripts/deploy-movie-sync.sh")
     shutil.copy2(ROOT / "scripts/check-movie-ci.py", repository / "scripts/check-movie-ci.py")
     (config / "backend.env").write_text("Sync__ApiKey=test-only\n", encoding="utf-8")
-    (config / "worker.env").write_text("WATCHLIST_APP_SYNC_KEY=test-only\n", encoding="utf-8")
+    (config / "worker.env").write_text(
+        "WATCHLIST_APP_SYNC_KEY=test-only\n"
+        "TV_SYNC_ENABLED=true\n"
+        "TV_SYNC_APPLY=true\n"
+        "TV_SYNC_ADOPT_EXISTING_DESTINATIONS=false\n",
+        encoding="utf-8",
+    )
     if previous_sha:
         state = deploy_root / "state"
         state.mkdir()
@@ -113,6 +119,10 @@ def run_fake_deployer(
         "}\n"
         "docker() {\n"
         "printf 'docker %s\\n' \"$*\" >> \"$COMMAND_LOG\"\n"
+        "printf 'docker-tv-flags %s/%s/%s\\n' "
+        "\"${TV_SYNC_ENABLED:-unset}\" "
+        "\"${TV_SYNC_APPLY:-unset}\" "
+        "\"${TV_SYNC_ADOPT_EXISTING_DESTINATIONS:-unset}\" >> \"$COMMAND_LOG\"\n"
         "if [[ \"$*\" == *'compose'*'up -d'* && \"$*\" != *'watchlist-api'* ]]; then\n"
         "  if [[ -s \"$WORKER_HEARTBEAT_FILE\" ]]; then\n"
         "    printf 'stale worker heartbeat reused\\n' >> \"$COMMAND_LOG\"\n"
@@ -185,6 +195,7 @@ def test_deployer_runs_validated_release_with_fake_boundaries(tmp_path: Path) ->
     assert f"checkout --detach --force {SHA}" in log
     assert "compose" in log and "build --pull" in log
     assert "compose" in log and "up -d --no-build" in log
+    assert "docker-tv-flags true/true/false" in log
     assert "test-only" not in result.stdout
     assert "test-only" not in result.stderr
 

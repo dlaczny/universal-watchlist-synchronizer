@@ -103,10 +103,10 @@ def test_add_and_remove_authorize_only_an_exact_tvdb_guid() -> None:
     plex = client(account)
     identity = VerifiedTvIdentity(123, 9, None)
 
-    assert plex.add_watchlist_show(identity) is True
+    assert plex.add_watchlist_show(identity, "Exact Show") is True
     assert wrong.added is False
     assert exact.added is True
-    assert account.discovery_queries == [{"query": "tvdb:123", "limit": 50, "libtype": "show"}]
+    assert account.discovery_queries == [{"query": "Exact Show", "limit": 50, "libtype": "show"}]
 
     account._watchlist = [wrong, exact]
     assert plex.remove_watchlist_show(tvdb_id=123, tmdb_id=9, imdb_id=None) is True
@@ -128,7 +128,7 @@ def test_watchlist_add_and_remove_quarantine_conflicting_known_guid_identifiers(
     identity = VerifiedTvIdentity(123, 9, "tt0000009")
 
     add_account = Account([], [conflicting])
-    assert client(add_account).add_watchlist_show(identity) is False
+    assert client(add_account).add_watchlist_show(identity, "Conflicting Show") is False
     assert conflicting.added is False
 
     remove_account = Account([conflicting], [])

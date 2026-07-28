@@ -52,9 +52,11 @@ class FakeSonarr:
 class FakePlex:
     def __init__(self) -> None:
         self.calls: list[str] = []
+        self.add_titles: list[str] = []
 
-    def add_watchlist_show(self, identity) -> bool:
+    def add_watchlist_show(self, identity, title: str) -> bool:
         self.calls.append("add")
+        self.add_titles.append(title)
         return True
 
     def remove_watchlist_show(self, tvdb_id: int, tmdb_id: int | None, imdb_id: str | None) -> bool:
@@ -63,7 +65,17 @@ class FakePlex:
 
 
 def decision(action: str, *, tvdb_id: int = 100, destination: str = "plex_watchlist") -> TvDecision:
-    return TvDecision(action, destination, action, tvdb_id, 1, "test", tmdb_id=200, imdb_id="tt0000200")
+    return TvDecision(
+        action,
+        destination,
+        action,
+        tvdb_id,
+        1,
+        "test",
+        tmdb_id=200,
+        imdb_id="tt0000200",
+        title="Exact Show",
+    )
 
 
 def plan_with(*decisions: TvDecision) -> TvPlan:
@@ -72,11 +84,13 @@ def plan_with(*decisions: TvDecision) -> TvPlan:
 
 def test_executor_records_plex_removal_before_next_action() -> None:
     state = FakeStateStore()
-    result = TvDestinationExecutor(state, FakeSonarr(), FakePlex(), sonarr_root_folder="/tv", sonarr_quality_profile_id=1).execute(
+    plex = FakePlex()
+    result = TvDestinationExecutor(state, FakeSonarr(), plex, sonarr_root_folder="/tv", sonarr_quality_profile_id=1).execute(
         plan_with(decision("plex_remove"), decision("plex_add")), blockers=(), apply=True, adopt=False
     )
 
     assert state.actions == [("plex_remove", "completed"), ("plex_add", "completed")]
+    assert plex.add_titles == ["Exact Show"]
     assert result.errors == ()
 
 

@@ -161,6 +161,14 @@ def test_existing_real_plex_watchlist_show_keeps_desired_row_without_duplicate_a
     assert (decision.tmdb_id, decision.imdb_id) == (303, "tt1234567")
 
 
+def test_plex_add_carries_source_title_for_discovery_search() -> None:
+    plan = build_tv_plan(collected(show(seasons=(season(1, "available"),))))
+
+    decision = plan.decisions_for("plex_watchlist")[0]
+    assert decision.action == "plex_add"
+    assert decision.title == "Example"
+
+
 def test_existing_real_plex_watchlist_show_is_removed_when_no_longer_desired() -> None:
     existing = PlexTvShow("plex-show-100", VerifiedTvIdentity(100, None, None))
 

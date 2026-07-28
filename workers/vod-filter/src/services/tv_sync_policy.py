@@ -114,6 +114,10 @@ def _invalid_identity(decision) -> bool:
         return True
     if decision.action not in {"plex_add", "plex_remove"}:
         return False
+    if decision.action == "plex_add" and (
+        not isinstance(decision.title, str) or not decision.title.strip()
+    ):
+        return True
     if decision.tmdb_id is not None and (
         not isinstance(decision.tmdb_id, int)
         or isinstance(decision.tmdb_id, bool)

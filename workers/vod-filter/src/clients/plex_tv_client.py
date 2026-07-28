@@ -74,9 +74,11 @@ class PlexTvClient:
             raise PlexTvError("Plex TV library read failed") from error
         return {row.identity for row in self._show_rows(rows, "library")}
 
-    def add_watchlist_show(self, identity: VerifiedTvIdentity) -> bool:
+    def add_watchlist_show(self, identity: VerifiedTvIdentity, title: str) -> bool:
         """Add one discovered show only when its canonical TVDB GUID is exact."""
         self._require_identity(identity)
+        if not isinstance(title, str) or not title.strip():
+            raise PlexTvError("Plex TV discovery title is required")
         existing = [
             row
             for row in self.get_watchlist_shows()
@@ -86,7 +88,7 @@ class PlexTvClient:
             return self._identities_compatible(existing[0].identity, identity)
         try:
             candidates = self.account.searchDiscover(
-                query=f"tvdb:{identity.tvdb_id}",
+                query=title.strip(),
                 limit=50,
                 libtype="show",
             )

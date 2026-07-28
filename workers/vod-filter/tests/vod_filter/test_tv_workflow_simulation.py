@@ -67,7 +67,8 @@ class Plex:
         self.watchlist: set[int] = set()
         self.calls: list[str] = []
 
-    def add_watchlist_show(self, identity: VerifiedTvIdentity) -> bool:
+    def add_watchlist_show(self, identity: VerifiedTvIdentity, title: str) -> bool:
+        assert title == "Example"
         self.watchlist.add(identity.tvdb_id)
         self.calls.append("add")
         return True

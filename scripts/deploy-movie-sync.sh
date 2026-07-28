@@ -59,6 +59,19 @@ is_numeric_id() {
   [[ "$1" =~ ^[0-9]+$ ]]
 }
 
+worker_boolean() {
+  local requested_key="$1" default_value="$2" key value selected
+  selected="$default_value"
+  while IFS='=' read -r key value; do
+    if [[ "$key" == "$requested_key" ]]; then
+      selected="${value%$'\r'}"
+    fi
+  done <"$WORKER_ENV_FILE"
+  [[ "$selected" == "true" || "$selected" == "false" ]] \
+    || fail "$requested_key in worker.env must be true or false."
+  printf '%s\n' "$selected"
+}
+
 compose_file() {
   printf '%s/%s\n' "$REPOSITORY_DIR" "$COMPOSE_RELATIVE_PATH"
 }
@@ -183,6 +196,11 @@ fi
 [[ -s "$BACKEND_ENV_FILE" ]] || fail "Missing backend environment file: $BACKEND_ENV_FILE"
 [[ -s "$WORKER_ENV_FILE" ]] || fail "Missing worker environment file: $WORKER_ENV_FILE"
 chmod 600 "$BACKEND_ENV_FILE" "$WORKER_ENV_FILE"
+export TV_SYNC_ENABLED="$(worker_boolean TV_SYNC_ENABLED false)"
+export TV_SYNC_APPLY="$(worker_boolean TV_SYNC_APPLY false)"
+export TV_SYNC_ADOPT_EXISTING_DESTINATIONS="$(
+  worker_boolean TV_SYNC_ADOPT_EXISTING_DESTINATIONS false
+)"
 is_numeric_id "$WATCHLIST_RUNTIME_UID" || fail "WATCHLIST_RUNTIME_UID must be numeric."
 is_numeric_id "$WATCHLIST_RUNTIME_GID" || fail "WATCHLIST_RUNTIME_GID must be numeric."
 chown "$WATCHLIST_RUNTIME_UID:$WATCHLIST_RUNTIME_GID" "$KEYRING_DIR"

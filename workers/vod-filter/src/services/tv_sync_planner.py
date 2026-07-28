@@ -34,7 +34,20 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
                 "legacy_unresolved": "identity_legacy_unresolved_no_destination_mutation",
             }.get(show.identity_status, "identity_unverified_no_destination_mutation")
             for destination in ("sonarr", "plex_watchlist"):
-                decisions.append(_decision(collected.snapshot.generation_id, destination, show.tvdb_id, None, "skip", reason, tmdb_id=show.tmdb_id, imdb_id=show.imdb_id, identity_key=f"trakt-{show.trakt_id}"))
+                decisions.append(
+                    _decision(
+                        collected.snapshot.generation_id,
+                        destination,
+                        show.tvdb_id,
+                        None,
+                        "skip",
+                        reason,
+                        tmdb_id=show.tmdb_id,
+                        imdb_id=show.imdb_id,
+                        title=show.title,
+                        identity_key=f"trakt-{show.trakt_id}",
+                    )
+                )
             continue
         if not (show.in_trakt_watchlist and show.lifecycle_state == "active"):
             reason = (
@@ -53,6 +66,7 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
                         reason,
                         tmdb_id=show.tmdb_id,
                         imdb_id=show.imdb_id,
+                        title=show.title,
                     )
                 )
             continue
@@ -95,15 +109,75 @@ def build_tv_plan(collected: TvCollectedState) -> TvPlan:
         plex_desired = season.availability.state == "available" or show.tvdb_id in library_tvdb_ids
         plex_existing = plex_by_tvdb.get(show.tvdb_id)
         if plex_desired and plex_existing is None:
-            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "plex_add", "selected_season_available_or_in_plex_library", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+            decisions.append(
+                _decision(
+                    collected.snapshot.generation_id,
+                    "plex_watchlist",
+                    show.tvdb_id,
+                    season.season_number,
+                    "plex_add",
+                    "selected_season_available_or_in_plex_library",
+                    tmdb_id=show.tmdb_id,
+                    imdb_id=show.imdb_id,
+                    title=show.title,
+                )
+            )
         elif plex_desired:
-            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "keep", "plex_watchlist_desired", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+            decisions.append(
+                _decision(
+                    collected.snapshot.generation_id,
+                    "plex_watchlist",
+                    show.tvdb_id,
+                    season.season_number,
+                    "keep",
+                    "plex_watchlist_desired",
+                    tmdb_id=show.tmdb_id,
+                    imdb_id=show.imdb_id,
+                    title=show.title,
+                )
+            )
         elif season.availability.state in {"unknown", "stale"} and plex_existing is not None:
-            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "keep", f"plex_provider_availability_{season.availability.state}", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+            decisions.append(
+                _decision(
+                    collected.snapshot.generation_id,
+                    "plex_watchlist",
+                    show.tvdb_id,
+                    season.season_number,
+                    "keep",
+                    f"plex_provider_availability_{season.availability.state}",
+                    tmdb_id=show.tmdb_id,
+                    imdb_id=show.imdb_id,
+                    title=show.title,
+                )
+            )
         elif season.availability.state in {"unknown", "stale"}:
-            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "uncertain", f"plex_provider_availability_{season.availability.state}", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+            decisions.append(
+                _decision(
+                    collected.snapshot.generation_id,
+                    "plex_watchlist",
+                    show.tvdb_id,
+                    season.season_number,
+                    "uncertain",
+                    f"plex_provider_availability_{season.availability.state}",
+                    tmdb_id=show.tmdb_id,
+                    imdb_id=show.imdb_id,
+                    title=show.title,
+                )
+            )
         elif season.availability.state == "confirmed_unavailable" and plex_existing is not None:
-            decisions.append(_decision(collected.snapshot.generation_id, "plex_watchlist", show.tvdb_id, season.season_number, "plex_remove", "selected_season_not_available_and_not_in_plex_library", tmdb_id=show.tmdb_id, imdb_id=show.imdb_id))
+            decisions.append(
+                _decision(
+                    collected.snapshot.generation_id,
+                    "plex_watchlist",
+                    show.tvdb_id,
+                    season.season_number,
+                    "plex_remove",
+                    "selected_season_not_available_and_not_in_plex_library",
+                    tmdb_id=show.tmdb_id,
+                    imdb_id=show.imdb_id,
+                    title=show.title,
+                )
+            )
 
     decisions.sort(key=lambda item: (item.tvdb_id is None, item.tvdb_id or 0, item.destination, item.selected_season_number or 0, item.action))
     return TvPlan(
@@ -178,7 +252,19 @@ def _by_tvdb(rows: tuple[object, ...]) -> dict[int, object]:
     return result
 
 
-def _decision(generation_id: str, destination: str, tvdb_id: int | None, season_number: int | None, action: str, reason: str, episode_numbers: tuple[int, ...] = (), tmdb_id: int | None = None, imdb_id: str | None = None, identity_key: str | None = None) -> TvDecision:
+def _decision(
+    generation_id: str,
+    destination: str,
+    tvdb_id: int | None,
+    season_number: int | None,
+    action: str,
+    reason: str,
+    episode_numbers: tuple[int, ...] = (),
+    tmdb_id: int | None = None,
+    imdb_id: str | None = None,
+    title: str | None = None,
+    identity_key: str | None = None,
+) -> TvDecision:
     season_part = season_number or 0
     action_identity = identity_key or str(tvdb_id or 0)
     return TvDecision(
@@ -191,4 +277,5 @@ def _decision(generation_id: str, destination: str, tvdb_id: int | None, season_
         episode_numbers=episode_numbers,
         tmdb_id=tmdb_id,
         imdb_id=imdb_id,
+        title=title,
     )

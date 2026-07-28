@@ -42,7 +42,23 @@ def test_execute_tv_sync_allows_report_only_apply_blocker_and_writes_reports(tmp
     store = FakeStateStore()
     result = execute_tv_sync(
         collector=FakeCollector(),
-        planner=lambda collected: TvPlan("generation-1", (TvDecision("a", "plex_watchlist", "plex_add", 100, 1, "safe"),), MappingProxyType({}), (), True),
+            planner=lambda collected: TvPlan(
+                "generation-1",
+                (
+                    TvDecision(
+                        "a",
+                        "plex_watchlist",
+                        "plex_add",
+                        100,
+                        1,
+                        "safe",
+                        title="Example",
+                    ),
+                ),
+                MappingProxyType({}),
+                (),
+                True,
+            ),
         executor=FakeExecutor(),
         state_store=store,
         policy=__import__("src.services.tv_sync_policy", fromlist=["TvSyncPolicy"]).TvSyncPolicy(enabled=True, apply_enabled=False),

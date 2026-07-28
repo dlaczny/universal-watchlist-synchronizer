@@ -16,7 +16,15 @@ def snapshot(*, capable: bool = True, published_at: datetime = NOW) -> TvSnapsho
 
 
 def decision(action: str = "plex_add", *, tvdb_id: int | None = 100, action_id: str = "one") -> TvDecision:
-    return TvDecision(action_id, "plex_watchlist", action, tvdb_id, 1, "test")
+    return TvDecision(
+        action_id,
+        "plex_watchlist",
+        action,
+        tvdb_id,
+        1,
+        "test",
+        title="Example",
+    )
 
 
 def plan(*decisions: TvDecision, errors: tuple[str, ...] = ()) -> TvPlan:
@@ -96,3 +104,24 @@ def test_policy_does_not_treat_legacy_mutation_lock_as_destination_incapable() -
     )
 
     assert blockers == ["tv_apply_disabled"]
+
+
+def test_policy_rejects_plex_add_without_discovery_title() -> None:
+    missing_title = TvDecision(
+        "missing-title",
+        "plex_watchlist",
+        "plex_add",
+        100,
+        1,
+        "test",
+    )
+
+    blockers = evaluate_tv_plan(
+        plan(missing_title),
+        TvSyncPolicy(enabled=True, apply_enabled=True),
+        snapshot=snapshot(),
+        apply_requested=True,
+        now=NOW,
+    )
+
+    assert blockers == ["tv_action_identity_invalid", "plex_identity_missing"]
