@@ -42,7 +42,7 @@ def evaluate_tv_plan(
         blockers.append("tv_sync_disabled")
     if not policy.apply_enabled:
         blockers.append("tv_apply_disabled")
-    if snapshot is None or not snapshot.mutation_capable:
+    if snapshot is None:
         blockers.append("tv_snapshot_incapable")
     if snapshot is not None and current_time - snapshot.published_at > _minutes(policy.max_snapshot_age_minutes):
         blockers.append("tv_snapshot_stale")

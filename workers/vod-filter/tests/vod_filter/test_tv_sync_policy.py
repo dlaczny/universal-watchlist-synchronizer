@@ -35,7 +35,7 @@ def test_apply_requires_cli_flag_and_host_gate() -> None:
     assert blockers == ["tv_apply_disabled"]
 
 
-def test_policy_blocks_stale_incapable_and_incomplete_destinations() -> None:
+def test_policy_blocks_stale_and_incomplete_destinations() -> None:
     blockers = evaluate_tv_plan(
         plan(decision(), errors=("sonarr: unavailable",)),
         TvSyncPolicy(enabled=True, apply_enabled=True, max_snapshot_age_minutes=10),
@@ -44,7 +44,7 @@ def test_policy_blocks_stale_incapable_and_incomplete_destinations() -> None:
         now=NOW,
     )
 
-    assert blockers == ["tv_snapshot_incapable", "tv_snapshot_stale", "tv_collection_errors"]
+    assert blockers == ["tv_snapshot_stale", "tv_collection_errors"]
 
 
 def test_policy_rejects_duplicate_actions_and_missing_plex_identity() -> None:
@@ -79,6 +79,18 @@ def test_report_only_keeps_apply_blocker_but_has_no_effective_failure() -> None:
         plan(decision()),
         TvSyncPolicy(enabled=True, apply_enabled=False),
         snapshot=snapshot(),
+        apply_requested=False,
+        now=NOW,
+    )
+
+    assert blockers == ["tv_apply_disabled"]
+
+
+def test_policy_does_not_treat_legacy_mutation_lock_as_destination_incapable() -> None:
+    blockers = evaluate_tv_plan(
+        plan(decision()),
+        TvSyncPolicy(enabled=True, apply_enabled=False),
+        snapshot=snapshot(capable=False),
         apply_requested=False,
         now=NOW,
     )
