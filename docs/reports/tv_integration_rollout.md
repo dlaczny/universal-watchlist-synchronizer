@@ -6,18 +6,36 @@ tags:
   - report
   - tv
   - rollout
-timestamp: 2026-07-19T00:00:00Z
-version: 1.1.0
+timestamp: 2026-07-29T00:00:00Z
+version: 1.2.0
 ---
 
 # Current Status
 
-The dated Phase 1 production evidence below records the read-only release
-without secret material or raw private upstream payloads. It is not evidence
-that the schema-v2 reversible destination release has deployed or operated.
-No report-only, adoption, reversible apply, or convergence stage for that
-release is recorded in this ledger. Do not infer a completed stage from
-implementation, CI, local tests, or configuration.
+The schema-v2 reversible destination release is deployed and operating in
+production at commit `57f23f0805dcd0e98703e39bfb9cd57e84641192`. The worker
+performs scheduled Trakt-backed TV reconciliation for Sonarr and the Plex
+Watchlist. Existing Sonarr rows retain `manual` ownership; worker-created rows
+retain `worker` ownership. TV cleanup, terminal deletion, no-recycle-bin
+deletion, and Trakt-history writes remain disabled.
+
+# 2026-07-29 Reversible Destination Rollout
+
+The production host reported the following redacted evidence. No protected
+credential, raw upstream body, or personal watch-history payload was retained.
+
+| Stage | Redacted production evidence | Outcome |
+|---|---|---|
+| Exact release | API and worker ran image/repository/state SHA `57f23f0805dcd0e98703e39bfb9cd57e84641192`; both containers were healthy. | Completed |
+| Report-only review | Run 20 used generation `tv-20260729144411861-a91fdaa3f1190f24757fe8be13d9be61`: 21 Plex adds, 1 Sonarr season monitor, 16 Sonarr episode searches, 4 provider-uncertain skips, and 452 inactive skips. The only blocker was the expected `tv_apply_disabled`; there were no collection errors or delete/remove actions. | Completed |
+| Existing-Sonarr adoption | The supervised adoption recorded 16 exact-TVDB Sonarr rows as `manual`; four exact-TVDB Sonarr rows created by the worker are recorded as `worker`. Manual rows were not mutated or made deletion-eligible by adoption. | Completed |
+| Supervised reversible apply | Run 21 completed 21 Plex adds, 1 Sonarr season monitor, and 16 Sonarr searches. Four provider-uncertain Sonarr decisions and 452 inactive decisions were skipped. There were no blockers, collection errors, failures, or delete/remove actions. | Completed |
+| External destination verification | Plex exposed all 21 intended exact-TVDB watchlist rows after the supervised apply. The four worker-created Sonarr series and the separately selected season were present and monitored. | Completed |
+| Scheduled convergence | Scheduled run 22 succeeded after a successful movie run. Run 23 on the same generation reported 23 Plex `keep` decisions, 16 completed Sonarr search decisions, 4 provider-uncertain skips, and 452 inactive skips, with no blockers, collection errors, destination additions, failures, or removals. | Completed |
+| Prohibited-operation guard | Live configuration retained `TRAKT_HISTORY_SYNC_APPLY=false`, all three TV cleanup/deletion gates false, and only `/app/data` mounted into the worker. | Completed |
+
+The live scheduler now retains `TV_SYNC_ENABLED=true`,
+`TV_SYNC_APPLY=true`, and `TV_SYNC_ADOPT_EXISTING_DESTINATIONS=false`.
 
 # 2026-07-24 Redacted Production Evidence
 
@@ -37,14 +55,14 @@ every stage.
 
 | Stage | Required evidence | Artifact to retain | Current status |
 |---|---|---|---|
-| Exact-SHA deployment with TV disabled | Deployer status, healthy movie workflow, `TV_SYNC_ENABLED=false` | Release SHA, redacted health/status metadata | Not run |
-| Report-only TV collection | Schema-v2 generation and one `sync_tv.py --once` report with `TV_SYNC_APPLY=false` | Generation ID, report status, counts, selected-season/provider states, stable blocker/reason totals | Not run |
-| Report review | Human approval that exact identity, collection, provider, and threshold facts permit the next stage | Review timestamp and approved report filename/hash; no secrets or raw bodies | Not run |
-| Supervised existing-Sonarr adoption | One `--apply` run with both host apply and adoption gates true | Redacted action totals and audit evidence that only exact rows received `manual` origin | Not run |
-| Adoption review | Human review of origin audit and destination outcomes before normal apply | Review timestamp and stable outcome/reason totals | Not run |
-| Supervised reversible apply | One `--apply` run with adoption false | Redacted Sonarr/Plex Watchlist action totals, report status, and worker health | Not run |
-| Second convergence pass | A fresh collection followed by a second supervised apply | Report showing only expected `keep`/`skip` decisions or a recorded investigation | Not run |
-| Prohibited-operation guard | Configuration inspection showing history and cleanup flags false; no Plex library/media-root write surface | Redacted resolved configuration and boundary-test result | Not run |
+| Exact-SHA deployment with TV disabled | Deployer status, healthy movie workflow, `TV_SYNC_ENABLED=false` | Release SHA, redacted health/status metadata | Completed 2026-07-29 |
+| Report-only TV collection | Schema-v2 generation and one `sync_tv.py --once` report with `TV_SYNC_APPLY=false` | Generation ID, report status, counts, selected-season/provider states, stable blocker/reason totals | Completed 2026-07-29 |
+| Report review | Human approval that exact identity, collection, provider, and threshold facts permit the next stage | Review timestamp and approved report filename/hash; no secrets or raw bodies | Completed 2026-07-29 |
+| Supervised existing-Sonarr adoption | One `--apply` run with both host apply and adoption gates true | Redacted action totals and audit evidence that only exact rows received `manual` origin | Completed 2026-07-29 |
+| Adoption review | Human review of origin audit and destination outcomes before normal apply | Review timestamp and stable outcome/reason totals | Completed 2026-07-29 |
+| Supervised reversible apply | One `--apply` run with adoption false | Redacted Sonarr/Plex Watchlist action totals, report status, and worker health | Completed 2026-07-29 |
+| Second convergence pass | A fresh collection followed by a second supervised apply | Report showing only expected `keep`/`skip` decisions or a recorded investigation | Completed 2026-07-29 |
+| Prohibited-operation guard | Configuration inspection showing history and cleanup flags false; no Plex library/media-root write surface | Redacted resolved configuration and boundary-test result | Completed 2026-07-29 |
 
 Record only redacted timestamps, generation IDs, report status, counts, stable
 reason codes, action outcomes, and review decisions. Do not record device/user

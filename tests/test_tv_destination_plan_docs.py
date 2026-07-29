@@ -25,14 +25,17 @@ def test_tv_contract_docs_describe_schema_v2_and_exact_identity() -> None:
     assert "An unstarted show selects Season 1" in read_model
 
 
-def test_rollout_ledger_does_not_claim_unperformed_destination_stages() -> None:
+def test_rollout_ledger_records_completed_reversible_destination_stages() -> None:
     ledger = (ROOT / "docs/reports/tv_integration_rollout.md").read_text(encoding="utf-8")
 
-    assert "No report-only, adoption, reversible apply," in ledger
+    assert "57f23f0805dcd0e98703e39bfb9cd57e84641192" in ledger
     assert "| Report-only TV collection |" in ledger
     assert "| Supervised existing-Sonarr adoption |" in ledger
     assert "| Supervised reversible apply |" in ledger
     assert "| Second convergence pass |" in ledger
+    assert ledger.count("Completed 2026-07-29") == 8
+    assert "`TRAKT_HISTORY_SYNC_APPLY=false`" in ledger
+    assert "all three TV cleanup/deletion gates false" in ledger
 
 
 def test_roadmap_points_to_current_reversible_destination_plan() -> None:
