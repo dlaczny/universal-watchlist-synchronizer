@@ -21,10 +21,64 @@ public sealed class TvOptionsTests
         options.ClientSecret.Should().BeEmpty();
         options.RedirectUri.Should().Be("urn:ietf:wg:oauth:2.0:oob");
         options.ActivityPollInterval.Should().Be(TimeSpan.FromMinutes(5));
-        options.FullSyncInterval.Should().Be(TimeSpan.FromHours(1));
+        options.FullSyncInterval.Should().Be(TimeSpan.FromHours(6));
         options.MetadataRefreshInterval.Should().Be(TimeSpan.FromDays(1));
         options.TokenRefreshSkew.Should().Be(TimeSpan.FromMinutes(5));
         options.PageSize.Should().Be(100);
+    }
+
+    [Fact]
+    public void TvGenerationRetentionOptions_Constructor_UsesApprovedDefaults()
+    {
+        TvGenerationRetentionOptions options = new();
+
+        TvGenerationRetentionOptions.SectionName.Should().Be("TvGenerationRetention");
+        options.MaxAge.Should().Be(TimeSpan.FromDays(7));
+        options.MaxGenerations.Should().Be(48);
+        options.OrphanGracePeriod.Should().Be(TimeSpan.FromDays(1));
+    }
+
+    [Theory]
+    [InlineData("TvGenerationRetention:MaxAge", "00:00:00")]
+    [InlineData("TvGenerationRetention:MaxGenerations", "0")]
+    [InlineData("TvGenerationRetention:OrphanGracePeriod", "00:59:59")]
+    public void AddWatchlistInfrastructure_InvalidRetentionConfiguration_IsRejected(
+        string key,
+        string value)
+    {
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { [key] = value })
+            .Build();
+        ServiceCollection services = new();
+        services.AddWatchlistInfrastructure(configuration);
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        Action resolve = () =>
+            _ = provider.GetRequiredService<IOptions<TvGenerationRetentionOptions>>().Value;
+
+        resolve.Should().Throw<OptionsValidationException>();
+    }
+
+    [Fact]
+    public void AddWatchlistInfrastructure_MinimumRetentionConfiguration_IsAccepted()
+    {
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TvGenerationRetention:MaxGenerations"] = "1",
+                ["TvGenerationRetention:OrphanGracePeriod"] = "01:00:00"
+            })
+            .Build();
+        ServiceCollection services = new();
+        services.AddWatchlistInfrastructure(configuration);
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        TvGenerationRetentionOptions options = provider
+            .GetRequiredService<IOptions<TvGenerationRetentionOptions>>()
+            .Value;
+
+        options.MaxGenerations.Should().Be(1);
+        options.OrphanGracePeriod.Should().Be(TimeSpan.FromHours(1));
     }
 
     [Fact]

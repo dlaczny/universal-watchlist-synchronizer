@@ -105,7 +105,12 @@ def test_tv_phase_one_deployment_contract_is_secret_safe_and_mutation_locked() -
     assert settings["Trakt"]["ClientId"] == ""
     assert settings["Trakt"]["ClientSecret"] == ""
     assert settings["Trakt"]["ActivityPollInterval"] == "00:05:00"
-    assert settings["Trakt"]["FullSyncInterval"] == "01:00:00"
+    assert settings["Trakt"]["FullSyncInterval"] == "06:00:00"
+    assert settings["TvGenerationRetention"] == {
+        "MaxAge": "7.00:00:00",
+        "MaxGenerations": 48,
+        "OrphanGracePeriod": "1.00:00:00",
+    }
     assert settings["Tmdb"]["ProviderRegion"] == "PL"
     assert settings["Tmdb"]["OwnedProviderIds"] == [119, 1899, 1773]
     assert settings["Tmdb"]["ProviderCacheLifetime"] == "1.00:00:00"

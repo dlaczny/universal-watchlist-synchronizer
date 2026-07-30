@@ -14,7 +14,7 @@ public sealed class TraktOptions
 
     public TimeSpan ActivityPollInterval { get; init; } = TimeSpan.FromMinutes(5);
 
-    public TimeSpan FullSyncInterval { get; init; } = TimeSpan.FromHours(1);
+    public TimeSpan FullSyncInterval { get; init; } = TimeSpan.FromHours(6);
 
     public TimeSpan MetadataRefreshInterval { get; init; } = TimeSpan.FromDays(1);
 

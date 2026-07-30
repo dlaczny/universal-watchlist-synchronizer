@@ -60,6 +60,18 @@ public static class DependencyInjection
                 options => options.MetadataRefreshInterval > TimeSpan.Zero,
                 "Trakt:MetadataRefreshInterval must be positive.")
             .ValidateOnStart();
+        services.AddOptions<TvGenerationRetentionOptions>()
+            .Bind(configuration.GetSection(TvGenerationRetentionOptions.SectionName))
+            .Validate(
+                options => options.MaxAge > TimeSpan.Zero,
+                "TvGenerationRetention:MaxAge must be positive.")
+            .Validate(
+                options => options.MaxGenerations >= 1,
+                "TvGenerationRetention:MaxGenerations must be at least one.")
+            .Validate(
+                options => options.OrphanGracePeriod >= TimeSpan.FromHours(1),
+                "TvGenerationRetention:OrphanGracePeriod must be at least one hour.")
+            .ValidateOnStart();
         services.PostConfigure<TmdbOptions>(options =>
         {
             IConfigurationSection providerIdsSection = tmdbSection.GetSection(nameof(TmdbOptions.OwnedProviderIds));
