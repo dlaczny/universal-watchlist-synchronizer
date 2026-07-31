@@ -12,6 +12,7 @@ public sealed class TvSyncService(
     ITraktTvClient traktClient,
     ITmdbTvEnrichmentService enrichmentService,
     ITvGenerationRepository generationRepository,
+    ITvGenerationRetentionService retentionService,
     ITraktOperationCoordinator operationCoordinator,
     TimeProvider timeProvider,
     TimeSpan metadataRefreshInterval) : ITvSyncService
@@ -38,11 +39,14 @@ public sealed class TvSyncService(
             .ConfigureAwait(false);
         DateTimeOffset startedAt = UtcNow();
         string generationId = CreateGenerationId(startedAt);
-        string accessToken = await accessTokenProvider
-            .GetValidAccessTokenAsync(cancellationToken)
-            .ConfigureAwait(false);
         PublishedTvGeneration? previousGeneration = await generationRepository
             .GetPublishedAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await retentionService
+            .PruneRequiredAsync(cancellationToken)
+            .ConfigureAwait(false);
+        string accessToken = await accessTokenProvider
+            .GetValidAccessTokenAsync(cancellationToken)
             .ConfigureAwait(false);
         TraktActivityCursor activityBefore = await traktClient
             .GetLastActivitiesAsync(accessToken, cancellationToken)
@@ -162,6 +166,9 @@ public sealed class TvSyncService(
             providerEnrichmentCompletedAt,
             ResolveLastScheduledFullAt(previousGeneration));
         await generationRepository.PublishAsync(manifest, cancellationToken).ConfigureAwait(false);
+        await retentionService
+            .PruneBestEffortAsync(cancellationToken)
+            .ConfigureAwait(false);
         DateTimeOffset finishedAt = UtcNow();
         int providerFailures = orderedErrors.Count(IsProviderFailure);
         return new TvSyncResultDto(

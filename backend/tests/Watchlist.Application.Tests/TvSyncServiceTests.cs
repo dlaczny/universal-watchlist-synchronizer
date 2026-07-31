@@ -1,6 +1,8 @@
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using Watchlist.Application;
 using Watchlist.Domain;
+using Watchlist.Infrastructure;
 
 namespace Watchlist.Application.Tests;
 
@@ -195,6 +197,83 @@ public sealed class TvSyncServiceTests
         harness.Repository.StageCalls.Should().Be(0);
         harness.Repository.PublishCalls.Should().Be(0);
         harness.Repository.Published.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SyncAsync_SuccessfulScheduledSync_OrdersRetentionAroundPublication()
+    {
+        Harness harness = Harness.Create();
+
+        await harness.SyncAsync(TvGenerationKind.ScheduledFull);
+
+        harness.CallOrder.Should().Equal(
+            "retention-required",
+            "stage",
+            "publish",
+            "retention-best-effort");
+    }
+
+    [Fact]
+    public async Task SyncAsync_RequiredRetentionFailure_StopsBeforeTokenSourceOrPublication()
+    {
+        Harness harness = Harness.Create();
+        TvGenerationRetentionException failure = new(
+            new InvalidOperationException("secret-retention-failure"));
+        harness.Retention.RequiredException = failure;
+
+        Func<Task> action = () => harness.SyncAsync(TvGenerationKind.ScheduledFull);
+
+        TvGenerationRetentionException thrown = (await action.Should()
+            .ThrowAsync<TvGenerationRetentionException>())
+            .Which;
+        thrown.Should().BeSameAs(failure);
+        harness.Repository.GetPublishedCalls.Should().Be(1);
+        harness.TokenProvider.GetCalls.Should().Be(0);
+        harness.Trakt.CallCount.Should().Be(0);
+        harness.Repository.StageCalls.Should().Be(0);
+        harness.Repository.PublishCalls.Should().Be(0);
+        harness.Retention.BestEffortCalls.Should().Be(0);
+        harness.CallOrder.Should().Equal("retention-required");
+    }
+
+    [Fact]
+    public async Task SyncAsync_RequiredRetention_RunsAfterPublishedReadAndUnderCoordinatorLease()
+    {
+        Harness harness = Harness.Create();
+
+        await harness.SyncAsync(TvGenerationKind.ScheduledFull);
+
+        harness.Retention.RequiredObservedPublishedRead.Should().BeTrue();
+        harness.Retention.RequiredObservedCoordinatorLease.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task SyncAsync_BestEffortCancellationAfterPublish_ReturnsDurableSuccess()
+    {
+        using CancellationTokenSource cancellationSource = new();
+        CancellationAwareRetentionRepository retentionRepository = new();
+        TvGenerationRetentionService retentionService = new(
+            retentionRepository,
+            new TvGenerationRetentionPlanner(),
+            new TvGenerationRetentionPolicy(
+                TimeSpan.FromDays(7),
+                48,
+                TimeSpan.FromDays(1)),
+            new MutableTimeProvider(Now),
+            NullLogger<TvGenerationRetentionService>.Instance);
+        Harness harness = Harness.Create(retentionService);
+        harness.Repository.OnPublish = cancellationSource.Cancel;
+
+        TvSyncResultDto result = await harness.Service.SyncAsync(
+            TvGenerationKind.ScheduledFull,
+            cancellationSource.Token);
+
+        cancellationSource.IsCancellationRequested.Should().BeTrue();
+        result.Status.Should().Be("completed");
+        harness.Repository.Published.Should().NotBeNull();
+        harness.Repository.Published!.Manifest.GenerationId.Should().Be(result.GenerationId);
+        retentionRepository.ReadCalls.Should().Be(2);
+        retentionRepository.ApplyCalls.Should().Be(1);
     }
 
     [Fact]
@@ -428,7 +507,7 @@ public sealed class TvSyncServiceTests
         harness.Repository.StageCalls.Should().Be(1);
         harness.Repository.PublishCalls.Should().Be(0);
         harness.Repository.Published.Should().BeNull();
-        harness.Repository.CallOrder.Should().Equal("stage");
+        harness.Repository.CallOrder.Should().Equal("retention-required", "stage");
     }
 
     [Fact]
@@ -676,18 +755,31 @@ public sealed class TvSyncServiceTests
             "tt0000042");
 
         private Harness()
+            : this(null)
+        {
+        }
+
+        private Harness(ITvGenerationRetentionService? retentionService)
         {
             Time = new MutableTimeProvider(Now);
             TokenProvider = new FakeTokenProvider();
             Trakt = new FakeTraktTvClient();
             Enrichment = new FakeEnrichmentService();
-            Repository = new FakeGenerationRepository();
+            CallOrder = [];
+            Coordinator = new TrackingCoordinator();
+            Repository = new FakeGenerationRepository(CallOrder);
+            Retention = retentionService as FakeRetentionService
+                ?? new FakeRetentionService(
+                    CallOrder,
+                    () => Repository.GetPublishedCalls > 0,
+                    () => Coordinator.ActiveLeases > 0);
             Service = new TvSyncService(
                 TokenProvider,
                 Trakt,
                 Enrichment,
                 Repository,
-                new TraktOperationCoordinator(),
+                retentionService ?? Retention,
+                Coordinator,
                 Time,
                 TimeSpan.FromDays(1));
             SetUnfinishedProgress();
@@ -703,11 +795,22 @@ public sealed class TvSyncServiceTests
 
         public FakeGenerationRepository Repository { get; }
 
+        public FakeRetentionService Retention { get; }
+
+        public TrackingCoordinator Coordinator { get; }
+
+        public List<string> CallOrder { get; }
+
         public TvSyncService Service { get; }
 
         public static Harness Create()
         {
             return new Harness();
+        }
+
+        public static Harness Create(ITvGenerationRetentionService retentionService)
+        {
+            return new Harness(retentionService);
         }
 
         public async Task<TvSyncResultDto> SyncAsync(TvGenerationKind kind)
@@ -913,6 +1016,8 @@ public sealed class TvSyncServiceTests
 
     private sealed class FakeTraktTvClient : ITraktTvClient
     {
+        public int CallCount { get; private set; }
+
         public TraktActivityCursor Activity { get; set; } = new(
             Now.AddMinutes(-10),
             Now.AddMinutes(-9));
@@ -944,6 +1049,7 @@ public sealed class TvSyncServiceTests
             string accessToken,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             return Task.FromResult(ActivityResponses.Count > 0
                 ? ActivityResponses.Dequeue()
                 : Activity);
@@ -953,6 +1059,7 @@ public sealed class TvSyncServiceTests
             string accessToken,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             return WatchlistException is null
                 ? Task.FromResult(Watchlist)
                 : Task.FromException<TraktPagedResult<TraktWatchlistShow>>(WatchlistException);
@@ -962,6 +1069,7 @@ public sealed class TvSyncServiceTests
             string accessToken,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             return Task.FromResult(Progress);
         }
 
@@ -970,6 +1078,7 @@ public sealed class TvSyncServiceTests
             long traktId,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             DetailedRequests.Add(traktId);
             return Task.FromResult(Detailed[traktId]);
         }
@@ -979,6 +1088,7 @@ public sealed class TvSyncServiceTests
             long traktId,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             MetadataRequests.Add(traktId);
             return Task.FromResult(Metadata[traktId]);
         }
@@ -989,6 +1099,7 @@ public sealed class TvSyncServiceTests
             int seasonNumber,
             CancellationToken cancellationToken)
         {
+            CallCount++;
             SeasonRequests.Add((traktId, seasonNumber));
             return Task.FromResult(Seasons[(traktId, seasonNumber)]);
         }
@@ -1021,7 +1132,8 @@ public sealed class TvSyncServiceTests
         }
     }
 
-    private sealed class FakeGenerationRepository : ITvGenerationRepository
+    private sealed class FakeGenerationRepository(List<string> callOrder)
+        : ITvGenerationRepository
     {
         private readonly Dictionary<string, TvGenerationDraft> staged = new(StringComparer.Ordinal);
 
@@ -1035,7 +1147,11 @@ public sealed class TvSyncServiceTests
 
         public int PublishCalls { get; private set; }
 
-        public List<string> CallOrder { get; } = [];
+        public int GetPublishedCalls { get; private set; }
+
+        public Action? OnPublish { get; set; }
+
+        public List<string> CallOrder { get; } = callOrder;
 
         public Task StageAsync(TvGenerationDraft draft, CancellationToken cancellationToken)
         {
@@ -1057,12 +1173,113 @@ public sealed class TvSyncServiceTests
             CallOrder.Add("publish");
             TvGenerationDraft draft = staged[manifest.GenerationId];
             Published = new PublishedTvGeneration(manifest, draft.Shows);
+            OnPublish?.Invoke();
             return Task.CompletedTask;
         }
 
         public Task<PublishedTvGeneration?> GetPublishedAsync(CancellationToken cancellationToken)
         {
+            GetPublishedCalls++;
             return Task.FromResult(Published);
+        }
+    }
+
+    private sealed class FakeRetentionService(
+        List<string> callOrder,
+        Func<bool> hasReadPublishedGeneration,
+        Func<bool> hasCoordinatorLease) : ITvGenerationRetentionService
+    {
+        public Exception? RequiredException { get; set; }
+
+        public int BestEffortCalls { get; private set; }
+
+        public bool RequiredObservedPublishedRead { get; private set; }
+
+        public bool RequiredObservedCoordinatorLease { get; private set; }
+
+        public Task PruneRequiredAsync(CancellationToken cancellationToken)
+        {
+            callOrder.Add("retention-required");
+            RequiredObservedPublishedRead = hasReadPublishedGeneration();
+            RequiredObservedCoordinatorLease = hasCoordinatorLease();
+            return RequiredException is null
+                ? Task.CompletedTask
+                : Task.FromException(RequiredException);
+        }
+
+        public Task PruneBestEffortAsync(CancellationToken cancellationToken)
+        {
+            BestEffortCalls++;
+            callOrder.Add("retention-best-effort");
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TrackingCoordinator : ITraktOperationCoordinator
+    {
+        private readonly TraktOperationCoordinator inner = new();
+        private int activeLeases;
+
+        public int ActiveLeases => Volatile.Read(ref activeLeases);
+
+        public async ValueTask<IAsyncDisposable> AcquireAsync(
+            CancellationToken cancellationToken)
+        {
+            IAsyncDisposable lease = await inner
+                .AcquireAsync(cancellationToken)
+                .ConfigureAwait(false);
+            Interlocked.Increment(ref activeLeases);
+            return new TrackingLease(lease, () => Interlocked.Decrement(ref activeLeases));
+        }
+
+        private sealed class TrackingLease(
+            IAsyncDisposable innerLease,
+            Action onDispose) : IAsyncDisposable
+        {
+            private IAsyncDisposable? ownedLease = innerLease;
+
+            public async ValueTask DisposeAsync()
+            {
+                IAsyncDisposable? lease = Interlocked.Exchange(ref ownedLease, null);
+                if (lease is null)
+                {
+                    return;
+                }
+
+                onDispose();
+                await lease.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+    }
+
+    private sealed class CancellationAwareRetentionRepository
+        : ITvGenerationRetentionRepository
+    {
+        private const string CurrentGenerationId =
+            "tv-20260718120000000-00000000000000000000000000000001";
+
+        public int ReadCalls { get; private set; }
+
+        public int ApplyCalls { get; private set; }
+
+        public Task<TvGenerationRetentionSnapshot> ReadSnapshotAsync(
+            CancellationToken cancellationToken)
+        {
+            ReadCalls++;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new TvGenerationRetentionSnapshot(
+                CurrentGenerationId,
+                [new TvStoredGenerationSummary(CurrentGenerationId, Now)],
+                []));
+        }
+
+        public Task<TvGenerationRetentionDeleteResult> ApplyAsync(
+            TvGenerationRetentionPlan plan,
+            CancellationToken cancellationToken)
+        {
+            ApplyCalls++;
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new TvGenerationRetentionDeleteResult(0, 0, 0));
         }
     }
 }

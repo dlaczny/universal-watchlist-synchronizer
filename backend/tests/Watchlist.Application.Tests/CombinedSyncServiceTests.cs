@@ -48,6 +48,37 @@ public sealed class CombinedSyncServiceTests
         result.PlexMovies.WatchlistItemsMatched.Should().Be(1);
     }
 
+    [Fact]
+    public async Task SyncAllAsync_WhenTvGenerationRetentionFails_PreservesMovieResultsAndReportsRedactedPartial()
+    {
+        const string secret = "secret-retention-inner-message";
+        List<string> calls = [];
+        CombinedSyncService service = new(
+            new FakeLetterboxd(calls),
+            new FakeTmdb(calls),
+            new FakePlex(calls),
+            new FakeTv(
+                calls,
+                new TvGenerationRetentionException(new InvalidOperationException(secret))),
+            new FakeTimeProvider());
+
+        CombinedSyncResultDto result = await service.SyncAllAsync(CancellationToken.None);
+
+        calls.Should().Equal("letterboxd", "tmdb", "plex", "tv");
+        result.Status.Should().Be("partial");
+        result.Letterboxd.Status.Should().Be("completed");
+        result.Letterboxd.ItemsFetched.Should().Be(2);
+        result.TmdbMovies.Status.Should().Be("completed");
+        result.TmdbMovies.ItemsEnriched.Should().Be(2);
+        result.PlexMovies.Status.Should().Be("completed");
+        result.PlexMovies.WatchlistItemsMatched.Should().Be(1);
+        result.Tv.Status.Should().Be("failed");
+        result.Tv.GenerationId.Should().BeEmpty();
+        result.Tv.MutationCapable.Should().BeFalse();
+        result.Tv.HealthReasons.Should().ContainSingle(TvGenerationRetentionException.StableCode);
+        result.Tv.HealthReasons.Should().NotContain(reason => reason.Contains(secret, StringComparison.Ordinal));
+    }
+
     private sealed class FakeLetterboxd(List<string> calls) : ILetterboxdMovieSyncService
     {
         public Task<LetterboxdSyncResultDto> SyncAsync(CancellationToken cancellationToken)

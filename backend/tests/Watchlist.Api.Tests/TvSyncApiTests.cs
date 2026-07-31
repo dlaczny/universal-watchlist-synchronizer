@@ -48,20 +48,31 @@ public sealed class TvSyncApiTests
     }
 
     [Theory]
-    [InlineData("not_connected", HttpStatusCode.Conflict, "trakt_not_connected")]
-    [InlineData("snapshot", HttpStatusCode.BadGateway, "tv_snapshot_rejected")]
-    [InlineData("unavailable", HttpStatusCode.ServiceUnavailable, "trakt_unavailable")]
-    [InlineData("rate_limited", HttpStatusCode.ServiceUnavailable, "trakt_rate_limited")]
+    [InlineData("not_connected", HttpStatusCode.Conflict, "trakt_not_connected",
+        "Trakt is not connected.")]
+    [InlineData("snapshot", HttpStatusCode.BadGateway, "tv_snapshot_rejected",
+        "The TV source snapshot was rejected.")]
+    [InlineData("unavailable", HttpStatusCode.ServiceUnavailable, "trakt_unavailable",
+        "Trakt is temporarily unavailable.")]
+    [InlineData("rate_limited", HttpStatusCode.ServiceUnavailable, "trakt_rate_limited",
+        "Trakt temporarily rate limited the sync.")]
+    [InlineData("retention", HttpStatusCode.ServiceUnavailable,
+        "tv_generation_retention_failed",
+        "TV generation retention is temporarily unavailable.")]
     public async Task SyncTv_MapsTypedFailuresWithoutLeakingDetails(
         string failure,
         HttpStatusCode expectedStatus,
-        string expectedCode)
+        string expectedCode,
+        string expectedDetail)
     {
+        const string secret = "secret-retention-inner-message";
         Exception exception = failure switch
         {
             "not_connected" => new Watchlist.Application.TraktNotConnectedException(),
             "snapshot" => new Watchlist.Application.TvSourceSnapshotRejectedException("secret-source-body"),
             "rate_limited" => new Watchlist.Application.TraktRateLimitedException(TimeSpan.FromSeconds(42)),
+            "retention" => new Watchlist.Application.TvGenerationRetentionException(
+                new InvalidOperationException(secret)),
             _ => new Watchlist.Application.TraktUnavailableException()
         };
         using SeededApiFactory factory = new(tvSyncException: exception);
@@ -69,10 +80,14 @@ public sealed class TvSyncApiTests
 
         HttpResponseMessage response = await client.PostAsync("/api/sync/tv", null);
         string body = await response.Content.ReadAsStringAsync();
+        using JsonDocument document = JsonDocument.Parse(body);
 
         response.StatusCode.Should().Be(expectedStatus);
-        body.Should().Contain(expectedCode);
+        response.Content.Headers.ContentType?.MediaType.Should().Be("application/json");
+        document.RootElement.GetProperty("code").GetString().Should().Be(expectedCode);
+        document.RootElement.GetProperty("error").GetString().Should().Be(expectedDetail);
         body.Should().NotContain("secret-source-body");
+        body.Should().NotContain(secret);
     }
 
     [Fact]

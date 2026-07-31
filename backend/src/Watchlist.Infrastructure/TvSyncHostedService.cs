@@ -96,6 +96,7 @@ public sealed class TvSyncHostedService(
             TraktPersistenceUnavailableException => "trakt_persistence_unavailable",
             TmdbUnavailableException => "tmdb_unavailable",
             TmdbParseException => "tmdb_parse_error",
+            TvGenerationRetentionException => "tv_generation_retention_failed",
             MongoException => "mongo_unavailable",
             _ => "tv_sync_unexpected"
         };

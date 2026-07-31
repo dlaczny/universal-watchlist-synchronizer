@@ -61,7 +61,8 @@ public sealed class CombinedSyncService(
         TraktParseException or
         TmdbParseException or
         TraktUnavailableException or
-        TraktConnectionUnreadableException;
+        TraktConnectionUnreadableException or
+        TvGenerationRetentionException;
 
     private static string ToHealthReason(Exception exception) => exception switch
     {
@@ -71,6 +72,7 @@ public sealed class CombinedSyncService(
         TmdbParseException => "tmdb_malformed_response",
         TraktUnavailableException => "trakt_unavailable",
         TraktConnectionUnreadableException => "trakt_connection_unreadable",
+        TvGenerationRetentionException => TvGenerationRetentionException.StableCode,
         _ => "tv_sync_failed"
     };
 }

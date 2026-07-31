@@ -418,6 +418,42 @@ public sealed class WatchlistApiTests
     }
 
     [Fact]
+    public async Task PostSyncAll_WhenTvGenerationRetentionFails_ReturnsRedactedPartialResult()
+    {
+        const string secret = "secret-retention-inner-message";
+        List<string> logs = [];
+        using SeededApiFactory factory = new(
+            tvSyncException: new TvGenerationRetentionException(
+                new InvalidOperationException(secret)),
+            capturedLogs: logs,
+            useProductionCombinedSyncService: true);
+        HttpClient client = factory.CreateClient();
+
+        HttpResponseMessage response = await client.PostAsync("/api/sync/all", null);
+        string body = await response.Content.ReadAsStringAsync();
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        using JsonDocument document = JsonDocument.Parse(body);
+        JsonElement result = document.RootElement;
+        result.GetProperty("status").GetString().Should().Be("partial");
+        result.GetProperty("letterboxd").GetProperty("status").GetString().Should().Be("completed");
+        result.GetProperty("letterboxd").GetProperty("itemsFetched").GetInt32().Should().Be(2);
+        result.GetProperty("tmdbMovies").GetProperty("status").GetString().Should().Be("completed");
+        result.GetProperty("tmdbMovies").GetProperty("itemsEnriched").GetInt32().Should().Be(2);
+        result.GetProperty("plexMovies").GetProperty("status").GetString().Should().Be("completed");
+        result.GetProperty("plexMovies").GetProperty("watchlistItemsMatched").GetInt32().Should().Be(40);
+        JsonElement tv = result.GetProperty("tv");
+        tv.GetProperty("status").GetString().Should().Be("failed");
+        tv.GetProperty("generationId").GetString().Should().BeEmpty();
+        tv.GetProperty("mutationCapable").GetBoolean().Should().BeFalse();
+        tv.GetProperty("healthReasons").EnumerateArray()
+            .Select(reason => reason.GetString())
+            .Should().ContainSingle(TvGenerationRetentionException.StableCode);
+        body.Should().NotContain(secret);
+        logs.Should().NotContain(entry => entry.Contains(secret, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task PostMovieSync_ReturnsMovieOnlyResult()
     {
         using SeededApiFactory factory = new();

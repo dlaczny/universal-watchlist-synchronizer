@@ -72,6 +72,17 @@ public static class DependencyInjection
                 options => options.OrphanGracePeriod >= TimeSpan.FromHours(1),
                 "TvGenerationRetention:OrphanGracePeriod must be at least one hour.")
             .ValidateOnStart();
+        services.AddSingleton(serviceProvider =>
+        {
+            TvGenerationRetentionOptions options = serviceProvider
+                .GetRequiredService<IOptions<TvGenerationRetentionOptions>>()
+                .Value;
+            return new TvGenerationRetentionPolicy(
+                options.MaxAge,
+                options.MaxGenerations,
+                options.OrphanGracePeriod);
+        });
+        services.AddSingleton<TvGenerationRetentionPlanner>();
         services.PostConfigure<TmdbOptions>(options =>
         {
             IConfigurationSection providerIdsSection = tmdbSection.GetSection(nameof(TmdbOptions.OwnedProviderIds));
@@ -137,6 +148,10 @@ public static class DependencyInjection
         services.AddSingleton<IWatchlistExportRepository, MongoWatchlistExportRepository>();
         services.AddSingleton<IWatchlistWriteRepository, MongoWatchlistWriteRepository>();
         services.AddSingleton<ITvGenerationRepository, MongoTvGenerationRepository>();
+        services.AddSingleton<
+            ITvGenerationRetentionRepository,
+            MongoTvGenerationRetentionRepository>();
+        services.AddSingleton<ITvGenerationRetentionService, TvGenerationRetentionService>();
         services.AddSingleton<ITvShowReadRepository, MongoTvShowReadRepository>();
         services.AddSingleton<ILegacyTvMigrationService, MongoLegacyTvMigrationService>();
         services.AddSingleton<ITraktOperationCoordinator, TraktOperationCoordinator>();
@@ -192,6 +207,7 @@ public static class DependencyInjection
                 serviceProvider.GetRequiredService<ITraktTvClient>(),
                 serviceProvider.GetRequiredService<ITmdbTvEnrichmentService>(),
                 serviceProvider.GetRequiredService<ITvGenerationRepository>(),
+                serviceProvider.GetRequiredService<ITvGenerationRetentionService>(),
                 serviceProvider.GetRequiredService<ITraktOperationCoordinator>(),
                 serviceProvider.GetRequiredService<TimeProvider>(),
                 traktOptions.MetadataRefreshInterval);

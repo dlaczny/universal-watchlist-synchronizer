@@ -23,7 +23,8 @@ public sealed class SeededApiFactory(
     Exception? traktStartException = null,
     Action? tmdbTvSyncInvoked = null,
     Exception? tvSyncException = null,
-    List<string>? capturedLogs = null) : WebApplicationFactory<Program>
+    List<string>? capturedLogs = null,
+    bool useProductionCombinedSyncService = false) : WebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -77,8 +78,15 @@ public sealed class SeededApiFactory(
             services.AddSingleton<IPlexMovieSyncService>(
                 _ => new SeededPlexMovieSyncService(plexMovieSyncException));
             services.AddSingleton<IPlexMovieInventoryRepository, SeededPlexMovieInventoryRepository>();
-            services.AddSingleton<ICombinedSyncService>(
-                _ => new SeededCombinedSyncService(combinedSyncException));
+            if (useProductionCombinedSyncService)
+            {
+                services.AddScoped<ICombinedSyncService, CombinedSyncService>();
+            }
+            else
+            {
+                services.AddSingleton<ICombinedSyncService>(
+                    _ => new SeededCombinedSyncService(combinedSyncException));
+            }
             services.AddSingleton<ITvSyncService>(_ => new SeededTvSyncService(tvSyncException));
             services.AddSingleton<ITvGenerationRepository, SeededTvGenerationRepository>();
             services.AddSingleton<ITvExportService, TvExportService>();

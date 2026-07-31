@@ -82,6 +82,46 @@ public sealed class TvOptionsTests
     }
 
     [Fact]
+    public void AddWatchlistInfrastructure_DefaultRetentionPolicy_UsesValidatedOptions()
+    {
+        ServiceCollection services = new();
+        services.AddWatchlistInfrastructure(new ConfigurationBuilder().Build());
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        TvGenerationRetentionPolicy policy = provider
+            .GetRequiredService<TvGenerationRetentionPolicy>();
+
+        policy.MaxAge.Should().Be(TimeSpan.FromDays(7));
+        policy.MaxGenerations.Should().Be(48);
+        policy.OrphanGracePeriod.Should().Be(TimeSpan.FromDays(1));
+        provider.GetRequiredService<TvGenerationRetentionPolicy>()
+            .Should().BeSameAs(policy);
+    }
+
+    [Fact]
+    public void AddWatchlistInfrastructure_ConfiguredRetentionPolicy_UsesExactValues()
+    {
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["TvGenerationRetention:MaxAge"] = "3.00:00:00",
+                ["TvGenerationRetention:MaxGenerations"] = "17",
+                ["TvGenerationRetention:OrphanGracePeriod"] = "12:00:00"
+            })
+            .Build();
+        ServiceCollection services = new();
+        services.AddWatchlistInfrastructure(configuration);
+        using ServiceProvider provider = services.BuildServiceProvider();
+
+        TvGenerationRetentionPolicy policy = provider
+            .GetRequiredService<TvGenerationRetentionPolicy>();
+
+        policy.MaxAge.Should().Be(TimeSpan.FromDays(3));
+        policy.MaxGenerations.Should().Be(17);
+        policy.OrphanGracePeriod.Should().Be(TimeSpan.FromHours(12));
+    }
+
+    [Fact]
     public void DataProtectionKeyRingOptions_Constructor_UsesExpectedDefaults()
     {
         DataProtectionKeyRingOptions options = new();
@@ -166,6 +206,15 @@ public sealed class TvOptionsTests
         services.Single(descriptor => descriptor.ServiceType == typeof(ITmdbProviderCatalogRepository))
             .Lifetime.Should().Be(ServiceLifetime.Singleton);
         services.Single(descriptor => descriptor.ServiceType == typeof(ITraktOperationCoordinator))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Single(descriptor => descriptor.ServiceType == typeof(TvGenerationRetentionPolicy))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Single(descriptor => descriptor.ServiceType == typeof(TvGenerationRetentionPlanner))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Single(descriptor =>
+                descriptor.ServiceType == typeof(ITvGenerationRetentionRepository))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+        services.Single(descriptor => descriptor.ServiceType == typeof(ITvGenerationRetentionService))
             .Lifetime.Should().Be(ServiceLifetime.Singleton);
         services.Single(descriptor => descriptor.ServiceType == typeof(ITvSyncService))
             .Lifetime.Should().Be(ServiceLifetime.Singleton);

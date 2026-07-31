@@ -30,6 +30,14 @@ public sealed class MongoUnavailableExceptionHandler(
                 "tv_snapshot_rejected", "The TV source snapshot was rejected.", cancellationToken);
         }
 
+        if (exception is TvGenerationRetentionException)
+        {
+            return await WriteTvFailureAsync(httpContext, StatusCodes.Status503ServiceUnavailable,
+                "tv_generation_retention_failed",
+                "TV generation retention is temporarily unavailable.",
+                cancellationToken);
+        }
+
         if (exception is TraktParseException)
         {
             return await WriteTvFailureAsync(httpContext, StatusCodes.Status502BadGateway,
