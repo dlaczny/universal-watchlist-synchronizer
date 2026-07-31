@@ -226,6 +226,93 @@ public sealed class MongoTvGenerationRetentionRepositoryTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("mismatched-string")]
+    [InlineData("non-string")]
+    public async Task ReadSnapshotAsync_InvalidManifestPhysicalId_FailsClosedBeforeDelete(
+        string malformedKind)
+    {
+        const string current = "generation-current";
+        const string expired = "generation-expired";
+        BsonDocument malformedManifest =
+            CreateManifest(expired, BaseTime.AddDays(-8)).ToBsonDocument();
+        malformedManifest["_id"] = malformedKind switch
+        {
+            "mismatched-string" => "generation:different-generation",
+            "non-string" => 42,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(malformedKind),
+                malformedKind,
+                "Unknown malformed manifest physical ID fixture.")
+        };
+        await InsertPointerAsync(CreatePointer(current, BaseTime));
+        await InsertManifestsAsync(CreateManifest(current, BaseTime));
+        await InsertShowsAsync(CreateShow(expired, 1));
+        await InsertEventsAsync(CreateEvent(expired, 1));
+        await InsertRawManifestsAsync(malformedManifest);
+
+        Func<Task> action = () =>
+            CreateRepository().ReadSnapshotAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("tv_generation_retention_manifest_invalid");
+        (await CountShowsAsync(expired)).Should().Be(1);
+        (await CountEventsAsync(expired)).Should().Be(1);
+        (await CountAllManifestsAsync()).Should().Be(2);
+        (await ReadPointerAsync()).GenerationId.Should().Be(current);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task ReadSnapshotAsync_ValidSerializedManifestGenerationKind_IsAccepted(
+        int serializedKind)
+    {
+        const string generationId = "generation-valid-kind";
+        BsonDocument manifest =
+            CreateManifest(generationId, BaseTime).ToBsonDocument();
+        manifest["kind"] = serializedKind;
+        await InsertRawManifestsAsync(manifest);
+
+        TvGenerationRetentionSnapshot result =
+            await CreateRepository().ReadSnapshotAsync(CancellationToken.None);
+
+        result.Manifests.Should().Equal(
+            new TvStoredGenerationSummary(generationId, BaseTime));
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("null")]
+    [InlineData("out-of-range")]
+    [InlineData("string")]
+    [InlineData("array")]
+    public async Task ReadSnapshotAsync_InvalidManifestGenerationKind_FailsClosedBeforeDelete(
+        string malformedKind)
+    {
+        const string current = "generation-current";
+        const string expired = "generation-expired";
+        BsonDocument malformedManifest =
+            CreateManifest(expired, BaseTime.AddDays(-8)).ToBsonDocument();
+        SetMalformedManifestGenerationKind(malformedManifest, malformedKind);
+        await InsertPointerAsync(CreatePointer(current, BaseTime));
+        await InsertManifestsAsync(CreateManifest(current, BaseTime));
+        await InsertShowsAsync(CreateShow(expired, 1));
+        await InsertEventsAsync(CreateEvent(expired, 1));
+        await InsertRawManifestsAsync(malformedManifest);
+
+        Func<Task> action = () =>
+            CreateRepository().ReadSnapshotAsync(CancellationToken.None);
+
+        await action.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("tv_generation_retention_manifest_invalid");
+        (await CountShowsAsync(expired)).Should().Be(1);
+        (await CountEventsAsync(expired)).Should().Be(1);
+        (await CountManifestsAsync(expired)).Should().Be(1);
+        (await CountManifestsAsync(current)).Should().Be(1);
+        (await ReadPointerAsync()).GenerationId.Should().Be(current);
+    }
+
+    [Theory]
     [InlineData("missing")]
     [InlineData("null")]
     [InlineData("string")]
@@ -985,6 +1072,35 @@ public sealed class MongoTvGenerationRetentionRepositoryTests : IAsyncLifetime
                     nameof(malformedKind),
                     malformedKind,
                     "Unknown malformed manifest document kind fixture.");
+        }
+    }
+
+    private static void SetMalformedManifestGenerationKind(
+        BsonDocument document,
+        string malformedKind)
+    {
+        switch (malformedKind)
+        {
+            case "missing":
+                document.Remove("kind");
+                break;
+            case "null":
+                document["kind"] = BsonNull.Value;
+                break;
+            case "out-of-range":
+                document["kind"] = 2;
+                break;
+            case "string":
+                document["kind"] = "scheduled_full";
+                break;
+            case "array":
+                document["kind"] = new BsonArray([0]);
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(
+                    nameof(malformedKind),
+                    malformedKind,
+                    "Unknown malformed manifest generation kind fixture.");
         }
     }
 

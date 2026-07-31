@@ -2,6 +2,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using MongoDB.Driver;
 using Watchlist.Application;
+using Watchlist.Domain;
 
 namespace Watchlist.Infrastructure;
 
@@ -235,21 +236,35 @@ public sealed class MongoTvGenerationRetentionRepository(
         {
             FilterDefinitionBuilder<BsonDocument> rawFilter =
                 Builders<BsonDocument>.Filter;
-            FilterDefinition<BsonDocument> validManifestKind =
+            FilterDefinition<BsonDocument> validManifestDocumentKind =
                 rawFilter.Eq(
                     "documentKind",
                     MongoTvSyncManifestDocument.ManifestDocumentKind)
                 & HasStringDocumentKind<BsonDocument>();
-            bool hasInvalidManifestKind = await rawManifests
+            FilterDefinition<BsonDocument> validManifestGenerationKind =
+                HasInt32Field<BsonDocument>("kind")
+                & rawFilter.Or(
+                    rawFilter.Eq(
+                        "kind",
+                        (int)TvGenerationKind.ScheduledFull),
+                    rawFilter.Eq(
+                        "kind",
+                        (int)TvGenerationKind.ActivityFull));
+            FilterDefinition<BsonDocument> validManifestShape =
+                validManifestDocumentKind
+                & HasStringGenerationId<BsonDocument>()
+                & HasMatchingManifestPhysicalId()
+                & validManifestGenerationKind;
+            bool hasInvalidManifest = await rawManifests
                 .Find(
                     rawFilter.Ne(
                         "_id",
                         MongoTvPublishedPointerDocument.PublishedPointerId)
-                    & rawFilter.Not(validManifestKind))
+                    & rawFilter.Not(validManifestShape))
                 .Project(new BsonDocument("_id", 1))
                 .Limit(1)
                 .AnyAsync(cancellationToken);
-            if (hasInvalidManifestKind)
+            if (hasInvalidManifest)
             {
                 throw new InvalidOperationException(
                     "tv_generation_retention_manifest_invalid");
@@ -411,13 +426,69 @@ public sealed class MongoTvGenerationRetentionRepository(
     private static FilterDefinition<TDocument> HasStringField<TDocument>(
         string fieldName)
     {
+        return HasFieldType<TDocument>(fieldName, "string");
+    }
+
+    private static FilterDefinition<TDocument> HasInt32Field<TDocument>(
+        string fieldName)
+    {
+        return HasFieldType<TDocument>(fieldName, "int");
+    }
+
+    private static FilterDefinition<TDocument> HasFieldType<TDocument>(
+        string fieldName,
+        string bsonType)
+    {
         BsonDocument expression = new(
             "$expr",
             new BsonDocument(
                 "$eq",
                 new BsonArray(
-                    [new BsonDocument("$type", $"${fieldName}"), "string"])));
+                    [new BsonDocument("$type", $"${fieldName}"), bsonType])));
         return new BsonDocumentFilterDefinition<TDocument>(expression);
+    }
+
+    private static FilterDefinition<BsonDocument> HasMatchingManifestPhysicalId()
+    {
+        BsonDocument hasStringIdentityFields = new(
+            "$and",
+            new BsonArray
+            {
+                new BsonDocument(
+                    "$eq",
+                    new BsonArray
+                    {
+                        new BsonDocument("$type", "$_id"),
+                        "string"
+                    }),
+                new BsonDocument(
+                    "$eq",
+                    new BsonArray
+                    {
+                        new BsonDocument("$type", "$generationId"),
+                        "string"
+                    })
+            });
+        BsonDocument physicalIdMatchesGeneration = new(
+            "$eq",
+            new BsonArray
+            {
+                "$_id",
+                new BsonDocument(
+                    "$concat",
+                    new BsonArray { "generation:", "$generationId" })
+            });
+        BsonDocument expression = new(
+            "$expr",
+            new BsonDocument(
+                "$cond",
+                new BsonArray
+                {
+                    hasStringIdentityFields,
+                    physicalIdMatchesGeneration,
+                    false
+                }));
+        return new BsonDocumentFilterDefinition<BsonDocument>(expression);
     }
 
     private static void AddOpaqueMalformedIdentityTokens(
