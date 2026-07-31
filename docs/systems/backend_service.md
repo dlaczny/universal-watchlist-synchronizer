@@ -7,8 +7,8 @@ tags:
   - dotnet
   - mongodb
   - api
-timestamp: 2026-07-14T00:00:00Z
-version: 0.4.0
+timestamp: 2026-07-31T00:00:00Z
+version: 0.5.0
 ---
 
 # Structure
@@ -33,10 +33,11 @@ The backend under `backend/` targets .NET 10.
 | `WatchlistExportService` | Produces one coherent active/watched worker snapshot and compatibility exports. |
 | `PlexMovieMatcher` | Matches IMDb, then TMDB, then unique normalized title/year. |
 
-`CombinedSyncService` remains a movie compatibility path. The former TMDB TV
-watchlist route is retired (`410 Gone`). `TvSyncService` owns complete Trakt TV
-generations and `TvSyncHostedService` polls activity every five minutes; neither
-adds a destination mutation path.
+`CombinedSyncService` runs the established movie stages and then one scheduled
+full TV generation when TV is wired. The former TMDB TV watchlist route is
+retired (`410 Gone`). `TvSyncService` owns complete Trakt TV generations and
+`TvSyncHostedService` polls activity every five minutes, with scheduled full
+generations due every six hours; neither adds a destination mutation path.
 
 # Trakt Connection
 
@@ -48,13 +49,23 @@ host cancellation. Malformed successful device grants become non-pollable;
 malformed successful refresh grants become `refresh_required` so a consumed or
 rotated credential is not retried indefinitely.
 
-`TvSyncService` holds one per-account coordinator lease from its first activity
-read through publish. It reads the complete Trakt watchlist/progress union,
-prior retained rows, detailed schedules, and exact-ID TMDB enrichment. It
-stages every candidate and advances the Mongo pointer only after validation.
-Source, pagination, schedule, identity, or cursor-race failure leaves the old
-published generation intact. TMDB provider failure produces `unknown` or
-`stale`, not unavailable.
+`TvSyncService` holds one per-account coordinator lease from the current
+published-generation read through both retention passes and publication. After
+the current generation is loaded and validated, required retention runs before
+token acquisition, Trakt/TMDB source collection, or staging. It then reads the
+complete Trakt watchlist/progress union, prior retained rows, detailed
+schedules, and exact-ID TMDB enrichment. It stages every candidate and advances
+the Mongo pointer only after validation. Source, pagination, schedule, identity,
+or cursor-race failure leaves the old published generation intact. TMDB
+provider failure produces `unknown` or `stale`, not unavailable.
+
+After durable publication, retention runs again as best effort. A failure or
+cancellation in that pass is logged as `tv_generation_retention_deferred`,
+does not change the successful sync response, and is retried by the required
+pass before the next staging operation. Required failures use
+`tv_generation_retention_failed`; API and hosted-service mappings keep that
+stable code, and retention logs include only stable codes, counts, modes, and
+exception types rather than inner messages or credentials.
 
 # Persistence
 
@@ -66,7 +77,18 @@ published generation intact. TMDB provider failure produces `unknown` or
   manifests; written last and read once per worker export.
 - `trakt_connections`: one protected device/OAuth connection state document.
 - `tv_shows`, `tv_sync_manifests`, `tv_lifecycle_events`: immutable Phase 1 TV
-  generations, publish pointer, and lifecycle history.
+  generations, publish pointer, and lifecycle history. Retention affects only
+  noncurrent generation documents in these three collections: generation show
+  rows, lifecycle-event children, and generation manifests.
+
+TV generation retention is bounded independently of movie persistence. It does
+not delete from `watchlist_items`, `letterboxd_source_snapshots`, `sync_runs`,
+index definitions, protected connection state, or any other collection.
+Within `tv_shows`, legacy rows are preserved. Malformed or uncertain physical
+generation identities are preserved, and a malformed manifest or published
+pointer fails closed. The current published generation is always protected.
+For expired generations, acknowledged deletes run show rows first, lifecycle
+events second, and manifests last.
 
 `watchlist_items` retains watched Letterboxd movie documents and their event
 history. Active-only repository filters use the latest manifest for browse,
@@ -89,7 +111,8 @@ is inserted only when configured collections are empty.
 | `Letterboxd` | Watchlist proxy URL. |
 | `Tmdb` | Access token, base/image URLs, PL provider region, and stable owned provider IDs. |
 | `Plex` | Base URL and token. |
-| `Trakt` | Client ID, client secret, API base URL, redirect URI, token refresh skew, and device-poll settings. |
+| `Trakt` | Client ID, client secret, API base URL, redirect URI, token refresh skew, five-minute activity polling, and a six-hour scheduled full-sync interval. |
+| `TvGenerationRetention` | Seven-day inclusive maximum age, 48 total retained generations including current, and a 24-hour orphan grace period. |
 | `DataProtection` | Persistent key-ring path and application name used to decrypt Trakt state after restart. |
 
 ASP.NET environment overrides use double underscores, for example

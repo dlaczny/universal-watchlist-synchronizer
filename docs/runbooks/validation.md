@@ -6,8 +6,8 @@ tags:
   - validation
   - tests
   - okf
-timestamp: 2026-07-11T00:00:00Z
-version: 0.4.0
+timestamp: 2026-07-31T00:00:00Z
+version: 0.5.0
 ---
 
 # OKF And Deployment Tooling
@@ -27,8 +27,9 @@ bash -n scripts/deploy-movie-sync.sh
 
 # Backend
 
-Start an unauthenticated local MongoDB 8 instance on `localhost:27017`, then run
-the same Release commands as `Movie CI`:
+A local MongoDB 8 instance is required for backend validation; an older server,
+mock, or in-memory substitute is not sufficient. Start it unauthenticated on
+`localhost:27017`, then run the same Release commands as `Movie CI`:
 
 ```powershell
 dotnet restore backend\Watchlist.sln
@@ -50,6 +51,36 @@ complete paginated reads, cursor-race rejection, publish-last generation
 reads, provider `unknown`/`stale` behavior, legacy-row migration, TV browse
 state validation, schema-v2 export serialization (`destinationSync` and
 per-season `polandAvailability`), and all locked-false history/cleanup gates.
+Scheduling tests must prove a six-hour scheduled full-sync interval and the
+unchanged five-minute activity poll.
+
+Retention planner and Mongo repository coverage must prove:
+
+- the inclusive seven-day age boundary and the shared 48-generation cap,
+  including the always-protected current generation;
+- deterministic newest-`publishedAt`, then generation-ID ordering;
+- exact orphan matching with `^tv-[0-9]{17}-[0-9a-f]{32}$`, an inclusive
+  24-hour grace boundary, and rejection of orphan/manifest overlap;
+- published-pointer/current-manifest consistency plus BSON scalar-type guards
+  for pointer, manifest, `documentKind`, and `generationId`;
+- fail-closed malformed manifests or pointers, preservation of legacy rows and
+  malformed or uncertain physical identities, and current-pointer revalidation
+  before delete;
+- acknowledged child-first deletion of show rows, lifecycle events, then
+  manifests, with idempotent retries and convergence.
+
+TV orchestration and contract coverage must prove mandatory retention runs
+under the coordinator after current-generation validation but before token or
+source access. A mandatory failure must perform no token/source call and no
+candidate, staging, or pointer write; it must preserve the readable current
+generation and map to stable redacted API, hosted-service, and combined-sync
+results. The direct endpoint mapping is HTTP `503` with
+`tv_generation_retention_failed`; combined sync remains HTTP `200` partial,
+preserves completed movie stages, and reports a failed,
+non-mutation-capable TV result with that health reason. Best-effort
+post-publication failure and cancellation must log
+`tv_generation_retention_deferred`, preserve successful publication and its
+response, and leave cleanup for the next mandatory pass.
 
 # Worker
 

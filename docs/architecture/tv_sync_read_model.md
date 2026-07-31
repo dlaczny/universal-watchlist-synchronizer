@@ -7,8 +7,8 @@ tags:
   - trakt
   - mongodb
   - read-model
-timestamp: 2026-07-19T00:00:00Z
-version: 1.1.0
+timestamp: 2026-07-31T00:00:00Z
+version: 1.2.0
 ---
 
 # Source And Publication Boundary
@@ -16,9 +16,9 @@ version: 1.1.0
 The backend-owned TV read model remains non-destructive. Trakt supplies TV
 watchlist membership, watched progress, episode schedules, and show status;
 TMDB supplies exact-ID metadata and Poland (`PL`) provider observations for
-the show and each regular season. MongoDB stores the protected Trakt connection
-and one immutable published generation. Clients and the worker read that
-published generation only.
+the show and each regular season. MongoDB stores the protected Trakt connection,
+bounded immutable TV generations, and a pointer to the current published
+generation. Clients and the worker read that published generation only.
 
 The legacy `mutationCapable=false` field remains false for compatibility; it is
 not a destination permission or a cleanup permission. Schema version 2 adds a
@@ -27,22 +27,35 @@ value is true only for a valid, published generation with no manifest validation
 failures. Stable envelope blockers are `tv_generation_not_valid`,
 `tv_generation_unpublished`, and `tv_generation_validation_failed`.
 
-Plex episode history, Trakt history writes, Plex library mutation, Sonarr
-file/season/series removal, and all TV cleanup remain prohibited. The history
-and cleanup switches remain false in production configuration. Destination
-collection is disabled by default; a real destination write additionally needs
-both the host apply gate and a per-run `--apply` request.
+Plex episode history, Trakt history writes, Plex library mutation, and Sonarr
+file/season/series removal remain prohibited. Internal TV generation retention
+is a storage-lifecycle boundary only: it grants no destination, history, or
+cleanup permission and changes none of those switches. Destination collection
+is disabled by default; a real destination write additionally needs both the
+host apply gate and a per-run `--apply` request.
 
 # Publication Flow
 
 ```text
-Trakt watchlist + watched progress + prior generation
+current published generation validation
+  -> mandatory generation retention
+  -> Trakt watchlist + watched progress + prior generation
   -> detailed schedules and exact-ID TMDB enrichment
   -> lifecycle reduction and validation
   -> staged MongoDB generation
   -> immutable manifest published last
+  -> best-effort generation retention
   -> browse/detail/status/export readers
 ```
+
+The TV coordinator lease covers both retention passes and publication. The
+mandatory pass runs after the repository has loaded and validated the current
+published generation, but before token acquisition, Trakt or TMDB source
+collection, or staging. Failure therefore publishes and stages nothing. After
+durable publication, a best-effort pass reclaims the generation that may have
+just crossed a bound; its failure or cancellation is deferred and cannot turn
+the successful publication into a failed result. The next sync retries
+retention in its mandatory pre-stage pass.
 
 The source catalog is the union of current Trakt watchlist membership, watched
 progress, and rows retained by the previous generation. A source, identity,
@@ -53,9 +66,34 @@ lease is held. A change during collection rejects the candidate rather than
 publishing a mixed snapshot.
 
 `TvSyncHostedService` polls activity every five minutes. It performs a full
-generation when no generation exists, when the hourly full-sync interval is
+generation when no generation exists, when the six-hour full-sync interval is
 due, or when the activity cursor changed; it does not synthesize generations
 while the connection is disconnected, revoked, or requires refresh.
+
+# Generation Retention
+
+The current published generation is always protected, even if it is older than
+the age bound or would otherwise exceed the count bound. Noncurrent
+`scheduled_full` and `activity_full` generations share one inclusive seven-day
+age window and one limit of 48 total retained generations, including current.
+Within that window, retention is deterministic by newest `publishedAt` and
+then generation ID. A noncurrent manifest at exactly the seven-day boundary is
+retained when capacity remains.
+
+For an expired manifested generation, deletion is acknowledged and child-first:
+`tv_shows` generation rows, then `tv_lifecycle_events`, then its
+`tv_sync_manifests` manifest. The published pointer is re-read before any
+delete, and a changed pointer, an overlapping retention plan, or an
+unacknowledged delete fails closed. Only orphan generation IDs matching the
+exact production shape `^tv-[0-9]{17}-[0-9a-f]{32}$` can be reclaimed, and only
+after the inclusive 24-hour grace boundary. Orphan show rows and lifecycle
+events are deleted; there is no orphan manifest to remove.
+
+Legacy `tv_shows` rows and malformed or uncertain physical generation
+identities are never auto-deleted. A malformed manifest or published pointer
+fails the mandatory pass closed before deletion. These safeguards keep internal
+storage retention separate from every destination, history, and content-cleanup
+permission.
 
 # Lifecycle, Identity, And Availability
 

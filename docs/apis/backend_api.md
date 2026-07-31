@@ -6,8 +6,8 @@ tags:
   - api
   - backend
   - worker
-timestamp: 2026-07-14T00:00:00Z
-version: 0.5.0
+timestamp: 2026-07-31T00:00:00Z
+version: 0.6.0
 ---
 
 # Boundary
@@ -98,7 +98,7 @@ lifecycle transition or source snapshot.
 | `POST /api/sync/availability/refresh` | Run stale-aware Plex availability refresh. |
 | `POST /api/sync/tmdb/tv` | Returns `410 Gone` with `code=legacy_tv_sync_disabled`; the TMDB-account TV route is retired. |
 | `POST /api/sync/tv` | Runs one protected scheduled full Trakt TV read generation. Response includes source counts, provider failure count, generation ID/kind, and `mutationCapable=false`; destination eligibility is published only in the schema-v2 export. |
-| `POST /api/sync/all` | Compatibility combined movie sequence; TV is reported disabled and is not run. |
+| `POST /api/sync/all` | Runs the established movie sequence and then one scheduled full TV generation when TV is wired; typed TV failures produce an HTTP `200` partial combined result. |
 
 TV source/validation/race failures publish no candidate and preserve the
 previous TV generation. Typed dependency failures use stable error responses;
@@ -124,6 +124,37 @@ is the generation kind (for this endpoint, `scheduled_full`).
 `mutationCapable` remains `false`; it is a compatibility field and never
 authorizes a destination, history, or cleanup operation. A failed request has
 no new `generationId` and preserves the previous published generation.
+
+# TV Generation Retention Failures
+
+Before acquiring a Trakt token, collecting any Trakt or TMDB source, staging a
+candidate, or changing the published pointer, `POST /api/sync/tv` requires a
+successful retention pass. A mandatory retention failure returns HTTP `503`
+with this safe JSON body:
+
+```json
+{
+  "code": "tv_generation_retention_failed",
+  "error": "TV generation retention is temporarily unavailable."
+}
+```
+
+The failure body has no generation ID or underlying exception detail, no
+candidate-generation write has occurred, and the previous published generation
+remains readable. After durable publication, retention is best effort. A
+deferred cleanup logs redacted operational metadata: the stable code
+`tv_generation_retention_deferred`, retention mode, and exception type. It
+does not log inner exception detail or change the successful response, even
+when cancellation caused the cleanup failure. The mandatory pass retries
+cleanup before the next staging operation.
+
+For `POST /api/sync/all`, a typed retention failure does not discard already
+completed Letterboxd, TMDB movie, or Plex movie stage results. The endpoint
+returns the established HTTP `200` combined response with overall
+`status=partial`; its TV result has `status=failed`, an empty `generationId`,
+`mutationCapable=false`, and the single health reason
+`tv_generation_retention_failed`. This TV result is non-mutation-capable and
+contains no secret or inner exception detail.
 
 # Trakt Connection Management
 
